@@ -50,10 +50,7 @@ Kie credits: 1 credit = $0.005. ElevenLabs voices are billed by ElevenLabs in ch
 
 ## After the answers
 1. **Write `studio.json`** at the repo root (gitignored), following `templates/studio.json`: language, formats, platforms, aspect ratio, brand or characters, budget, and the creation date.
-2. **Create the first project** with the matching command:
-   - Long-form meditation or ambient: `node engine/longform.mjs new <slug> --title "..." --minutes N --lang <lang>`, then follow the `format-longform` skill.
-   - Series (sitcom, micro-drama, anime series): start the series with the `format-series` skill, then the first episode.
-   - Everything else: `node engine/phase.mjs new <slug> --style <style> --title "..." --format <vertical> --lang <lang> --ar <ar>`. Styles: `ugc-phone`, `hyperreal`, `anime`, `podcast`, `retro-sitcom` (or a new one with `style.mjs new`).
+2. **Create the first project with the intake** (studio skill, flow v5): the profile already answers the format, the platform and size, and the budget; ask only the rest, one at a time (single video or series, idea or from scratch, who is on screen, references). Then `node engine/studio.mjs new <slug> --title "..." --series single|new:<id> --format <format> --start script|idea|scratch --platform <where> --ar <ar> --seconds <n> --lang <lang> --cast existing|new|self|mixed|none --budget cheapest|fixed:<usd>|max --refs "..."`, and from then on follow `node engine/studio.mjs status <slug>`. Formats: `studio.mjs formats`. Styles: `ugc-phone`, `hyperreal`, `anime`, `podcast`, `retro-sitcom` (or a new one with `style.mjs new`; pass `--style` to `studio.mjs new`).
    - If they have characters or a product, run the `cast` skill for them first (sheets and voices go in `bible/`).
    - Styles ship as `draft`. The first project in a style needs its look locked once: `node engine/style.mjs northstar <style> "<a scene from their idea>"` (one GPT Image 2.5 frame, about $0.05, ask first), show it, then `node engine/style.mjs approve <style> --northstar <file>`. Every later project in that style reuses it. Long-form projects skip this.
 3. **Summarize** in 4–6 lines: what you understood, the assumptions you made, the project you created, and the next step (the script, gate 1). Ask: "Do you want me to write the first script now?"

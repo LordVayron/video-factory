@@ -7,11 +7,13 @@ An AI video studio run by a coding agent. You write and direct; `engine/` talks 
 **Every request:** read `studio.json` (the creator's profile), then `.claude/skills/studio/SKILL.md` (the pipeline and its non-negotiable safeguards), then the vertical DNA file it points to. Skills are plain Markdown in `.claude/skills/*/SKILL.md`: if your agent doesn't load them automatically, open and follow them yourself.
 
 ## Rules
-- **Never spend past the approved budget.** Approving the Production Book (or a long-form estimate) locks it in code; `gen.mjs` refuses any job past it. Any extra spend needs the user's explicit yes, then `node engine/phase.mjs budget <slug> --add N --note "..."`.
-- **Two gates:** the script (gate 1) and the Production Book or estimate (gate 2). Nothing paid happens before gate 2.
+- **Flow v5 is the only path.** Every video starts with `node engine/studio.mjs new` (the 7-question intake) and moves only by `node engine/studio.mjs status <slug>`. Approvals record the user's own words (`studio.mjs approve <slug> <step> --said "..."`). The engine refuses any step out of order; a Claude Code hook (`.claude/settings.json`) denies one-off scripts that call Kie or ElevenLabs and any video sent without a delivery receipt.
+- **Never spend past the approved budget.** Approving the Production Book locks it in code; `gen.mjs` refuses any job past it, and any video job before it. Any extra spend needs the user's explicit yes, then `node engine/phase.mjs budget <slug> --add N --said "..."`.
+- **Creative calls are the user's.** Captions, zoom, crops, cuts, music, voices, look: offer options, wait for their choice.
+- **The user's gates:** concept, script, cast, the Production Book (locks the budget) and the retro; plus the series bible for a new series. Nothing paid in video happens before the book.
 - **Cheapest option that keeps quality.** Check live prices with `npm run prices`. Images: GPT Image 2.5 (`gpt2.5`). Default video: Seedance 2 Mini (`sd2-mini`), 480p for sitcom, 720p for the rest.
 - **At most one reroll per scene**, and only inside the budget. Never change the engine in the middle of a production: deliver, report, fix after.
-- **Watch the whole final** before delivering (a contact sheet plus the transcript against the script). Never hide a known problem.
+- **Watch the whole final** before delivering: `studio.mjs qc` (identity across every cut, transcript, format, loudness, contact sheet), then `studio.mjs deliver`. Never hide a known problem.
 - **Keys** live only in `.env`. Never print them, never put them in commands, commits or URLs.
 - **Likeness and IP:** only the user's own face and voice (with consent) for "clone me". Never real public figures, copyrighted characters or brands the user doesn't own. Never name real shows or actors in prompts.
 - Reply in the user's language.
@@ -33,10 +35,10 @@ An AI video studio run by a coding agent. You write and direct; `engine/` talks 
 | Characters, sets, voices | `cast` |
 
 ## Engine map
-- **Planning:** `phase.mjs` (phases, `approve`, `budget`), `radio.mjs` (radio cut + pacing QC), `book.mjs` (Production Book).
+- **Flow:** `studio.mjs` (intake, status, approvals, `accept-take`, `override`, final `qc`, `deliver`), `lib/flow.mjs` (recipes, `requireStep`), `phase.mjs budget`, `radio.mjs` (radio cut + pacing QC), `book.mjs` (Production Book, every format).
 - **Generation:** `gen.mjs` (all paid generation; budget guard in `job()`), `series.mjs` (series intro), `cast.mjs`, `style.mjs`.
-- **Evaluation:** `continuity.mjs` (vision judge), `qc.mjs`.
-- **Editing:** `edit.mjs` (episodes and shorts), `longform.mjs` (long-form ambient), `animatic.mjs`.
+- **Evaluation:** `continuity.mjs` (vision judge; `--identity`, `--jumps`), `lib/identity.mjs` (faces and marks against the locked face anchor), `lib/jumps.mjs`, `lib/dialogue.mjs`, `qc.mjs`.
+- **Editing:** `edit.mjs` (scenes formats), `cut.mjs` (clips formats: influencer, UGC, cinematic...), `longform.mjs` (long-form ambient), `animatic.mjs`.
 - **Data:** `bible/` (characters, sets, styles, sound library), `series/<id>/`, `projects/<slug>/` (shotlist, ledger, renders), `templates/` (starting points).
 - **Money:** 1 Kie credit = $0.005. Each project's spend is in `projects/<slug>/ledger.json`.
 - **Checks:** `npm run doctor` (machine), `npm run check` (offline smoke tests and a secret scan).

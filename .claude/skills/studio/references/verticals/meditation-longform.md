@@ -64,7 +64,7 @@ Guided meditations, sleep stories, breathwork, affirmations, yoga nidra, and voi
 ## Pipeline
 
 1. **Script (gate 1):** arc, segments with pauses, the scene list and the music prompt. Show the estimated length (voice time + pauses).
-2. `longform.mjs estimate <slug>` writes the estimate. **Gate 2:** the creator approves it, then `phase.mjs approve <slug> storyboard` locks the budget.
+2. `longform.mjs estimate <slug>` writes the estimate. **Gate 2:** the creator approves it, then `book.mjs <slug>`; after the creator approves the book, `studio.mjs approve <slug> book --said "..."` locks the budget.
 3. `gen.mjs narration <slug>` first, and listen to two segments. A wrong voice is the most expensive mistake to find late.
 4. `gen.mjs bed <slug>` and `gen.mjs loops <slug>` (parallel).
 5. `longform.mjs build <slug> --sample 90` (a 90-second preview with all layers), then the full `build`.

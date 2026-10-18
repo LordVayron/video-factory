@@ -44,6 +44,7 @@ const CONCEPT = `# Concept: {title}
 
 const commands = {
   new() {
+    throw new Error("flujo v5: los proyectos se crean con node engine/studio.mjs new (las 7 preguntas del intake)");
     const style = flag("--style");
     if (!slug || !style) throw new Error('usage: new <slug> --style <id> --title "..."');
     P.style(style); // must exist
@@ -59,6 +60,7 @@ const commands = {
     console.log(`created projects/${slug}/ (shotlist.json, concept.md). Phase 1: write the concept, then: node engine/phase.mjs approve ${slug} concept`);
   },
   status() {
+    throw new Error(`flujo v5: node engine/studio.mjs status ${slug}`);
     const sl = P.loadShotlist(slug);
     const st = P.style(sl.style);
     console.log(`${sl.title}  ·  style ${st.id} (${st.status || "draft"})  ·  ${sl.shots.length} shots  ·  spent $${(P.ledgerTotal(slug) * 0.005).toFixed(2)}\n`);
@@ -73,6 +75,7 @@ const commands = {
     if (next) console.log(`\nNext: ${next.name} — ${next.what}`);
   },
   approve() {
+    throw new Error(`flujo v5: node engine/studio.mjs approve ${slug} <paso> --said "palabras exactas del creador"`);
     if (!["concept", "storyboard", "post", "retro"].includes(which)) {
       throw new Error("approve concept|storyboard|post|retro here. Style: style.mjs approve; cast/sets: cast.mjs approve / approve-set; look test: style.mjs winner.");
     }
@@ -95,18 +98,20 @@ const commands = {
       const spent = P.ledgerTotal(slug);
       s2.budget = { approvedCredits: Math.ceil(spent + s2.bookEstimate), approvedAt: new Date().toISOString(), history: [{ add: s2.bookEstimate, note: "Production Book approved" }] };
       P.saveShotlist(slug, s2);
-      console.log(`budget locked: ${s2.budget.approvedCredits} cr (${(s2.budget.approvedCredits * 0.005).toFixed(2)}) — anything beyond needs the user's OK`);
+      console.log(`budget locked: ${s2.budget.approvedCredits} cr (${(s2.budget.approvedCredits * 0.005).toFixed(2)}) — anything beyond needs the creator's OK`);
     }
     console.log(`${which} approved for ${slug}`);
   },
-  // Only after the user explicitly approves extra spend (a reroll, a refilm): phase.mjs budget <slug> --add <credits> --note "..."
+  // Only after the creator explicitly approves extra spend (a reroll, a refilm): phase.mjs budget <slug> --add <credits> --note "..."
   budget() {
     const sl = P.loadShotlist(slug);
     const add = Number(flag("--add", "0"));
-    if (!add || !flag("--note")) throw new Error('usage: budget <slug> --add <credits> --note "what the user approved"');
-    sl.budget = sl.budget || { approvedCredits: Math.ceil(P.ledgerTotal(slug)), history: [] };
+    if (!add || !flag("--said")) throw new Error('usage: budget <slug> --add <credits> --said "the creator\'s exact words"');
+    if (!sl.flow?.v || sl.flow.archived) throw new Error(`${slug} no es un proyecto activo del flujo v5`);
+    if (!sl.budget) throw new Error("no hay presupuesto todavía: se fija al aprobar el Production Book (studio.mjs approve <slug> book)");
     sl.budget.approvedCredits += Math.ceil(add);
-    sl.budget.history.push({ add, note: flag("--note"), at: new Date().toISOString() });
+    sl.budget.history.push({ add, note: `Creador: "${flag("--said")}"`, at: new Date().toISOString() });
+    sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `budget +${add}`, said: flag("--said") }];
     P.saveShotlist(slug, sl);
     console.log(`budget now ${sl.budget.approvedCredits} cr; spent ${P.ledgerTotal(slug).toFixed(1)}`);
   },

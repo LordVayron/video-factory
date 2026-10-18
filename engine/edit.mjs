@@ -4,10 +4,11 @@
 // lays the laughs on the exact end of their lines (the next line steps on the tail), captions, freeze frame +
 // outro, style finish, loudness. Then the pacing QC from the vertical DNA runs on the real cut.
 //
-//   node engine/edit.mjs <slug> [--draft]   -> out/<slug>.mp4 (+ sl.finalQc with pacing)
+//   node engine/edit.mjs <slug> [--draft]   -> out/<slug>.mp4 (+ sl.finalQc with pacing); --draft -> out/<slug>-DRAFT.mp4, never deliverable
 import { isNoise } from "./lib/noise.mjs";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
 import * as P from "./lib/project.mjs";
@@ -16,6 +17,8 @@ import { introVariant } from "./lib/intro.mjs";
 import { cueFile } from "./lib/cues.mjs";
 import * as eleven from "./lib/eleven.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
+import { requireStep, FlowStop, fileSha, takesSig } from "./lib/flow.mjs";
+process.on("uncaughtException", (e) => { console.error(e instanceof FlowStop ? `ALTO: ${e.message}` : e); process.exit(e instanceof FlowStop ? 2 : 1); });
 
 const argv = process.argv.slice(2);
 const slug = argv[0];
@@ -23,6 +26,8 @@ const draft = argv.includes("--draft");
 if (!slug) { console.error("usage: edit.mjs <slug> [--draft]"); process.exit(1); }
 const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
+// Flow v5: the final cut needs every take approved by its evals; a draft only needs the book approved.
+requireStep(sl, draft ? "film" : "edit", draft ? "edit --draft" : "edit");
 const W = sl.ar === "16:9" ? 1280 : 720, H = sl.ar === "16:9" ? 720 : 1280;
 const tmp = path.join(dir, "out", "_edit");
 fs.mkdirSync(tmp, { recursive: true });
@@ -38,18 +43,21 @@ for (const sc of sl.scenes) {
   if (ci == null) { console.error(`stop: scene ${sc.id} has no approved take (qc.mjs scenes, or --draft)`); process.exit(1); }
   if (!draft && !sc.clips[ci].qc?.pass) { console.error(`stop: scene ${sc.id} take ${ci + 1} hasn't passed QC`); process.exit(1); }
   // Continuity eval is a hard gate: no take with a character in the wrong place gets cut in.
-  if (!draft && !argv.includes("--force") && !sc.clips[ci].continuity?.pass) { console.error(`stop: scene ${sc.id} take ${ci + 1} ${sc.clips[ci].continuity ? "failed" : "has no"} continuity eval (node engine/continuity.mjs ${slug} --scene ${sc.id})`); process.exit(1); }
+  if (!draft && !sc.clips[ci].continuity?.pass) { console.error(`stop: scene ${sc.id} take ${ci + 1} ${sc.clips[ci].continuity ? "failed" : "has no"} continuity eval (node engine/continuity.mjs ${slug} --scene ${sc.id})`); process.exit(1); }
   const part = path.join(tmp, `${sc.id}.mp4`);
   ff(["-i", sc.clips[ci].file, "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p`,
     "-af", "aresample=48000,aformat=channel_layouts=stereo", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-c:a", "pcm_s16le", path.relative(dir, part).replace(/\.mp4$/, ".mov")]);
   parts.push(part.replace(/\.mp4$/, ".mov"));
 }
-// Cross-scene consistency: every approved take must be filmed against the same set plate (a past production mixed two
+// Cross-scene consistency: every approved take must be filmed against the same set plate (a past episode mixed two
 // plates -> different angles and couch looks between scenes). Unknown (older) takes count as the first plate seen.
+// Checked per set: a scene that deliberately uses another set (e.g. the same room by day) has its own plate.
 {
   const used = sl.scenes.map((sc) => sc.clips?.[sc.clip ?? sc.clips.length - 1]?.plate || "?");
-  const known = [...new Set(used.filter((x) => x !== "?"))];
-  if (known.length > 1 && !argv.includes("--force")) { console.error(`stop: takes were filmed against different set plates (${sl.scenes.map((sc, i) => sc.id + "=" + used[i]).join(", ")}); refilm the odd ones out`); process.exit(1); }
+  const bySet = {};
+  sl.scenes.forEach((sc, i) => { if (used[i] !== "?") (bySet[sc.set || sl.set] ||= new Set()).add(used[i]); });
+  const mixed = Object.entries(bySet).filter(([, s]) => s.size > 1).map(([k]) => k);
+  if (mixed.length) { console.error(`stop: takes of set ${mixed.join(", ")} were filmed against different plates (${sl.scenes.map((sc, i) => sc.id + "=" + used[i]).join(", ")}); refilm the odd ones out`); process.exit(1); }
 }
 fs.writeFileSync(path.join(tmp, "list.txt"), parts.map((p) => `file '${path.basename(p)}'`).join("\n"));
 const cut = path.join(tmp, "cut.mov");
@@ -87,7 +95,7 @@ for (const [k, x] of found.entries()) {
   const next = found[k + 1];
   const between = lines.slice(lines.indexOf(x) + 1, next ? lines.indexOf(next) : lines.length).filter((y) => isVocal(y.l));
   // Shots between two lines that have no dialogue (an exit, a walk, a reaction) are action, never dead air:
-  // their full planned length is kept (an exit walk was once trimmed into a glitch).
+  // their full planned length is kept (a past episode: an exit was trimmed into a glitch).
   const silentShots = next ? sl.shots.slice(sl.shots.indexOf(x.shot) + 1, sl.shots.indexOf(next.shot)).filter((s) => !(s.dialogue || []).length) : [];
   const silentTime = silentShots.reduce((n, s) => n + (s.duration || 1.5), 0);
   let planned = silentTime + between.length * 1.8 + (x.l.laugh ? (LAUGHS[x.l.laugh] || LAUGHS.laugh).react + (LAUGHS[x.l.laugh] || LAUGHS.laugh).stepIn : pace.gap) + (next?.l.beat || 0);
@@ -128,7 +136,7 @@ fg.push(`${segs.map((_, k) => `[v${k}][a${k}]`).join("")}concat=n=${segs.length}
 const tight = path.join(tmp, "tight.mov");
 ff(["-i", path.relative(dir, cut), "-filter_complex", fg.join(";"), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-c:a", "pcm_s16le", path.relative(dir, tight)]);
 
-// 4b. One voice per character (otherwise every take re-invents the voices). Each spoken line in the tight cut is
+// 4b. One voice per character (a past episode: every take re-invented the voices). Each spoken line in the tight cut is
 //     re-voiced with ElevenLabs speech-to-speech in the character's official voice: same timing, so lip sync holds.
 //     The original line audio is muted under it; room sound, laughs and cues are untouched. Off: sl.voiceUnify = false.
 let voiced = tight;
@@ -139,7 +147,7 @@ if (sl.voiceUnify !== false) {
   const parts = [];
   const spoken = found.filter((x) => P.character(x.l.char).voice?.eleven);
   // One pitch per character: each take gives a character a different pitch and speech-to-speech keeps it
-  // (one character once ranged 152-234 Hz across takes). Target = median pitch of the character's radio-cut (TTS) lines.
+  // (in one pilot a voice ranged 152-234 Hz). Target = median pitch of the character's radio-cut (TTS) lines.
   const pitchOf = (files) => files.length ? JSON.parse(spawnSync("python", [path.join(ROOT, "engine", "lib", "pitch.py"), ...files], { encoding: "utf8" }).stdout || "{}") : {};
   const target = {};
   for (const ch of new Set(spoken.map((x) => x.l.char))) {
@@ -149,8 +157,13 @@ if (sl.voiceUnify !== false) {
   }
   for (const x of spoken) {
     const a = Math.max(0, mapT(x.start) - 0.06), b = mapT(x.end) + 0.12;
-    const src = path.join(vdir, `${x.id}.wav`), dst = path.join(vdir, `${x.id}-${x.l.char}.mp3`);
+    const src = path.join(vdir, `${x.id}.wav`);
     ff(["-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", path.relative(dir, tight), "-vn", "-ac", "1", "-ar", "44100", path.relative(dir, src)]);
+    // The re-voiced file is cached by the content of the line it was made from: a new take (or a new cut) gets a
+    // fresh re-voice. Keyed by line id alone, a re-run reused voices made from the old takes, out of sync with the
+    // new picture, and the ducked original under them sounded like an echo (a past episode v2).
+    const srcHash = createHash("sha1").update(fs.readFileSync(src)).digest("hex").slice(0, 10);
+    const dst = path.join(vdir, `${x.id}-${x.l.char}-${srcHash}.mp3`);
     try {
       // Per-line override (whispers convert badly): sl.voiceOverride = { "s07-1": "radio" } uses the clean radio-cut
       // TTS line, fitted to the line's on-screen duration.
@@ -184,7 +197,9 @@ if (sl.voiceUnify !== false) {
     const ins = parts.flatMap((q) => ["-i", path.relative(dir, q.file)]);
     // The original is ducked (not muted) with soft ramps so the room tone never drops out; the new voice gets
     // 30 ms fades, the original line's loudness and a touch of the room's early reflections so it sits in the set.
-    const ramp = (q) => `max(0.03,1-min(1,max(0,min(t-${(q.from - 0.05).toFixed(3)},${(q.b + 0.05).toFixed(3)}-t)/0.05)))`;
+    // The original line is fully muted under its re-voice (ramped over 50 ms). A ducked-but-audible original sat
+    // ~30 dB under the new voice and the final loudness pass lifted it into a low echo (a past episode v2.1).
+    const ramp = (q) => `max(0,1-min(1,max(0,min(t-${(Math.min(q.a, q.from) - 0.05).toFixed(3)},${(q.b + 0.05).toFixed(3)}-t)/0.05)))`;
     const duck = parts.map(ramp).reduce((acc, e) => acc ? `min(${acc},${e})` : e, "");
     const g = [`[0:a]volume='${duck}':eval=frame[base]`,
       ...parts.map((q, k) => `[${k + 1}:a]aresample=48000,aformat=channel_layouts=stereo,volume=${q.gain.toFixed(1)}dB,highpass=f=90,lowpass=f=9500,afade=t=in:d=0.03,areverse,afade=t=in:d=0.04,areverse,adelay=${Math.round(q.a * 1000)}|${Math.round(q.a * 1000)}[v${k}]`),
@@ -255,8 +270,14 @@ const lay = (file, at, gainDb) => {
 for (const L of laughs) lay(await libSound(`laugh-${L.kind}`), L.at, L.gainDb);
 for (const x of timed) if (x.l.cue) { const c = await cueFile(dir, sl, x.l.cue); lay(c.file, x.a - c.lead, c.gainDb); }
 if (outro) lay(await libSound(outroName), tightLen - 0.3, -8);
-graph.push(`${layers.join("")}amix=inputs=${layers.length}:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.79:level=false,aresample=48000[a]`);
-const final = path.join("out", `${slug}.mp4`);
+// Loudness in two passes: measure, then one linear gain. Single-pass loudnorm is dynamic and lifts quiet layers
+// (room tone, reverb tails) under the dialogue.
+const mixGraph = graph.slice(1).concat(`${layers.join("")}amix=inputs=${layers.length}:duration=first:normalize=0[mx]`);
+const meas = spawnSync("ffmpeg", ["-hide_banner", "-nostats", ...inputs, "-filter_complex", mixGraph.join(";") + ";[mx]loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json[mo]", "-map", "[mo]", "-t", total.toFixed(2), "-f", "null", "-"], { cwd: dir, encoding: "utf8", maxBuffer: 1 << 26 }).stderr;
+const lj = JSON.parse((meas.match(/\{[^{}]*"input_i"[^{}]*\}/) || ["{}"])[0]);
+const lnorm = lj.input_i ? `loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=${lj.input_i}:measured_TP=${lj.input_tp}:measured_LRA=${lj.input_lra}:measured_thresh=${lj.input_thresh}:offset=${lj.target_offset}:linear=true` : "loudnorm=I=-14:TP=-1.5:LRA=11";
+graph.push(`${layers.join("")}amix=inputs=${layers.length}:duration=first:normalize=0,${lnorm},alimiter=limit=0.79:level=false,aresample=48000[a]`);
+const final = path.join("out", draft ? `${slug}-DRAFT.mp4` : `${slug}.mp4`);
 ff([...inputs, "-filter_complex", graph.join(";"), "-map", "[v]", "-map", "[a]", "-t", total.toFixed(2),
   "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "high", "-crf", "21", "-preset", "medium", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", final]);
 
@@ -315,7 +336,9 @@ if (pacing.deadAirPct > rules.maxDeadPct) problems.push(`dead air ${pacing.deadA
 if (pacing.firstLaugh == null || pacing.firstLaugh > rules.maxFirstLaugh) problems.push(`first laugh at ${pacing.firstLaugh}s`);
 if (loud < -15.5 || loud > -12.5) problems.push(`loudness ${loud} LUFS`);
 if (peak > -1) problems.push(`true peak ${peak} dB`);
-sl.finalQc = { loudness: loud, truePeak: peak, duration: Math.round((total + introLen) * 10) / 10, intro: Math.round(introLen * 10) / 10, pacing, lines: lines.map((x) => ({ id: x.id, found: x.found, start: x.start })), problems, pass: !problems.length, at: new Date().toISOString() };
+const fq = { loudness: loud, truePeak: peak, duration: Math.round((total + introLen) * 10) / 10, intro: Math.round(introLen * 10) / 10, pacing, lines: lines.map((x) => ({ id: x.id, found: x.found, start: x.start })), problems, pass: !problems.length, at: new Date().toISOString() };
+// Only a real cut counts: it is fingerprinted, so the QC and the delivery receipt can prove it is this file.
+if (!draft) { sl.finalQc = fq; sl.cut = { sha: fileSha(path.join(dir, final)), takes: takesSig(sl), at: fq.at }; }
 P.saveShotlist(slug, sl);
 const size = fs.statSync(path.join(dir, final)).size;
 console.log(path.join(dir, final));

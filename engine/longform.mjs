@@ -16,6 +16,7 @@ import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import * as P from "./lib/project.mjs";
 import { getModel, usd } from "./lib/models.mjs";
+import { requireStep, FlowStop, fileSha, takesSig } from "./lib/flow.mjs";
 
 const argv = process.argv.slice(2);
 const [cmd, slug] = argv;
@@ -203,6 +204,7 @@ function build() {
   const sl = P.loadShotlist(slug);
   const L = sl.longform;
   if (!L) throw new Error(`${slug} is not a long-form project (no "longform" block)`);
+  requireStep(sl, "edit", "longform build");
   const draft = has("--draft");
   const sample = Number(flag("--sample", 0)) || 0;
   const { W, H } = frameSize(L, sl.ar, draft);
@@ -274,7 +276,7 @@ function build() {
   shots.forEach((f) => fs.rmSync(f, { force: true }));
 
   const qc = finalQc(out, audio, total, L, !!bed);
-  if (!sample && !draft) P.updateShotlist(slug, (x) => { x.finalQc = qc; x.longform.cues = vo.cues; });
+  if (!sample && !draft) P.updateShotlist(slug, (x) => { x.finalQc = qc; x.longform.cues = vo.cues; x.cut = { sha: fileSha(out), takes: takesSig(x), at: qc.at }; });
   console.log(`${path.relative(process.cwd(), out)}\n${path.relative(process.cwd(), mp3)}\n${path.relative(process.cwd(), sheet)}`);
   console.log(`QC ${qc.pass ? "PASS" : "FAIL"}: ${qc.minutes} min, ${qc.lufs} LUFS (target ${L.lufs ?? -16}), true peak ${qc.peak} dB, ${qc.silences.length} dead-air gap(s)${qc.issues.length ? "\n  - " + qc.issues.join("\n  - ") : ""}`);
 }
@@ -303,6 +305,7 @@ function finalQc(file, wav, want, L, hasBed) {
 
 function estimate() {
   const sl = P.loadShotlist(slug);
+  requireStep(sl, "book", "longform estimate");
   const L = sl.longform;
   let cr = 0;
   const rows = [];
@@ -320,7 +323,7 @@ function estimate() {
   const spoken = (L.script || []).reduce((n, s) => n + (s.text || "").split(/\s+/).length, 0);
   console.log(`script: ${(L.script || []).length} segments, ~${spoken} words; planned length ${L.minutes || "auto"} min`);
   P.updateShotlist(slug, (x) => { x.bookEstimate = Math.ceil(cr); });
-  console.log(`\nbookEstimate = ${Math.ceil(cr)} cr. After the user approves: node engine/phase.mjs approve ${slug} storyboard`);
+  console.log(`\nbookEstimate = ${Math.ceil(cr)} cr. Next: node engine/book.mjs ${slug}, publish it, and after the creator approves: node engine/studio.mjs approve ${slug} book --said '...'`);
 }
 
 function create() {
@@ -337,4 +340,4 @@ const commands = { new: create, estimate, build };
 try {
   if (!commands[cmd]) { console.log(fs.readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 15).map((l) => l.replace(/^\/\/ ?/, "")).join("\n")); process.exit(cmd ? 1 : 0); }
   commands[cmd]();
-} catch (e) { console.error("ERROR:", e.message); process.exit(1); }
+} catch (e) { console.error(e instanceof FlowStop ? `ALTO: ${e.message}` : `ERROR: ${e.message}`); process.exit(1); }

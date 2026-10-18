@@ -1,11 +1,209 @@
 [
  {
+  "model": "wan 2.6 flash, video-to-video, without audio-5.0s-1080p",
+  "type": "video",
+  "credits": 30,
+  "usd": 0.15,
+  "unit": "per video",
+  "official": 0.1875,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, without audio-10.0s-1080p",
+  "type": "video",
+  "credits": 60,
+  "usd": 0.3,
+  "unit": "per video",
+  "official": 0.375,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, with audio-10.0s-1080p",
+  "type": "video",
+  "credits": 120,
+  "usd": 0.6,
+  "unit": "per video",
+  "official": 0.75,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, with audio-5.0s-1080p",
+  "type": "video",
+  "credits": 60,
+  "usd": 0.3,
+  "unit": "per video",
+  "official": 0.375,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, without audio-5.0s-720p",
+  "type": "video",
+  "credits": 20,
+  "usd": 0.1,
+  "unit": "per video",
+  "official": 0.125,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, without audio-10.0s-720p",
+  "type": "video",
+  "credits": 40,
+  "usd": 0.2,
+  "unit": "per video",
+  "official": 0.25,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, with audio-10.0s-720p",
+  "type": "video",
+  "credits": 80,
+  "usd": 0.4,
+  "unit": "per video",
+  "official": 0.5,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, without audio-15.0s-1080p",
+  "type": "video",
+  "credits": 90,
+  "usd": 0.45,
+  "unit": "per video",
+  "official": 0.5625,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, video-to-video, with audio-5.0s-720p",
+  "type": "video",
+  "credits": 40,
+  "usd": 0.2,
+  "unit": "per video",
+  "official": 0.25,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, without audio-10.0s-1080p",
+  "type": "video",
+  "credits": 60,
+  "usd": 0.3,
+  "unit": "per video",
+  "official": 0.375,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, without audio-5.0s-1080p",
+  "type": "video",
+  "credits": 30,
+  "usd": 0.15,
+  "unit": "per video",
+  "official": 0.1875,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, with audio-10.0s-1080p",
+  "type": "video",
+  "credits": 120,
+  "usd": 0.6,
+  "unit": "per video",
+  "official": 0.75,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, with audio-15.0s-1080p",
+  "type": "video",
+  "credits": 180,
+  "usd": 0.9,
+  "unit": "per video",
+  "official": 1.125,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, with audio-5.0s-1080p",
+  "type": "video",
+  "credits": 60,
+  "usd": 0.3,
+  "unit": "per video",
+  "official": 0.375,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, without audio-15.0s-720p",
+  "type": "video",
+  "credits": 60,
+  "usd": 0.3,
+  "unit": "per video",
+  "official": 0.375,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, without audio-5.0s-720p",
+  "type": "video",
+  "credits": 20,
+  "usd": 0.1,
+  "unit": "per video",
+  "official": 0.125,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, without audio-10.0s-720p",
+  "type": "video",
+  "credits": 40,
+  "usd": 0.2,
+  "unit": "per video",
+  "official": 0.25,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, with audio-15.0s-720p",
+  "type": "video",
+  "credits": 120,
+  "usd": 0.6,
+  "unit": "per video",
+  "official": 0.75,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, with audio-10.0s-720p",
+  "type": "video",
+  "credits": 80,
+  "usd": 0.4,
+  "unit": "per video",
+  "official": 0.5,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "wan 2.6 flash, image-to-video, with audio-5.0s-720p",
+  "type": "video",
+  "credits": 40,
+  "usd": 0.2,
+  "unit": "per video",
+  "official": 0.25,
+  "page": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-image-to-video"
+ },
+ {
+  "model": "Gemini 4 Argon, Chat, Output",
+  "type": "chat",
+  "credits": 800,
+  "usd": 4,
+  "unit": "per million tokens",
+  "official": 10,
+  "page": "https://kie.ai/gemini-4-argon"
+ },
+ {
+  "model": "Gemini 4 Argon, Chat, Input",
+  "type": "chat",
+  "credits": 160,
+  "usd": 0.8,
+  "unit": "per million tokens",
+  "official": 2,
+  "page": "https://kie.ai/gemini-4-argon"
+ },
+ {
   "model": "Gemini 3.1 Pro, Chat, Output",
   "type": "chat",
   "credits": 700,
   "usd": 3.5,
   "unit": "per million tokens",
-  "official": 0,
+  "official": 12,
   "page": "https://kie.ai/gemini-3-1-pro"
  },
  {
@@ -14,7 +212,7 @@
   "credits": 100,
   "usd": 0.5,
   "unit": "per million tokens",
-  "official": 0,
+  "official": 2,
   "page": "https://kie.ai/gemini-3-1-pro"
  },
  {
@@ -347,7 +545,7 @@
   "credits": 9,
   "usd": 0.045,
   "unit": "per image",
-  "official": 0.16,
+  "official": 0.113,
   "page": "https://kie.ai/nano-banana-2-1"
  },
  {
@@ -356,7 +554,7 @@
   "credits": 6,
   "usd": 0.03,
   "unit": "per image",
-  "official": 0.12,
+  "official": 0.0504,
   "page": "https://kie.ai/nano-banana-2-1"
  },
  {
@@ -365,7 +563,7 @@
   "credits": 4,
   "usd": 0.02,
   "unit": "per image",
-  "official": 0.08,
+  "official": 0.0336,
   "page": "https://kie.ai/nano-banana-2-1"
  },
  {
@@ -635,7 +833,7 @@
   "credits": 2400,
   "usd": 12,
   "unit": "per million tokens",
-  "official": 0,
+  "official": 15,
   "page": "https://kie.ai/kimi-k3"
  },
  {
@@ -644,7 +842,7 @@
   "credits": 48,
   "usd": 0.24,
   "unit": "per million tokens",
-  "official": 0,
+  "official": 0.3,
   "page": "https://kie.ai/kimi-k3"
  },
  {
@@ -653,7 +851,7 @@
   "credits": 480,
   "usd": 2.4,
   "unit": "per million tokens",
-  "official": 0,
+  "official": 3,
   "page": "https://kie.ai/kimi-k3"
  },
  {
@@ -752,7 +950,7 @@
   "credits": 16,
   "usd": 0.08,
   "unit": "per image",
-  "official": 0,
+  "official": 0.1779,
   "page": "https://kie.ai/gpt-image-2-5?model=gpt-image-2-5-sunburst-image-to-image"
  },
  {
@@ -761,7 +959,7 @@
   "credits": 10,
   "usd": 0.05,
   "unit": "per image",
-  "official": 0,
+  "official": 0.107,
   "page": "https://kie.ai/gpt-image-2-5?model=gpt-image-2-5-sunburst-image-to-image"
  },
  {
@@ -770,7 +968,7 @@
   "credits": 6,
   "usd": 0.03,
   "unit": "per image",
-  "official": 0,
+  "official": 0.0527,
   "page": "https://kie.ai/gpt-image-2-5?model=gpt-image-2-5-sunburst-image-to-image"
  },
  {
@@ -779,7 +977,7 @@
   "credits": 16,
   "usd": 0.08,
   "unit": "per image",
-  "official": 0,
+  "official": 0.1779,
   "page": "https://kie.ai/gpt-image-2-5?model=gpt-image-2-5-sunburst-text-to-image"
  },
  {
@@ -788,7 +986,7 @@
   "credits": 10,
   "usd": 0.05,
   "unit": "per image",
-  "official": 0,
+  "official": 0.107,
   "page": "https://kie.ai/gpt-image-2-5?model=gpt-image-2-5-sunburst-text-to-image"
  },
  {
@@ -797,7 +995,7 @@
   "credits": 6,
   "usd": 0.03,
   "unit": "per image",
-  "official": 0,
+  "official": 0.0527,
   "page": "https://kie.ai/gpt-image-2-5?model=gpt-image-2-5-sunburst-text-to-image"
  },
  {
@@ -806,7 +1004,7 @@
   "credits": 16,
   "usd": 0.08,
   "unit": "per image",
-  "official": 0,
+  "official": 0.1779,
   "page": "https://kie.ai/gpt-image-2-5"
  },
  {
@@ -815,7 +1013,7 @@
   "credits": 10,
   "usd": 0.05,
   "unit": "per image",
-  "official": 0,
+  "official": 0.107,
   "page": "https://kie.ai/gpt-image-2-5"
  },
  {
@@ -824,7 +1022,7 @@
   "credits": 6,
   "usd": 0.03,
   "unit": "per image",
-  "official": 0,
+  "official": 0.0527,
   "page": "https://kie.ai/gpt-image-2-5"
  },
  {
@@ -833,7 +1031,7 @@
   "credits": 16,
   "usd": 0.08,
   "unit": "per image",
-  "official": 0,
+  "official": 0.1779,
   "page": "https://kie.ai/gpt-image-2-5"
  },
  {
@@ -842,7 +1040,7 @@
   "credits": 10,
   "usd": 0.05,
   "unit": "per image",
-  "official": 0,
+  "official": 0.107,
   "page": "https://kie.ai/gpt-image-2-5"
  },
  {
@@ -851,7 +1049,7 @@
   "credits": 6,
   "usd": 0.03,
   "unit": "per image",
-  "official": 0,
+  "official": 0.0527,
   "page": "https://kie.ai/gpt-image-2-5"
  },
  {
@@ -950,7 +1148,7 @@
   "credits": 126,
   "usd": 0.63,
   "unit": "per video",
-  "official": 0,
+  "official": 1.0136,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -959,7 +1157,7 @@
   "credits": 126,
   "usd": 0.63,
   "unit": "per video",
-  "official": 0,
+  "official": 1.5204,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -977,7 +1175,7 @@
   "credits": 210,
   "usd": 1.05,
   "unit": "per video",
-  "official": 0,
+  "official": 3.0408,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -995,7 +1193,7 @@
   "credits": 105,
   "usd": 0.525,
   "unit": "per video",
-  "official": 0,
+  "official": 0.8109,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1004,7 +1202,7 @@
   "credits": 105,
   "usd": 0.525,
   "unit": "per video",
-  "official": 0,
+  "official": 1.2163,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1013,7 +1211,7 @@
   "credits": 189,
   "usd": 0.945,
   "unit": "per video",
-  "official": 0,
+  "official": 2.4326,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1031,7 +1229,7 @@
   "credits": 84,
   "usd": 0.42,
   "unit": "per video",
-  "official": 0,
+  "official": 0.6082,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1040,7 +1238,7 @@
   "credits": 84,
   "usd": 0.42,
   "unit": "per video",
-  "official": 0,
+  "official": 0.9122,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1049,7 +1247,7 @@
   "credits": 168,
   "usd": 0.84,
   "unit": "per video",
-  "official": 0,
+  "official": 1.8245,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1067,7 +1265,7 @@
   "credits": 63,
   "usd": 0.315,
   "unit": "per video",
-  "official": 0,
+  "official": 0.4054,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1076,7 +1274,7 @@
   "credits": 63,
   "usd": 0.315,
   "unit": "per video",
-  "official": 0,
+  "official": 0.6082,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1085,7 +1283,7 @@
   "credits": 147,
   "usd": 0.735,
   "unit": "per video",
-  "official": 0,
+  "official": 1.2163,
   "page": "https://kie.ai/gemini-omni-1-1-flash"
  },
  {
@@ -1292,7 +1490,7 @@
   "credits": 18.4,
   "usd": 0.092,
   "unit": "per second",
-  "official": 0,
+  "official": 0.115,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1301,7 +1499,7 @@
   "credits": 14.4,
   "usd": 0.072,
   "unit": "per second",
-  "official": 0,
+  "official": 0.09,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1310,7 +1508,7 @@
   "credits": 9.6,
   "usd": 0.048,
   "unit": "per second",
-  "official": 0.0675,
+  "official": 0.06,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1319,7 +1517,7 @@
   "credits": 7.2,
   "usd": 0.036,
   "unit": "per second",
-  "official": 0,
+  "official": 0.045,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1328,7 +1526,7 @@
   "credits": 7.2,
   "usd": 0.036,
   "unit": "per second",
-  "official": 0,
+  "official": 0.045,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1337,7 +1535,7 @@
   "credits": 5.6,
   "usd": 0.028,
   "unit": "per second",
-  "official": 0,
+  "official": 0.035,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1346,7 +1544,7 @@
   "credits": 5.6,
   "usd": 0.028,
   "unit": "per second",
-  "official": 0,
+  "official": 0.035,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1355,7 +1553,7 @@
   "credits": 4,
   "usd": 0.02,
   "unit": "per second",
-  "official": 0,
+  "official": 0.025,
   "page": "https://kie.ai/pixverse-v6?model=pixverse-v6%2Freference-to-video"
  },
  {
@@ -1679,7 +1877,7 @@
   "credits": 8,
   "usd": 0.04,
   "unit": "per second",
-  "official": 0,
+  "official": 0.08,
   "page": "https://kie.ai/minimax-h3"
  },
  {
@@ -1688,7 +1886,7 @@
   "credits": 8,
   "usd": 0.04,
   "unit": "per second",
-  "official": 0,
+  "official": 0.08,
   "page": "https://kie.ai/minimax-h3?model=minimax-h3%2Freference-to-video"
  },
  {
@@ -1697,7 +1895,7 @@
   "credits": 8,
   "usd": 0.04,
   "unit": "per second",
-  "official": 0,
+  "official": 0.08,
   "page": "https://kie.ai/minimax-h3?model=minimax-h3%2Fimage-to-video"
  },
  {
@@ -1706,7 +1904,7 @@
   "credits": 8,
   "usd": 0.04,
   "unit": "per second",
-  "official": 0,
+  "official": 0.08,
   "page": "https://kie.ai/minimax-h3?model=minimax-h3%2Ftext-to-video"
  },
  {
@@ -1715,7 +1913,7 @@
   "credits": 13,
   "usd": 0.065,
   "unit": "per second",
-  "official": 0,
+  "official": 0.13,
   "page": "https://kie.ai/minimax-h3?model=minimax-h3%2Ftext-to-video"
  },
  {
@@ -1724,7 +1922,7 @@
   "credits": 13,
   "usd": 0.065,
   "unit": "per second",
-  "official": 0,
+  "official": 0.13,
   "page": "https://kie.ai/minimax-h3?model=minimax-h3%2Fimage-to-video"
  },
  {
@@ -1733,7 +1931,7 @@
   "credits": 13,
   "usd": 0.065,
   "unit": "per second",
-  "official": 0,
+  "official": 0.13,
   "page": "https://kie.ai/minimax-h3?model=minimax-h3%2Freference-to-video"
  },
  {
@@ -1742,7 +1940,7 @@
   "credits": 13,
   "usd": 0.065,
   "unit": "per second",
-  "official": 0,
+  "official": 0.13,
   "page": "https://kie.ai/minimax-h3"
  },
  {
@@ -1751,7 +1949,7 @@
   "credits": 4,
   "usd": 0.02,
   "unit": "per image",
-  "official": 0,
+  "official": 0.04,
   "page": "https://kie.ai/minimax-h3"
  },
  {
@@ -2273,7 +2471,7 @@
   "credits": 4000,
   "usd": 20,
   "unit": "per 1M tokens",
-  "official": 0,
+  "official": 50,
   "page": "https://kie.ai/claude-fable-5"
  },
  {
@@ -2282,7 +2480,7 @@
   "credits": 800,
   "usd": 4,
   "unit": "per 1M tokens",
-  "official": 0,
+  "official": 10,
   "page": "https://kie.ai/claude-fable-5"
  },
  {
@@ -2345,7 +2543,7 @@
   "credits": 168,
   "usd": 0.84,
   "unit": "per video",
-  "official": 0,
+  "official": 1.8245,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2381,7 +2579,7 @@
   "credits": 210,
   "usd": 1.05,
   "unit": "per video",
-  "official": 0,
+  "official": 3.0408,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2390,7 +2588,7 @@
   "credits": 189,
   "usd": 0.945,
   "unit": "per video",
-  "official": 0,
+  "official": 2.4326,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2399,7 +2597,7 @@
   "credits": 147,
   "usd": 0.735,
   "unit": "per video",
-  "official": 0,
+  "official": 1.2163,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2408,7 +2606,7 @@
   "credits": 126,
   "usd": 0.63,
   "unit": "per video",
-  "official": 0,
+  "official": 1.5204,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2417,7 +2615,7 @@
   "credits": 105,
   "usd": 0.525,
   "unit": "per video",
-  "official": 0,
+  "official": 1.2163,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2426,7 +2624,7 @@
   "credits": 84,
   "usd": 0.42,
   "unit": "per video",
-  "official": 0,
+  "official": 0.9122,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -2435,7 +2633,7 @@
   "credits": 63,
   "usd": 0.315,
   "unit": "per video",
-  "official": 0,
+  "official": 0.6082,
   "page": "https://kie.ai/gemini-omni"
  },
  {
@@ -3605,7 +3803,7 @@
   "credits": 90,
   "usd": 0.45,
   "unit": "per video",
-  "official": 0,
+  "official": 0.56,
   "page": "https://kie.ai/hailuo-2-3?model=hailuo%2F2-3-image-to-video-pro"
  },
  {
@@ -3623,7 +3821,7 @@
   "credits": 45,
   "usd": 0.225,
   "unit": "per video",
-  "official": 0,
+  "official": 0.28,
   "page": "https://kie.ai/hailuo-2-3?model=hailuo%2F2-3-image-to-video-pro"
  },
  {
@@ -3650,7 +3848,7 @@
   "credits": 50,
   "usd": 0.25,
   "unit": "per video",
-  "official": 0,
+  "official": 0.49,
   "page": "https://kie.ai/hailuo-2-3?model=hailuo%2F2-3-image-to-video-standard"
  },
  {
@@ -3920,7 +4118,7 @@
   "credits": 6,
   "usd": 0.03,
   "unit": "per image",
-  "official": 0,
+  "official": 0.167,
   "page": "https://kie.ai/4o-image-api"
  },
  {

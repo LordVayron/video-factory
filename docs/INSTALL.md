@@ -85,7 +85,8 @@ npm ci
 | `No Kie key` | `.env` is missing or empty. |
 | `ElevenLabs 401 ... missing the permission` | The key is scoped. Add the permission the message names. |
 | `ffmpeg not on PATH` | Install it, then open a new terminal. |
-| `BUDGET STOP` | Working as intended: the approved budget is used up. Approve more with `node engine/phase.mjs budget <slug> --add N --note "..."` only if you want to spend it. |
+| `BUDGET STOP` | Working as intended: the approved budget is used up. Approve more with `node engine/phase.mjs budget <slug> --add N --said "..."` only if you want to spend it. |
+| `ALTO: ...` | Working as intended: a step of the flow is missing. Run `node engine/studio.mjs status <slug>` and do the step it names. |
 | A `.lock` file stays in `clips/` or `loops/` | A paid task is still running or wasn't downloaded. The next `gen.mjs` run recovers it instead of paying again. Don't delete it. |
 | `corrupt JSON in projects/...` | A shotlist or ledger was damaged. The engine refuses to overwrite it. Restore it from your backup. |
 | Whisper is slow | It runs on the CPU. Short videos take seconds; it's only used for alignment and QC. |

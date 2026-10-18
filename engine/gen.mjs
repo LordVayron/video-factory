@@ -15,6 +15,9 @@
 //   node engine/gen.mjs bakeoff <slug> <shot> [--models a,b] [--res 1080p]   phase 6 look test (defaults: style candidates)
 //   node engine/gen.mjs dub    <slug> <shot>                            lip-sync approved clip to TTS lines
 //   node engine/gen.mjs talk   <image> <audio> <out.mp4> [--model infinitetalk] [--prompt "..."] [--res 480p]
+//   node engine/gen.mjs frame  <slug> <shot> first|last "<prompt>" [--ref f]...   clips formats: a shot's first or last frame (board step)
+//   node engine/gen.mjs clip   <slug> --shot <id> [--redo]   clips formats: film one shot from the shotlist; identity, jump and
+//                                       dialogue evals run on the take and are stored on it (flow v5, film step)
 //   node engine/gen.mjs music  <slug>
 //   node engine/gen.mjs loops     <slug> [--scenes A,B] [--redo] [--new-image]   long-form: still + seamless loop clip per scene
 //   node engine/gen.mjs bed       <slug> [--n 2] [--more]                        long-form: Suno music takes for the bed
@@ -27,9 +30,12 @@ import { ROOT } from "./lib/env.mjs";
 import * as kie from "./lib/kie.mjs";
 import { MODELS, getModel, usd } from "./lib/models.mjs";
 import * as P from "./lib/project.mjs";
+import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
+import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
 import * as eleven from "./lib/eleven.mjs";
-import { requirePhases } from "./lib/phases.mjs";
+import { requireStep, assertV5, takeOk, kindOf, FlowStop } from "./lib/flow.mjs";
+import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -65,19 +71,27 @@ async function job({ slug, modelKey, req, outBase, label, ext, register }) {
   const input = m.build(req);
   const credits = m.cost(req);
   const model = m.modelFor ? m.modelFor(req) : m.model;
-  // BUDGET GUARD. Once the Production Book is
+  // BUDGET GUARD (the creator, 2026-10-13: "you burned my credits without permission"). Once the Production Book is
   // approved, its estimate is the hard ceiling. Any job that would push the project's spend past it is refused;
-  // rerolls need a new approval: node engine/phase.mjs budget <slug> --add <credits> --note "approved by the user".
+  // rerolls need a new approval: node engine/phase.mjs budget <slug> --add <credits> --note "approved by the creator".
   // Jobs in flight count against the cap too: pool() runs 4 at once, and without this every one of them
   // would see the same "spent" before any of them reached the ledger.
   if (slug) {
     const sl0 = P.loadShotlist(slug);
+    assertV5(sl0);
     const cap = sl0.budget?.approvedCredits;
+    if (cap == null && !["image", "voice"].includes(m.kind)) throw new FlowStop(`BUDGET STOP: "${label}" (${m.label}) needs the budget that approving the Production Book locks.`);
     if (cap != null) {
       const spent = P.ledgerTotal(slug) + (inFlight.get(slug) || 0);
       if (spent + credits > cap + 0.5) {
-        throw new Error(`BUDGET STOP: "${label}" costs ${credits.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the user approved. Ask the user before spending more (phase.mjs budget ${slug} --add N).`);
+        throw new Error(`BUDGET STOP: "${label}" costs ${credits.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
       }
+    }
+    // PROMPT CHECK (added after a character lost her freckles between two shots): a video prompt must carry every distinctive mark of the
+    // characters in it (freckles, mole, glasses...). A model only keeps what the prompt says.
+    if (m.kind === "video" && req.prompt && !req.allowMissingMarks) {
+      const miss = missingMarks(req.prompt, req.cast || castOf(sl0, req.prompt));
+      if (miss.length) throw new Error(`PROMPT STOP: "${label}" leaves out ${miss.join("; ")}. Put the marks from the character's look in the prompt.`);
     }
     inFlight.set(slug, (inFlight.get(slug) || 0) + credits);
   }
@@ -280,9 +294,9 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const sl = P.loadShotlist(slug);
     // Gate: production keyframes need an approved storyboard and a look-tested style.
     // --looktest makes the hero keyframe for the look test itself.
-    requirePhases(sl, has("--looktest") ? "storyboard" : "frames", { force: has("--force") });
+    requireStep(sl, "film", "gen frames");
     const pk = pick(sl);
-    const todo = pickShots(sl).filter((s) => has("--force") || flag("--shots") || !s.frames?.length);
+    const todo = pickShots(sl).filter((s) => has("--redo") || flag("--shots") || !s.frames?.length);
     report(await renderFrames(slug, sl, todo, Number(flag("--n", pk.variants)), flag("--model", pk.image), { size: pk.imageSize, withBoard: true }));
   },
 
@@ -292,7 +306,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const slug = pos[0];
     await recover(slug);
     const sl = P.loadShotlist(slug);
-    requirePhases(sl, "storyboard", { force: has("--force") });
+    requireStep(sl, "board", "gen storyboard");
     if (!sl.scenes?.length) throw new Error('add "scenes": [{ id, summary, blocking, shots: [...] }] to shotlist.json first');
     const want = flag("--scenes")?.split(",");
     const todo = sl.scenes.filter((sc) => (want ? want.includes(sc.id) : P.sceneShots(sl, sc).some((s) => !s.board)));
@@ -324,7 +338,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const slug = pos[0];
     await recover(slug);
     const sl = P.loadShotlist(slug);
-    requirePhases(sl, "video", { force: has("--force") });
+    requireStep(sl, "film", "gen scenes");
     const pk = pick(sl);
     const want = flag("--scenes")?.split(",");
     const todo = (sl.scenes || []).filter((sc) => (want ? want.includes(sc.id) : !sc.clips?.length));
@@ -334,6 +348,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async voice() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
+    requireStep(sl, "film", "gen voice");
     const dir = P.abs(slug, "audio");
     const items = pickShots(sl).flatMap((s) => (s.dialogue || []).map((l, i) => ({ s, l, i })));
     const results = await pool(items, async ({ s, l, i }) => {
@@ -351,9 +366,9 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const slug = pos[0];
     await recover(slug);
     const sl = P.loadShotlist(slug);
-    requirePhases(sl, "video", { force: has("--force") });
+    requireStep(sl, "film", "gen video");
     const pk = pick(sl);
-    const todo = pickShots(sl).filter((s) => has("--force") || flag("--shots") || !s.clips?.length);
+    const todo = pickShots(sl).filter((s) => has("--redo") || flag("--shots") || !s.clips?.length);
     const results = await pool(todo, (s) => renderShot(slug, sl, s, flag("--model", s.videoModel || pk.video), flag("--res", pk.res)));
     report(results);
   },
@@ -362,7 +377,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const [slug, id] = pos;
     const sl = P.loadShotlist(slug);
     const s = P.shot(sl, id);
-    requirePhases(sl, "storyboard", { force: has("--force") });
+    requireStep(sl, "film", "gen bakeoff");
     const st = P.style(sl.style);
     const keys = (flag("--models") || (st.candidates?.video || ["wan3", "kling3"]).join(",")).split(",");
     const res = flag("--res", pick(sl).res);
@@ -374,6 +389,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async dub() {
     const [slug, id] = pos;
     const sl = P.loadShotlist(slug);
+    requireStep(sl, "film", "gen dub");
     const s = P.shot(sl, id);
     if (s.clip == null) throw new Error(`${id}: approve a clip first`);
     const lines = (s.dialogue || []).filter((l) => l.audio).map((l) => P.abs(slug, l.audio));
@@ -385,6 +401,71 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const files = await job({ slug, modelKey: "lipsync", req: { video: await kie.upload(clip), audio: await kie.upload(joined), duration: mediaDuration(joined) }, outBase, label: `${id} dub`, ext: ".mp4" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.clips.push({ file: P.rel(slug, files[0]), model: "lipsync", dub: true }); });
     console.log(files[0]);
+  },
+
+  // Clips formats, board step: a shot's first or last frame with GPT Image 2.5, references from the cast's sheets.
+  // A shot can instead open on the previous shot's last frame: set "frame": "@A:last" in the shotlist.
+  async frame() {
+    const [slug, id, which, prompt] = pos;
+    if (!slug || !id || !["first", "last"].includes(which) || !prompt) throw new Error('usage: frame <slug> <shot> first|last "<prompt>" [--ref file]...');
+    const sl = P.loadShotlist(slug);
+    requireStep(sl, "board", "gen frame");
+    const s = P.shot(sl, id);
+    const miss = missingMarks(prompt, s.characters || castOf(sl, prompt));
+    if (miss.length) throw new FlowStop(`PROMPT STOP: the ${which} frame of ${id} leaves out ${miss.join("; ")}`);
+    const refs = await Promise.all([...flags("--ref"), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [...(ch.refs || []), ...(ch.sheets || [])].slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(kie.asUrl));
+    const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt, refs, ar: sl.ar || "9:16", size: "2K" }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
+    P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[`${which}Prompt`] = prompt; });
+    console.log(out);
+  },
+
+  // Clips formats, film step: one first/last-frame generation for a shot of the shotlist, through job()
+  // (budget lock, prompt check, ledger, lock file). Then every eval runs on the take and is stored on it:
+  // identity (face and marks against the locked anchor), jumps (cuts or snaps inside the shot), dialogue.
+  // The first take that passes all three becomes the shot's take; a take that fails is never used by cut.mjs.
+  async clip() {
+    const slug = pos[0], id = flag("--shot");
+    if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo]");
+    await recover(slug);
+    const sl = P.loadShotlist(slug);
+    requireStep(sl, "film", "gen clip");
+    if (kindOf(sl) !== "clips") throw new FlowStop(`gen clip is for clips formats; ${sl.format} films with ${kindOf(sl) === "scenes" ? "gen scenes" : "gen loops"}`);
+    const s = P.shot(sl, id), dir = P.projectDir(slug);
+    if (s.clip != null && takeOk(s.clips?.[s.clip]) && !has("--redo")) return console.log(`${id} already has a take that passes every eval (use --redo for another, inside the budget)`);
+    let first = s.frame;
+    const m = /^@(\w+):last$/.exec(first || "");
+    if (m) {
+      const prev = P.shot(sl, m[1]), t = prev.clips?.[prev.clip];
+      if (!takeOk(t)) throw new FlowStop(`${id} opens on ${m[1]}'s last frame, and ${m[1]} has no passing take yet`);
+      first = P.abs(slug, `frames/${id}-from-${m[1]}.png`);
+      fs.mkdirSync(path.dirname(first), { recursive: true });
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-sseof", "-0.05", "-i", P.abs(slug, t.file), "-frames:v", "1", first]);
+    } else first = P.abs(slug, first);
+    const cast = s.characters || castOf(sl, s.prompt);
+    const model = s.model || sl.defaults?.videoModel || "veo";
+    const req = {
+      prompt: s.prompt, cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: s.duration,
+      frame: await kie.upload(first), lastFrame: s.last ? await kie.upload(P.abs(slug, s.last)) : undefined,
+    };
+    const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} take`, ext: ".mp4" });
+    console.log("filmed", P.rel(slug, out));
+    const identity = await identityCheck(out, cast);
+    const jr = jumpCheck(out);
+    const lines = (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${id}-${i + 1}`, text: l.text }));
+    const dialogue = dialogueCheck(out, lines, sl.lang);
+    const evals = { identity: { pass: identity.pass, issues: identity.issues, notes: identity.notes }, jumps: { internal: jr.jumps.filter((j) => j.kind === "internal jump").length, list: jr.jumps, trimAt: jr.trimAt ?? null }, dialogue };
+    const take = { file: P.rel(slug, out), model, at: new Date().toISOString(), evals };
+    P.updateShotlist(slug, (x) => {
+      const t = P.shot(x, id);
+      t.clips = [...(t.clips || []), take];
+      if (takeOk(take) && (t.clip == null || !takeOk(t.clips[t.clip]))) t.clip = t.clips.length - 1;
+    });
+    console.log([
+      identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
+      ...jumpLines(jr), evals.jumps.internal ? "JUMPS FAIL: an internal jump reads as a jump cut; the creator decides (studio.mjs override, or a reroll with his sí)" : "JUMPS PASS",
+      dialogue.pass ? "DIALOGUE PASS" : `DIALOGUE FAIL\n - ${dialogue.issues.join("\n - ")}`,
+      takeOk(take) ? `${id}: take approved by the evals` : `${id}: this take fails; one reroll fits only inside the locked budget, otherwise ask the creator`,
+    ].join("\n"));
   },
 
   async talk() {
@@ -399,9 +480,10 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async sfx() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
+    requireStep(sl, "film", "gen sfx");
     const want = flag("--only");
-    const items = Object.entries(sl.sfx || {}).filter(([n]) => (want ? want.split(",").includes(n) : !fs.existsSync(P.abs(slug, `audio/sfx-${n}.mp3`)) || has("--force")));
-    if (!items.length) return console.log("all sound effects exist (use --force or --only name)");
+    const items = Object.entries(sl.sfx || {}).filter(([n]) => (want ? want.split(",").includes(n) : !fs.existsSync(P.abs(slug, `audio/sfx-${n}.mp3`)) || has("--redo")));
+    if (!items.length) return console.log("all sound effects exist (use --redo or --only name)");
     report(await pool(items, async ([name, s]) => {
       const out = await eleven.sfx({ text: s.prompt, seconds: s.seconds, out: P.abs(slug, `audio/sfx-${name}.mp3`) });
       P.ledger(slug, { ok: true, label: `sfx ${name}`, model: "elevenlabs-sfx", credits: 0, files: [path.relative(ROOT, out)] });
@@ -412,6 +494,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async music() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
+    requireStep(sl, "film", "gen music");
     if (!sl.music?.prompt) throw new Error("set music.prompt in shotlist.json");
     const total = sl.shots.reduce((n, s) => n + (s.duration || 5), 0);
     const files = await job({ slug, modelKey: "suno", req: { prompt: sl.music.prompt, title: sl.title, duration: total + 4 }, outBase: P.abs(slug, "audio/music"), label: "music", ext: ".mp3" });
@@ -426,7 +509,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const slug = pos[0];
     await recover(slug);
     const sl = P.loadShotlist(slug);
-    requirePhases(sl, "video", { force: has("--force") });
+    requireStep(sl, "film", "gen loops");
     const L = sl.longform || {};
     const want = flag("--scenes")?.split(",");
     const todo = (L.scenes || []).filter((s) => (want ? want.includes(s.id) : !s.clip || has("--redo")));
@@ -453,7 +536,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async bed() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
-    requirePhases(sl, "video", { force: has("--force") });
+    requireStep(sl, "film", "gen bed");
     const M = sl.longform?.music;
     if (!M?.prompt) throw new Error("set longform.music.prompt in shotlist.json");
     const n = Number(flag("--n", M.tracks || 2));
@@ -471,6 +554,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async narration() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
+    requireStep(sl, "film", "gen narration");
     const L = sl.longform || {};
     const V = L.voice || {};
     if (!V.eleven) throw new Error("set longform.voice.eleven (an ElevenLabs voice id) in shotlist.json");
@@ -577,10 +661,10 @@ async function renderFrames(slug, sl, shots, n, modelKey, { size = "1K", withBoa
 
 async function renderShot(slug, sl, s, modelKey, res, { tag } = {}) {
   const m = getModel(modelKey);
-  const fi = s.frame ?? (has("--force") ? 0 : null);
-  if (fi == null || !s.frames?.[fi]) throw new Error(`${s.id}: approve a frame on the board first (or pass --force)`);
+  const fi = s.frame ?? null;
+  if (fi == null || !s.frames?.[fi]) throw new Error(`${s.id}: approve a frame on the board first`);
   // QC gate (checkpoint 2): no video money is spent on a keyframe that hasn't passed review.
-  if (sl.qc?.enforce !== false && !s.frames[fi].qc?.pass && !has("--force")) {
+  if (!s.frames[fi].qc?.pass) {
     throw new Error(`${s.id}: keyframe ${fi} hasn't passed QC. Run: node engine/qc.mjs frames ${slug} --shots ${s.id}`);
   }
   const frame = await kie.upload(P.abs(slug, s.frames[fi].file));

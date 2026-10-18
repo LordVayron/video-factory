@@ -251,8 +251,8 @@ export function boardGridPrompt(sl, sc, refs) {
 // Removes the style's own light words ("flat bright overhead soundstage lighting") when a scene locks its lighting.
 const stripLight = (look) => look.replace(/[^,.:]*\b(lighting|lit|daylight|sunlight)\b[^,.]*[,.]?/gi, "").replace(/\s+,/g, ",").replace(/\s{2,}/g, " ");
 
-// Seat lock + dirty singles (without it, characters drift to the floor and singles show an empty cushion).
-// sc.seats = { cat: { place: "the LEFT cushion of the plaid couch", side: "left" }, ... }
+// Seat lock + dirty singles (a sidekick once ended up on the floor; singles showed an empty cushion).
+// sc.seats = { milo: { place: "the LEFT cushion of the plaid couch", side: "left" }, ... }
 // Where everyone is at the START of a shot: scene seats, then every earlier shot's moves (see lib/state.mjs).
 export function placesAt(sl, shotId) {
   let st = {};

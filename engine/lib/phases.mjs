@@ -17,7 +17,7 @@ export const PHASES = [
 ];
 
 // Phases each paid command needs approved first.
-// The look test is no longer a gate: each style commits to its best model .
+// The look test is no longer a gate: each style commits to its best model (the creator, 2026-10-09).
 export const GATES = {
   storyboard: ["concept", "style", "cast", "sets"],
   frames: ["storyboard"],
@@ -67,8 +67,8 @@ export function phaseStatus(sl, id) {
 }
 
 // Throw if a command's required phases aren't approved. Legacy projects (no "phases") skip gates.
-export function requirePhases(sl, cmd, { force = false } = {}) {
-  if (!sl.phases || force) return;
+export function requirePhases() {
+  throw new Error("requirePhases is retired: flow v5 gates every command with requireStep() in lib/flow.mjs");
   const need = GATES[cmd] || [];
   const bad = need.map((id) => ({ id, ...phaseStatus(sl, id) })).filter((p) => !p.ok);
   if (bad.length) {

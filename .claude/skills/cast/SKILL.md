@@ -8,7 +8,7 @@ description: Creates and maintains the reusable bible of characters, sets and st
 Everything here is reused across projects, so it is worth getting right once.
 
 ## Character (`bible/characters/<id>/`)
-`character.json` fields: `id`, `name`, `species`, `look` (one dense sentence: body, face, hair/fur, wardrobe, one signature accessory), `traits`, `flaw`, `role` (straight man / eccentric / …), `voiceDesc`, `voice`, `sheets`.
+`character.json` fields: `id`, `name`, `species`, `look` (one dense sentence: body, face, hair/fur, wardrobe, one signature accessory, **and every distinctive mark by name: freckles, moles, scars, glasses, earrings**. The prompt check refuses any video prompt that drops one, and the identity eval checks each of them on every take), `traits`, `flaw`, `role` (straight man / eccentric / …), `voiceDesc`, `voice`, `sheets`.
 
 1. **Sheet:** one 3:2, 2K image showing front, ¾ and full body on a plain backdrop.
    `node engine/gen.mjs still "<sheet prompt>" bible/characters/<id>/sheet.png --ar 3:2 --size 2K`
@@ -20,6 +20,7 @@ Everything here is reused across projects, so it is worth getting right once.
    - `voice.sampleText.{en,es}`: about 8s of in-character speech.
    - `node engine/gen.mjs sample <id> --lang en` writes `voice-en.mp3`. Seedance uses it as `@audioN` so the voice stays the same in every shot.
 3. Add one running gag or catchphrase to `traits`.
+4. **Approval (flow v5 cast gate):** show the creator the sheet, the look and a voice sample; with their yes, `node engine/studio.mjs approve-character <id> --said "<their words>"` (or `cast.mjs approve` for in-style sheets). Lock the face anchor from their approved take with `continuity.mjs <slug> --identity <take> --lock-anchor`.
 
 ## Realistic styles: native references (the rule that fixed the "sticker" look)
 Image models **composite** a studio reference photo into the scene, keeping its pose and its lighting, so the character looks pasted in. For any realistic style:

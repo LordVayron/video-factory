@@ -1,6 +1,6 @@
 ---
 name: format-series
-description: Produces an episode of a recurring series — 90s sitcom, comedy skit series, micro-drama / vertical novela, cartoon or anime series — with a locked cast, sets, voices and intro in series/<id>/, using pipeline v4 (writers' room script, radio cut, storyboards, Production Book with a locked budget, multi-shot scenes, continuity eval, auto edit with unified voices, series intro and outro). Use for "next episode", "otro episodio", "create a series", "crea una serie", "sitcom", "novela para TikTok", or any episode of an existing series in series/.
+description: Produces an episode of a recurring series — 90s sitcom, comedy skit series, micro-drama / vertical novela, cartoon or anime series — with a locked cast, sets, voices and intro in series/<id>/, using flow v5 (writers' room script, radio cut, storyboards, Production Book with a locked budget, multi-shot scenes, continuity eval, auto edit with unified voices, series intro and outro). Use for "next episode", "otro episodio", "create a series", "crea una serie", "sitcom", "novela para TikTok", or any episode of an existing series in series/.
 ---
 
 # Series episode
@@ -17,6 +17,7 @@ Read first:
 4. Optional intro: `node engine/series.mjs intro-assets <id>` (paid: one street shot, a theme, sounds), then `node engine/series.mjs intro <id>`.
 
 ## Each episode (the studio skill has the commands and the safeguards)
+0. **Intake (flow v5):** `node engine/studio.mjs new <slug> --series episode:<id> --format sitcom|micro-drama|anime ...` with the seven intake answers (studio skill); a brand-new series uses `--series new:<id>` and its bible is the first gate. Then follow `studio.mjs status <slug>`.
 1. **Script (gate 1)**
    - Brainstorm 10 openers. The first line works with zero context and states a want.
    - Rotate the episode engine (see the DNA). No step or phase lists.
@@ -27,5 +28,5 @@ Read first:
    - Every change of place gets a shot with `moves` (shown on screen). Use `continuous: true` when a character walks into an existing frame.
    - Set `"series": "<id>"`, and for comedy `tag.sound: "outro"`, `freezeEnd: 1.6` and a big laugh on the button.
 3. `radio.mjs` until pacing passes → `gen.mjs storyboard` → check every panel (identity!) → `animatic.mjs` → `book.mjs` → publish or open the book → **gate 2**.
-4. `phase.mjs approve <slug> storyboard` locks the budget → `gen.mjs scenes` (all in parallel) → `continuity.mjs` → `qc.mjs score` → `edit.mjs`.
-5. Watch the final (4 fps contact sheet plus the transcript) → `book.mjs` → deliver → copy into `series/<id>/episodes/` → add it to `series.json` episodes.
+4. `studio.mjs approve <slug> book --said "..."` locks the budget → `gen.mjs scenes` (all in parallel) → `continuity.mjs` (positions, physics, dialogue, identity) → `qc.mjs score` → `edit.mjs`.
+5. `studio.mjs qc <slug>` → look at the 4 fps sheet and the transcript → `studio.mjs deliver <slug>` → deliver `out/<slug>.mp4` → copy into `series/<id>/episodes/` → add it to `series.json` episodes → retro.

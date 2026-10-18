@@ -17,11 +17,14 @@ import { LAUGHS, STINGS, libSound } from "./lib/laughs.mjs";
 import { planCheck } from "./lib/state.mjs";
 import { cueFile } from "./lib/cues.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
+import { requireStep, FlowStop } from "./lib/flow.mjs";
+process.on("uncaughtException", (e) => { console.error(e instanceof FlowStop ? `ALTO: ${e.message}` : e); process.exit(e instanceof FlowStop ? 2 : 1); });
 
 const slug = process.argv[2];
 if (!slug) { console.error("usage: radio.mjs <slug>"); process.exit(1); }
 const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
+requireStep(sl, "radio", "radio");
 const pace = { gap: 0.25, tempo: 1.0, lead: 0.12, tail: 0.6, ...(sl.pace || {}) };
 const ff = (args) => execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...args], { cwd: dir, stdio: ["ignore", "inherit", "inherit"] });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
@@ -114,7 +117,10 @@ ff([...inputs, "-filter_complex", graph.join(";"), "-map", "[a]", "-c:a", "libmp
 const words = lines.reduce((nw, x) => nw + x.l.text.split(/\s+/).filter(Boolean).length, 0);
 const speech = lines.reduce((s, x) => s + x.len, 0);
 let maxGap = 0, dead = 0;
-const busy = [...lines.map((x) => [x.at, x.at + x.len]), ...laughs.map((L) => [L.at, L.at + L.len])].sort((a, b) => a[0] - b[0]);
+// A shot with no dialogue and a planned duration is a visual beat (an exit, a physical gag): the picture carries
+// it, so it is not dead air. Keep those shots short; the DNA's limit is a silence with no visual change.
+const actionBeats = sl.shots.filter((s) => !(s.dialogue || []).length && shotStart[s.id] != null).map((s) => [shotStart[s.id], shotStart[s.id] + (s.duration || 1.2)]);
+const busy = [...lines.map((x) => [x.at, x.at + x.len]), ...laughs.map((L) => [L.at, L.at + L.len]), ...actionBeats].sort((a, b) => a[0] - b[0]);
 let cursor = 0;
 // Turn-taking gaps (< 0.4 s) are rhythm, not dead air; only longer silences count.
 for (const [a, b] of busy) { if (a > cursor) { const g = a - cursor; const planned = lines.find((x) => Math.abs(x.at - a) < 0.01)?.l.beat || 0; if (g - planned >= 0.4) dead += g - planned; maxGap = Math.max(maxGap, g - planned); } cursor = Math.max(cursor, b); }

@@ -44,5 +44,7 @@ const secret = /(gh[opsu]_[A-Za-z0-9]{30,}|sk-ant-[A-Za-z0-9_-]{30,}|sk_[a-f0-9]
 const leaks = files.filter((x) => /\.(mjs|js|json|md|py|txt|ps1|sh)$/.test(x) && secret.test(fs.readFileSync(x, "utf8")));
 t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", ") || "clean"})`, !leaks.length);
 
+(await import("./check-flow.mjs")).default(t, ROOT);
+
 console.log(failed ? `\n${failed} check(s) failed.` : "\nAll checks passed.");
 process.exit(failed ? 1 : 0);

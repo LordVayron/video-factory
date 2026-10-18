@@ -5,46 +5,58 @@
 //     and a vision model reports where each character is, on what, which side, the time of day, and whether a
 //     single leaves the partner's seat empty. Those facts are compared with the planned state. Any mismatch fails
 //     the take; edit.mjs refuses a take whose continuity failed.
+//  3. Identity (lib/identity.mjs): high-res face crops against the character reference; a face or a distinctive
+//     mark (freckles, mole, glasses...) that changes fails the take. Also runs on any video, e.g. the final cut,
+//     where it checks across the cuts. Mandatory on every final before delivery, in every format.
+//  4. Jumps (lib/jumps.mjs, free): cuts or snaps inside a shot that should be one continuous move.
 //
 //   node engine/continuity.mjs <slug> [--scene A] [--take N] [--plan]
+//   node engine/continuity.mjs <slug> --identity <video> [--cast ana,leo] [--lock-anchor]
+//   node engine/continuity.mjs <slug> --jumps <video> [--threshold 8]
 import { isNoise } from "./lib/noise.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
-import { kieKey, ROOT } from "./lib/env.mjs";
+import { ROOT } from "./lib/env.mjs";
+import { judge } from "./lib/judge.mjs";
+import { identityCheck, castOf } from "./lib/identity.mjs";
+import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
 import * as P from "./lib/project.mjs";
 import { planCheck } from "./lib/state.mjs";
 
 const argv = process.argv.slice(2);
 const slug = argv[0];
 const flag = (n) => { const i = argv.indexOf(n); return i > -1 ? argv[i + 1] : null; };
-if (!slug) { console.error("usage: continuity.mjs <slug> [--scene A] [--take N] [--plan]"); process.exit(1); }
+if (!slug) { console.error("usage: continuity.mjs <slug> [--scene A] [--take N] [--plan] | <slug> --identity <video> [--cast a,b] | <slug> --jumps <video>"); process.exit(1); }
 const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
+
+// 3 on its own: identity on any video of the project (a take, or the final cut across its cuts).
+if (flag("--identity")) {
+  const f = path.resolve(dir, flag("--identity"));
+  const cast = flag("--cast") ? flag("--cast").split(",") : castOf(sl);
+  if (!cast.length) { console.error("identity: no cast (pass --cast or set shotlist.cast)"); process.exit(1); }
+  // --lock-anchor: on a take the creator approved, save its face as the character's anchor for every later check.
+  const r = await identityCheck(f, cast, { lockAnchor: argv.includes("--lock-anchor") });
+  P.updateShotlist(slug, (x) => { x.identity = { ...(x.identity || {}), [P.rel(slug, f)]: r }; });
+  for (const [name, v] of Object.entries(r.report)) for (const [m, s] of Object.entries(v.marks)) console.log(`${name} ${m}: as the anchor ${s.kept || "-"} | faded or gone ${s.lost || "-"}`);
+  console.log(`${path.basename(f)}: ${r.pass ? "IDENTITY PASS" : "IDENTITY FAIL"} (${r.frames} frames, cast ${cast.join(", ")})${r.issues.length ? "\n - " + r.issues.join("\n - ") : ""}${r.notes.length ? "\n   minor: " + r.notes.join("\n   minor: ") : ""}`);
+  process.exit(r.pass ? 0 : 1);
+}
+
+// 4 on its own: jumps inside one generated shot (not for a final cut, whose cuts are on purpose).
+if (flag("--jumps")) {
+  const f = path.resolve(dir, flag("--jumps"));
+  const r = jumpCheck(f, flag("--threshold") ? { threshold: Number(flag("--threshold")) } : {});
+  P.updateShotlist(slug, (x) => { x.jumps = { ...(x.jumps || {}), [P.rel(slug, f)]: r }; });
+  console.log(`${path.basename(f)}: ${r.pass ? "JUMPS PASS" : "JUMPS FAIL"}\n${jumpLines(r).map((l) => " " + l).join("\n")}`);
+  process.exit(r.pass ? 0 : 1);
+}
 
 // 1. Plan logic.
 const plan = planCheck(sl);
 console.log(plan.problems.length ? `PLAN: ${plan.problems.length} problem(s)\n - ${plan.problems.join("\n - ")}` : "plan: every change of place is shown on screen");
 if (argv.includes("--plan")) process.exit(plan.problems.length ? 1 : 0);
-
-const JUDGE = "claude-sonnet-5-5";
-async function judge(content) {
-  const k = kieKey();
-  // Kie's Claude endpoint returns transient "Internal error"s: two tries per model, a pause between.
-  for (const model of [JUDGE, JUDGE, "claude-haiku-5-5", "claude-haiku-5-5"]) {
-    const r = await fetch("https://api.kie.ai/claude/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": k, Authorization: `Bearer ${k}`, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 3000, messages: [{ role: "user", content }] }),
-    });
-    const j = await r.json().catch(() => ({}));
-    const text = j.content?.find((c) => c.type === "text")?.text;
-    if (text) return { model, text };
-    console.error(`judge ${model}: ${JSON.stringify(j).slice(0, 160)}`);
-    await new Promise((r) => setTimeout(r, 6000));
-  }
-  throw new Error("no vision judge available");
-}
 
 // Cuts inside a take (same detector as qc.mjs), then the frames to judge.
 function shotsOf(file) {
@@ -118,7 +130,7 @@ async function evalTake(sc, ci) {
   }
   const majorTypes = new Set(["location", "side", "teleport", "lighting", "empty_seat", "identity"]);
   const judged = json.violations || [];
-  const realIdentity = (v) => v.type === "identity" && /(missing|without|no longer|lost|not wearing|no) (his |her |the )?(glasses|cardigan|collar|tag|jacket|hoops?)|different (cat|dog|woman|person|animal)|wrong (cat|dog|character)/i.test(v.detail);
+  const realIdentity = (v) => v.type === "identity" && /(missing|without|no longer|lost|not wearing|no) (his |her |the )?(glasses|cardigan|collar|tag|jacket|hoops?|earrings?|freckles|mole|scar|tattoo|beard|moustache)|different (cat|dog|woman|man|person|animal|face)|wrong (cat|dog|character)/i.test(v.detail);
   const realGeography = (v) => v.type === "geography" && /door|kitchen|exit|wrong (side|direction|wall)|eyeline|looking (the )?wrong/i.test(v.detail);
   const realTeleport = (v) => v.type === "teleport" && !frames[v.frame - 1]?.shot.moves && !frames[v.frame - 2]?.shot.moves;
   const issues = [...facts, ...judged.filter((v) => realTeleport(v) || realIdentity(v) || realGeography(v) || (v.type === "physics" && /through|clip|merg|pass(es|ing)? (into|through)|vanish|appear|intersect|inside the|fus/i.test(v.detail)))].map(fmt);
@@ -138,6 +150,12 @@ async function evalTake(sc, ci) {
     if (extras.length > 2) issues.push(`${sc.id} dialogue: ${extras.length} words not in the script: ${extras.slice(0, 8).join(" ")}`);
     for (const w of (al.repeats || []).filter((x) => !noise(x))) issues.push(`${sc.id} dialogue: repeated word "${w}"`);
   } else notes.push(`${sc.id} dialogue check could not run`);
+  // Identity: faces and distinctive marks at full resolution against the reference. It fails closed.
+  try {
+    const idr = await identityCheck(file, cast);
+    issues.push(...idr.issues.map((x) => `${sc.id} ${x}`));
+    notes.push(...idr.notes.map((x) => `${sc.id} ${x}`));
+  } catch (e) { issues.push(`${sc.id} identity check could not run: ${e.message.slice(0, 120)}`); }
   const result = { pass: !issues.length, issues, notes, judge: model, frames: frames.length, at: new Date().toISOString() };
   P.updateShotlist(slug, (x) => { P.scene(x, sc.id).clips[ci].continuity = result; });
   console.log(`${sc.id} take ${ci + 1}: ${result.pass ? "CONTINUITY PASS" : "CONTINUITY FAIL"} (${frames.length} frames, ${model})${issues.length ? "\n - " + issues.join("\n - ") : ""}${notes.length ? "\n   minor: " + notes.join("\n   minor: ") : ""}`);

@@ -18,6 +18,8 @@ export function planCheck(sl) {
   let state = null;
   for (const sc of sl.scenes || []) {
     if (!sc.seats) { problems.push(`scene ${sc.id}: no "seats" (where each character is at the start of the scene)`); continue; }
+    // A scene marked timeJump ("the next morning") starts fresh: nobody has to be shown moving across the cut.
+    if (sc.timeJump) state = null;
     if (state) {
       for (const [id, p] of Object.entries(sc.seats)) {
         if (state[id] && key(state[id]) !== key(p)) {
@@ -40,15 +42,16 @@ export function planCheck(sl) {
   }
   // Pre-production: the set plate the video model will see must match each scene's time of day (a past production: a
   // daytime dining-room plate pulled night wides to the wrong angle and into daylight).
-  try {
-    const set = JSON.parse(fs.readFileSync(path.join(ROOT, "bible", "sets", sl.set, "set.json"), "utf8"));
+  // Each scene is checked against its own set (sc.set) or the project's.
+  for (const sc of sl.scenes || []) {
+    const setId = sc.set || sl.set;
+    let set;
+    try { set = JSON.parse(fs.readFileSync(path.join(ROOT, "bible", "sets", setId, "set.json"), "utf8")); } catch { continue; }
     const plate = (set.plates || [])[0], meta = set.platesMeta?.[plate];
-    for (const sc of sl.scenes || []) {
-      if (!meta) { problems.push(`set "${sl.set}": primary plate ${plate} has no platesMeta (angle, time)`); break; }
-      const night = /night/i.test(sc.lighting || "");
-      if (night !== (meta.time === "night")) problems.push(`scene ${sc.id} is ${night ? "night" : "day"} but the set plate ${plate} is ${meta.time} (${meta.angle})`);
-    }
-  } catch {}
+    if (!meta) { problems.push(`set "${setId}": primary plate ${plate} has no platesMeta (angle, time)`); continue; }
+    const night = /night/i.test(sc.lighting || "");
+    if (night !== (meta.time === "night")) problems.push(`scene ${sc.id} is ${night ? "night" : "day"} but the set plate ${plate} is ${meta.time} (${meta.angle})`);
+  }
   return { states, problems };
 }
 

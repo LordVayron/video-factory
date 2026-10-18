@@ -9,11 +9,14 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import * as P from "./lib/project.mjs";
 import * as eleven from "./lib/eleven.mjs";
+import { requireStep, FlowStop } from "./lib/flow.mjs";
+process.on("uncaughtException", (e) => { console.error(e instanceof FlowStop ? `ALTO: ${e.message}` : e); process.exit(e instanceof FlowStop ? 2 : 1); });
 
 const slug = process.argv[2];
 if (!slug) { console.error("usage: animatic.mjs <slug>"); process.exit(1); }
 const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
+requireStep(sl, "board", "animatic");
 const W = sl.ar === "16:9" ? 1280 : 720, H = sl.ar === "16:9" ? 720 : 1280;
 const tmp = path.join(dir, "out", "_animatic");
 fs.mkdirSync(path.join(dir, "audio", "temp"), { recursive: true });

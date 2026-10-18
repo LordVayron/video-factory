@@ -1,0 +1,247 @@
+#!/usr/bin/env node
+// Studio: the front door of flow v5. Every project starts here and moves forward only through here.
+// Map of the whole flow: docs/workflow-map.html. The step logic lives in engine/lib/flow.mjs.
+//
+//   node engine/studio.mjs new <slug> --title "..." --series single|episode:<id>|new:<id> --format <format>
+//        --start script|idea|scratch --platform <where> --ar 9:16 --seconds 30 --lang en
+//        --cast existing|new|self|mixed|none [--chars a,b] --budget cheapest|fixed:<usd>|max --refs "..." [--style <id>]
+//   node engine/studio.mjs status <slug>                          every step, done or not, and the exact next action
+//   node engine/studio.mjs approve <slug> <step> --said "the creator's exact words" [--notes "..."]
+//   node engine/studio.mjs approve-character <id> --said "..."    a new character's sheet, look (with marks) and voice
+//   node engine/studio.mjs accept-take <slug> <shot> <n> --said "..." --reason "..."   use a take that failed an eval
+//   node engine/studio.mjs override <slug> <step> --said "the creator's exact words" --reason "..."   logged, shown in the book
+//   node engine/studio.mjs qc <slug>                              final QC of out/<slug>.mp4 (identity, dialogue, format, loudness)
+//   node engine/studio.mjs deliver <slug>                         delivery receipt + final Production Book
+//   node engine/studio.mjs series new <id> --title "..."          series/<id>/series.json from the template
+//   node engine/studio.mjs archive-legacy                         projects from before flow v5 become read-only
+//   node engine/studio.mjs formats                                formats and their recipes
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync, spawnSync } from "node:child_process";
+import { ROOT } from "./lib/env.mjs";
+import * as P from "./lib/project.mjs";
+import * as F from "./lib/flow.mjs";
+import { identityCheck } from "./lib/identity.mjs";
+import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
+
+const argv = process.argv.slice(2);
+const cmd = argv[0];
+const pos = argv.slice(1).filter((a, i, all) => !a.startsWith("--") && !(all[i - 1] || "").startsWith("--"));
+const flag = (n, d = null) => { const i = argv.indexOf(n); return i > -1 && argv[i + 1] != null && !argv[i + 1].startsWith("--") ? argv[i + 1] : d; };
+const SERIES = path.join(ROOT, "series");
+const now = () => new Date().toISOString();
+
+// Default look per format until the concept picks one.
+const STYLE = { sitcom: "retro-sitcom", "micro-drama": "hyperreal", anime: "anime", influencer: "hyperreal", ugc: "ugc-phone", podcast: "podcast", cinematic: "hyperreal", fantasy: "hyperreal", other: "hyperreal", meditation: null };
+
+const CONCEPT = (sl, a) => `# Concept: ${sl.title}
+
+- **Format:** ${F.FORMATS[sl.format].label}${sl.series ? ` · series ${sl.series}` : " · single video"}
+- **Start:** ${a.start}
+- **Platform:** ${a.platform.platform} · ${sl.ar} · ${a.platform.seconds} s · ${sl.lang}
+- **Cast:** ${a.cast}${sl.cast?.length ? ` (${sl.cast.join(", ")})` : ""}
+- **Budget:** ${a.budget.mode}${a.budget.usd ? ` $${a.budget.usd}` : ""}
+- **References / tone:** ${a.refs.text}
+
+## Logline
+(character + want + obstacle + twist, one sentence)
+
+## Why it works
+(the engine of the piece)
+
+## Beats
+1. Hook (0-2 s):
+2.
+3. Button:
+`;
+
+function seriesFile(id) { return path.join(SERIES, id, "series.json"); }
+
+const commands = {
+  formats() {
+    for (const [k, v] of Object.entries(F.FORMATS)) console.log(`${k.padEnd(12)} ${v.kind.padEnd(9)} ${F.recipe({ format: k, intake: {} }).join(" → ")}`);
+  },
+
+  new() {
+    const slug = pos[0];
+    const need = ["--title", "--series", "--format", "--start", "--platform", "--ar", "--seconds", "--lang", "--cast", "--budget", "--refs"];
+    const missing = need.filter((n) => !flag(n));
+    if (!slug || missing.length) throw new F.FlowStop(`Intake incompleto. Faltan: ${[!slug && "<slug>", ...missing].filter(Boolean).join(", ")}\nLas 7 preguntas (hazlas una a una, con botones):\n${F.INTAKE.map((q, i) => `  P${i + 1}. ${q.q}`).join("\n")}`);
+    if (fs.existsSync(path.join(P.PROJECTS, slug, "shotlist.json"))) throw new F.FlowStop(`el proyecto ${slug} ya existe`);
+    const format = flag("--format");
+    if (!F.FORMATS[format]) throw new F.FlowStop(`formato desconocido "${format}". Opciones: ${Object.keys(F.FORMATS).join(", ")}. Un formato nuevo necesita su ADN primero (studio skill).`);
+    const [mode, seriesId] = flag("--series").split(":");
+    if (!["single", "episode", "new"].includes(mode) || (mode !== "single" && !seriesId)) throw new F.FlowStop("--series: single | episode:<id> | new:<id>");
+    if (mode === "episode") {
+      if (!fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`no existe la serie ${seriesId}`);
+      if (!P.readJSON(seriesFile(seriesId)).approved) throw new F.FlowStop(`la serie ${seriesId} no está aprobada; su biblia se aprueba primero`);
+    }
+    if (mode === "new") {
+      if (fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`la serie ${seriesId} ya existe; usa --series episode:${seriesId}`);
+      commands.series(["new", seriesId]);
+    }
+    const [bmode, busd] = flag("--budget").split(":");
+    const intake = {
+      series: mode, format, start: flag("--start"),
+      platform: { platform: flag("--platform"), ar: flag("--ar"), seconds: Number(flag("--seconds")), lang: flag("--lang") },
+      cast: flag("--cast"), budget: { mode: bmode, usd: busd ? Number(busd) : null }, refs: { text: flag("--refs") }, at: now(),
+    };
+    if (!["script", "idea", "scratch"].includes(intake.start)) throw new F.FlowStop("--start: script | idea | scratch");
+    if (!["existing", "new", "self", "mixed", "none"].includes(intake.cast)) throw new F.FlowStop("--cast: existing | new | self | mixed | none");
+    const chars = flag("--chars") ? flag("--chars").split(",") : [];
+    for (const id of chars) if (!fs.existsSync(path.join(P.BIBLE, "characters", id, "character.json")) && intake.cast === "existing") throw new F.FlowStop(`el personaje ${id} no existe en la biblia`);
+    const series = mode === "single" ? undefined : seriesId;
+    const sStyle = series ? P.readJSON(seriesFile(series), {}).style : null;
+    const dir = path.join(P.PROJECTS, slug);
+    if (format === "meditation") {
+      const r = spawnSync(process.execPath, [path.join(ROOT, "engine", "longform.mjs"), "new", slug, "--title", flag("--title"), "--minutes", String(Math.max(1, Math.round(intake.platform.seconds / 60))), "--lang", intake.platform.lang, "--ar", intake.platform.ar], { encoding: "utf8" });
+      if (r.status !== 0) throw new Error(r.stderr || r.stdout);
+    } else {
+      P.writeJSON(path.join(dir, "shotlist.json"), { slug, title: flag("--title"), format, lang: intake.platform.lang, ar: intake.platform.ar, style: flag("--style") || sStyle || STYLE[format], shots: [], ...(F.FORMATS[format].kind === "scenes" ? { scenes: [], captions: { marginV: 0.16 }, sfx: {}, overlays: [] } : {}) });
+    }
+    P.updateShotlist(slug, (sl) => {
+      Object.assign(sl, { format, series, cast: chars, intake, flow: { v: 5, created: now(), approved: {}, overrides: [], log: [{ at: now(), event: "intake" }] } });
+    });
+    const sl = P.loadShotlist(slug);
+    P.writeJSON(path.join(dir, "intake.json"), intake);
+    fs.writeFileSync(path.join(dir, "concept.md"), CONCEPT(sl, intake));
+    console.log(`creado projects/${slug}/ · ${F.FORMATS[format].label} · receta: ${F.recipe(sl).join(" → ")}`);
+    commands.status([slug]);
+  },
+
+  status(args = pos) {
+    const slug = args[0];
+    const sl = P.loadShotlist(slug);
+    F.assertV5(sl);
+    const { steps, current } = F.status(sl);
+    console.log(`${sl.title} · ${F.FORMATS[sl.format]?.label} · ${sl.series ? "serie " + sl.series : "video individual"} · gastado $${(P.ledgerTotal(slug) * 0.005).toFixed(2)}${sl.budget ? ` de $${(sl.budget.approvedCredits * 0.005).toFixed(2)} aprobados` : ""}\n`);
+    for (const s of steps) console.log(`${s.ok ? " ✓" : s === current ? " →" : "  "} ${s.name.padEnd(22)} ${s.who === "creator" ? "[creador]" : "[auto]  "}${s.detail || ""}`);
+    console.log(current ? `\nSiguiente: ${current.name}. ${current.next}` : "\nProyecto cerrado.");
+  },
+
+  approve() {
+    const [slug, step] = pos;
+    F.approve(slug, step, flag("--said"), flag("--notes") ? { notes: flag("--notes") } : {});
+    const sl = P.loadShotlist(slug);
+    if (step === "series") P.writeJSON(seriesFile(sl.series), { ...P.readJSON(seriesFile(sl.series)), approved: { said: flag("--said"), at: now() } });
+    if (step === "book") console.log(`presupuesto bloqueado: ${sl.budget.approvedCredits} cr ($${(sl.budget.approvedCredits * 0.005).toFixed(2)}). Cualquier gasto extra necesita otro sí del creador.`);
+    console.log(`aprobado: ${step}`);
+    commands.status([slug]);
+  },
+
+  "approve-character"() {
+    const id = pos[0], said = flag("--said");
+    if (!id || !said) throw new F.FlowStop('approve-character <id> --said "palabras exactas del creador"');
+    const f = path.join(P.BIBLE, "characters", id, "character.json");
+    const c = P.readJSON(f, null);
+    if (!c) throw new F.FlowStop(`no existe bible/characters/${id}`);
+    if (!c.look?.trim()) throw new F.FlowStop(`${id}: escribe su look completo, con sus marcas (pecas, lunares, lentes, aretes...)`);
+    const d = path.dirname(f);
+    if (![...(c.refs || []), ...(c.sheets || [])].some((x) => fs.existsSync(path.join(d, x)))) throw new F.FlowStop(`${id}: falta su model sheet o referencia`);
+    P.writeJSON(f, { ...c, approved: { said, at: now() } });
+    console.log(`personaje aprobado: ${id}`);
+  },
+
+  // A take that failed an eval (for example a jump inside the shot) is used only if the creator accepts that exact take, in his words.
+  "accept-take"() {
+    const [slug, id, n] = pos, said = flag("--said"), reason = flag("--reason");
+    if (!slug || !id || !n || !said || !reason) throw new F.FlowStop('accept-take <slug> <shot> <take number> --said "palabras exactas del creador" --reason "qué falla y por qué se acepta"');
+    P.updateShotlist(slug, (sl) => {
+      F.assertV5(sl);
+      const s = P.shot(sl, id), t = s.clips?.[Number(n) - 1];
+      if (!t) throw new F.FlowStop(`${id} no tiene toma ${n}`);
+      t.accepted = { said, reason, at: now() };
+      s.clip = Number(n) - 1;
+      sl.flow.overrides = [...(sl.flow.overrides || []), { step: "film", take: `${id} take ${n}`, said, reason, at: now(), fp: "take" }];
+      sl.flow.log.push({ at: now(), event: `accept-take ${id} #${n}`, said, reason });
+    });
+    console.log(`toma ${n} de ${id} aceptada con las palabras del creador; queda en el Production Book.`);
+  },
+
+  override() {
+    const [slug, step] = pos;
+    F.override(slug, step, flag("--said"), flag("--reason"));
+    console.log(`override registrado en ${slug}: ${step}. Aparece en el Production Book.`);
+  },
+
+  // Final QC: one pass over the whole final, every format. Writes sl.finalQc5 tied to the file's hash.
+  async qc() {
+    const slug = pos[0];
+    let sl = P.loadShotlist(slug);
+    F.requireStep(sl, "qc", "studio qc");
+    const file = F.finalFile(sl), dir = P.projectDir(slug), issues = [], report = {};
+    const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,width,height,pix_fmt,codec_type:format=duration,size", "-of", "json", file]).toString());
+    const v = probe.streams.find((s) => s.codec_type === "video"), a = probe.streams.find((s) => s.codec_type === "audio");
+    const longform = F.kindOf(sl) === "longform";
+    const wantH = longform ? { "720p": 720, "1080p": 1080, "1440p": 1440, "2160p": 2160 }[sl.longform?.output || "1080p"] || 1080 : 720;
+    if (!v || v.codec_name !== "h264" || v.pix_fmt !== "yuv420p") issues.push(`video ${v?.codec_name}/${v?.pix_fmt}, se pide H.264 yuv420p`);
+    if (v && Math.min(v.width, v.height) !== wantH) issues.push(`resolución ${v.width}×${v.height}, se pide ${wantH}p`);
+    if (!a) issues.push("sin audio");
+    report.duration = Number(probe.format.duration);
+    report.sizeMB = +(Number(probe.format.size) / 1e6).toFixed(1);
+    // Format-specific QC the editors already ran (pacing for scenes, loudness and dead air for long-form).
+    if (F.kindOf(sl) !== "clips" && !sl.finalQc?.pass) issues.push(`QC del editor: ${(sl.finalQc?.problems || sl.finalQc?.issues || ["no pasó"]).join("; ")}`);
+    if (!longform) {
+      const e = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8" }).stderr;
+      report.lufs = Number((e.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
+      if (!(Math.abs(report.lufs - -14) <= 1.5)) issues.push(`volumen ${report.lufs} LUFS, se pide -14`);
+      // Every scripted line, in order, heard in the final.
+      const lines = (sl.shots || []).flatMap((s) => (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${s.id}-${i + 1}`, text: l.text })));
+      if (lines.length) { const d = dialogueCheck(file, lines, sl.lang); report.dialogue = d; issues.push(...d.issues.map((x) => `diálogo: ${x}`)); }
+      // Faces and marks across every cut, against each character's locked anchor.
+      const cast = F.castIds(sl).filter((id) => { try { return P.character(id).species !== "set"; } catch { return false; } });
+      if (cast.length) { const r = await identityCheck(file, cast); report.identity = { pass: r.pass, issues: r.issues, notes: r.notes }; issues.push(...r.issues); }
+    }
+    // The 4 fps contact sheet (thumbnails for the whole cut). Identity is checked above at full resolution.
+    const sheet = path.join(dir, "out", `${slug}-sheet.jpg`);
+    const fps = longform ? `1/${Math.max(10, Math.round(report.duration / 60))}` : "4";
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", file, "-vf", `fps=${fps},scale=160:-2,tile=12x${longform ? 6 : Math.ceil((report.duration * 4) / 12)}`, "-frames:v", "1", "-q:v", "4", sheet]);
+    const res = { pass: !issues.length, issues, report, sheet: P.rel(slug, sheet), sha: F.fileSha(file), at: now() };
+    sl = P.updateShotlist(slug, (x) => { x.finalQc5 = res; });
+    console.log(`${res.pass ? "QC DEL FINAL: PASA" : "QC DEL FINAL: FALLA"} · ${report.duration?.toFixed(1)} s · ${report.sizeMB} MB${report.lufs != null ? ` · ${report.lufs} LUFS` : ""}`);
+    for (const i of issues) console.log(` - ${i}`);
+    console.log(`Hoja de contacto: ${sheet}\nMírala completa antes de entregar (regla del creador), junto con la transcripción.`);
+    process.exitCode = res.pass ? 0 : 1;
+  },
+
+  deliver() {
+    const slug = pos[0];
+    const sl = P.loadShotlist(slug);
+    F.requireStep(sl, "deliver", "studio deliver");
+    const file = F.finalFile(sl);
+    const receipt = { file: P.rel(slug, file), sha: F.fileSha(file), at: now(), qc: sl.finalQc5.report, overrides: sl.flow.overrides || [] };
+    P.writeJSON(path.join(P.projectDir(slug), "delivery.json"), receipt);
+    P.updateShotlist(slug, (x) => { x.flow.log.push({ at: receipt.at, event: "deliver", sha: receipt.sha }); });
+    const b = spawnSync(process.execPath, [path.join(ROOT, "engine", "book.mjs"), slug], { encoding: "utf8" });
+    process.stdout.write(b.stdout || "");
+    if (b.status !== 0) throw new Error(`book.mjs: ${b.stderr}`);
+    console.log(`\nRecibo: projects/${slug}/delivery.json\nAhora: republica el Production Book, envía ${receipt.file} al creador con cualquier problema conocido, y haz el backup (npm run check, git push). Después: retro.`);
+  },
+
+  series(args = pos) {
+    const [sub, id] = args;
+    if (sub !== "new" || !id) throw new F.FlowStop('series new <id> --title "..."');
+    const f = seriesFile(id);
+    if (fs.existsSync(f)) throw new F.FlowStop(`la serie ${id} ya existe`);
+    const tpl = P.readJSON(path.join(ROOT, "templates", "series.json"));
+    delete tpl._how;
+    P.writeJSON(f, { ...tpl, id, title: flag("--title", id), approved: null, episodes: [] });
+    console.log(`series/${id}/series.json creado desde la plantilla. Llénalo con the creator (premisa, cast con deseos, mapa de sets, voces, intro, cierre, reglas) y apruébalo con el primer episodio: studio.mjs approve <slug> series --said "..."`);
+  },
+
+  "archive-legacy"() {
+    for (const d of fs.readdirSync(P.PROJECTS)) {
+      const f = path.join(P.PROJECTS, d, "shotlist.json");
+      if (!fs.existsSync(f)) continue;
+      const sl = P.readJSON(f);
+      if (sl.flow?.v) continue;
+      sl.flow = { v: 5, archived: "proyecto anterior al flujo v5: solo lectura (se puede ver y reproducir, no gastar ni editar)", at: now() };
+      P.writeJSON(f, sl);
+      console.log(`archivado: ${d}`);
+    }
+  },
+};
+
+const run = commands[cmd];
+if (!run) { console.log(fs.readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 17).map((l) => l.replace(/^\/\/ ?/, "")).join("\n")); process.exit(cmd ? 1 : 0); }
+try { await run(); } catch (e) { if (e instanceof F.FlowStop) { console.error(`ALTO: ${e.message}`); process.exit(2); } throw e; }

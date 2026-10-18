@@ -11,7 +11,7 @@ flowchart LR
   SB --> A[animatic.mjs]
   A --> B[book.mjs<br/>Production Book]
   B -- gate 2: book + budget lock --> J
-  J -- approve --> PH[phase.mjs approve]
+  J -- approve --> PH[studio.mjs approve book]
   PH --> S[gen.mjs scenes<br/>Seedance 2 Mini]
   S --> C[continuity.mjs<br/>vision judge]
   C --> Q[qc.mjs]
@@ -27,7 +27,16 @@ flowchart LR
   R & E -.-> EL
 ```
 
-## Pipeline v4 (sitcom)
+## Flow v5: one enforced path for every project
+
+- **`engine/studio.mjs`** is the front door: `new` (the 7-question intake: single or series, format, idea or scratch, platform and size, cast, budget, references), `status` (every step and the exact next action), `approve <step> --said "<the user's words>"`, `approve-character`, `accept-take`, `override` (logged, printed in the book), `qc` (final), `deliver` (receipt), `series new`, `archive-legacy`.
+- **`engine/lib/flow.mjs`** holds the recipes (scenes: sitcom, micro-drama, anime; clips: influencer, UGC, podcast, cinematic, fantasy, other; longform: meditation) and `requireStep()`, which every engine command calls before it runs. Approvals are fingerprinted: changing the concept, script, cast or plan afterwards reopens that gate. There is no legacy bypass and no `--force`.
+- **Takes** of clips formats carry their evals (identity against the locked face anchor, jumps inside the shot, dialogue). `cut.mjs` uses only takes that passed, or that the user accepted by name.
+- **Final:** `studio.mjs qc` checks the exact file (identity across every cut, transcript against the script, 720p H.264 yuv420p, -14 LUFS, contact sheet) and fingerprints it; `studio.mjs deliver` writes `delivery.json` and the final book.
+- **Guard hook** (`.claude/settings.json` → `scripts/hooks/guard.mjs`): denies scripts or inline code outside `engine/` and `scripts/` that call Kie, ElevenLabs or the judge, and denies sending a video or audio file without a matching delivery receipt (PREVIEW/DRAFT files excepted).
+- **`npm run check`** proves every lock is still in place, offline.
+
+## Scenes recipe (sitcom and series)
 
 | # | Step | Tool | Output | Cost |
 |---|---|---|---|---|
@@ -35,7 +44,7 @@ flowchart LR
 | 2 | Radio cut and pacing QC | `radio.mjs` | `audio/radio-cut.mp3`, shot durations | ElevenLabs characters |
 | 3 | Storyboard grids | `gen.mjs storyboard` | `boards/<scene>-grid.png`, split into panels | ~$0.08 per scene |
 | 4 | Animatic | `animatic.mjs` | `out/animatic.mp4` | $0 |
-| 5 | Production Book, **gate 2** | `book.mjs`, then `phase.mjs approve <slug> storyboard` | `book/index.html` (an Artifact in Claude, or opened in the browser); **budget locked** | $0 |
+| 5 | Production Book, **gate 2** | `book.mjs`, then `studio.mjs approve <slug> book --said "..."` | `book/index.html` (an Artifact in Claude, or opened in the browser); **budget locked** | $0 |
 | 6 | Film | `gen.mjs scenes` | `clips/<scene>-take-N.mp4` | ~$0.57 per 30 s |
 | 7 | Continuity | `continuity.mjs` | pass or fail per take | a few cents (judge) |
 | 8 | QC | `qc.mjs score` / `final` | scores in `shotlist.json` | $0 |
@@ -47,7 +56,7 @@ flowchart LR
 | # | Step | Tool | Cost |
 |---|---|---|---|
 | 1 | Plan and script, **gate 1** | `longform.mjs new`, edit the `longform` block | $0 |
-| 2 | Estimate, **gate 2** | `longform.mjs estimate`, then `phase.mjs approve <slug> storyboard` | $0 |
+| 2 | Estimate, **gate 2** | `longform.mjs estimate`, `book.mjs`, then `studio.mjs approve <slug> book --said "..."` | $0 |
 | 3 | Voice-over | `gen.mjs narration` | ElevenLabs characters |
 | 4 | Music bed | `gen.mjs bed` (Suno) | ~$0.06 per generation |
 | 5 | Scenes | `gen.mjs loops`: GPT Image 2.5 still, then Seedance with first frame = last frame (or free Ken Burns) | ~$0.05 + ~$0.33 per scene |
@@ -60,7 +69,9 @@ flowchart LR
 ```
 engine/
 ├── gen.mjs           all paid generation; budget guard and crash recovery in job()
-├── phase.mjs         project phases, approvals, budget lock and top-ups
+├── studio.mjs        flow v5 front door: intake, status, approvals, overrides, final QC, delivery
+├── cut.mjs           clips formats editor: plain cut, re-voice, end-snap trims, loudness
+├── phase.mjs         budget top-ups after the user's yes (--said)
 ├── radio.mjs         table read: voices, laughs, stings, pacing QC
 ├── animatic.mjs      boards cut to the radio cut
 ├── book.mjs          Production Book HTML (re-encodes the video copy under 16 MB)
@@ -95,7 +106,7 @@ engine/
 
 ## Money safeguards
 
-1. **Budget lock.** `phase.mjs approve <slug> storyboard` stores `budget.approvedCredits` = spent so far + the book's estimate. `gen.mjs job()` refuses any job that would pass it, **counting jobs still in flight**, and prints `BUDGET STOP`. Only `phase.mjs budget --add N --note "..."` after the user's yes raises it.
+1. **Budget lock.** `studio.mjs approve <slug> book` stores `budget.approvedCredits` = spent so far + the book's estimate. `gen.mjs job()` refuses any job that would pass it, **counting jobs still in flight**, and prints `BUDGET STOP`. Only `phase.mjs budget --add N --note "..."` after the user's yes raises it.
 2. **Crash recovery.** Each paid task writes `<out>.lock` with its Kie task id as soon as it's submitted. If the process dies, times out or the download fails, the lock stays, and the next run collects the finished result instead of paying again.
 3. **No blind resubmits.** `kie.run()` retries only when Kie failed the task or never accepted it, never after a timeout.
 4. **Ledger integrity.** JSON writes are atomic (temp file plus rename). A corrupt ledger raises an error instead of reading as "0 spent".
@@ -116,10 +127,11 @@ Every CLI prints its full usage when run with no arguments.
 
 | Command | What it does |
 |---|---|
-| `node engine/phase.mjs new <slug> --style <id> --title "..." [--format ugc-ad] [--lang en] [--ar 9:16]` | Create a short-form project (`shotlist.json`, `concept.md`) |
-| `node engine/phase.mjs status <slug>` | Phases, gates and spend |
-| `node engine/phase.mjs approve <slug> concept\|storyboard\|post` | Approve a gate (`storyboard` locks the budget) |
-| `node engine/phase.mjs budget <slug> --add N --note "..."` | Raise the budget after the user's explicit yes |
+| `node engine/studio.mjs new <slug> ...` | Create a project from the 7-question intake (every format) |
+| `node engine/studio.mjs status <slug>` | Every step, done or not, and the exact next action |
+| `node engine/studio.mjs approve <slug> <step> --said "..."` | Approve a gate in the user's words (`book` locks the budget) |
+| `node engine/studio.mjs qc <slug>` / `deliver <slug>` | Final QC of the exact file; delivery receipt and final book |
+| `node engine/phase.mjs budget <slug> --add N --said "..."` | Raise the budget after the user's explicit yes |
 | `node engine/radio.mjs <slug>` | Radio cut: voices, laughs, timing, pacing QC |
 | `node engine/gen.mjs storyboard <slug>` | One GPT Image 2.5 grid per scene |
 | `node engine/animatic.mjs <slug>` | Boards cut to the radio cut |

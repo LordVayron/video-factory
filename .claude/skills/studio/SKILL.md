@@ -1,16 +1,32 @@
 ---
 name: studio
-description: Entry point of the AI Video Factory — a Higgsfield-style video studio on Kie.ai run from Claude Code. Takes any video request in any vertical (UGC ad, micro-drama / vertical novela, sitcom or series, fantasy, anime, cinematic, AI influencer / clone me, podcast clip, long-form meditation or ambient) in any language and runs pipeline v4 — vertical DNA → writers' room script (gate 1) → audio-first table read → GPT Image 2.5 storyboards → Production Book with the animatic and cost (gate 2) → one cheap multi-shot generation per scene → auto edit + pacing QC → final + updated book. Use for "make a video", "hazme un video", "new episode", "UGC ad for X", "clone me", "anime short", "podcast clip", "meditation video", "novela para TikTok", "/studio".
+description: Entry point of the AI Video Factory — a Higgsfield-style video studio on Kie.ai run from Claude Code. Runs flow v5 for any video request in any format (90s sitcom, micro-drama, AI influencer / clone me, UGC ad, podcast clip, anime, cinematic, fantasy, long-form meditation) in English or Spanish — the 7-question intake → series bible if new → concept → script (gate) → cast (gate) → radio cut → storyboard or frames → Production Book (gate, locks the budget) → film with per-take evals → edit → final QC → delivery receipt → retro. Every step is enforced by the engine (engine/studio.mjs, lib/flow.mjs) and a Claude Code hook. Use for "make a video", "hazme un video", "new episode", "nuevo episodio", "UGC ad for X", "clone me", "AI influencer", "anime short", "podcast clip", "meditación", "/studio".
 ---
 
-# Studio: pipeline v4 (audio first, cost first)
+# Studio: flow v5
 
 You are the director. Priorities: **1. the writing** (for sitcoms: funny dialogue above everything), **2. pacing**, **3. continuity**, **4. cost**, **5. speed**.
-The user approves exactly two things: **the script** (gate 1) and **the Production Book** (gate 2, before any video money is spent). Everything else runs without stopping.
+If `studio.json` exists at the repo root, read it first (language, platforms, default budget, brand and characters); if it doesn't and the user is new, run the `onboarding` skill. The engine enforces every step below; you cannot skip one, and you must not try to.
 
-## Step 0: Read the creator profile, then the vertical DNA (always)
-If `studio.json` exists at the repo root, read it first: language, platforms, default budget, brand and characters. If it doesn't exist and the user is new, run the `onboarding` skill.
+## The one loop
+1. A new video always starts with the **intake** (below). No intake, no project.
+2. After that, run `node engine/studio.mjs status <slug>` and do exactly the step it names under "Siguiente". Repeat.
+3. The creator's steps (concept, script, cast, book, retro, and the series bible) are approved only with their own words: `node engine/studio.mjs approve <slug> <step> --said "<their exact words>"`. Never approve for them, never paraphrase, never approve from a message that is not theirs.
+4. If the engine stops you (ALTO / BUDGET STOP / PROMPT STOP / the guard hook), tell the creator what stopped and why, with options. Do not work around it.
 
+## Step 0: the intake (seven questions, one screen each, with AskUserQuestion buttons)
+| # | Question | Options | What it decides |
+|---|---|---|---|
+| P1 | ¿Video individual o serie? | individual · episodio de una serie existente · serie nueva | `--series single \| episode:<id> \| new:<id>`; a new series adds the series-bible step |
+| P2 | ¿Qué tipo de video? | sitcom · micro-drama · anime · AI influencer · UGC/anuncio · podcast clip · cinemático · fantasía · meditación/long-form · otro | `--format`, the DNA file and the recipe (`studio.mjs formats`). "Otro" means research and write its DNA file first. |
+| P3 | ¿Tienes una idea o empezamos desde cero? | tengo guion · tengo idea · desde cero | `--start`. Script: keep their words, offer a punched version beside it. Scratch: 10 premises to pick from. |
+| P4 | ¿Dónde se publica y en qué medida? | TikTok/Reels 9:16 · YouTube 16:9 · duration · language | `--platform --ar --seconds --lang` |
+| P5 | ¿Quién sale en pantalla? | personajes existentes · nuevos · tú mismo · mezcla · nadie | `--cast` (+ `--chars a,b`); new ones go through casting (P5 = new means the cast gate creates them) |
+| P6 | ¿Cuál es el techo de gasto? | lo más barato que mantenga calidad · monto fijo · calidad máxima | `--budget cheapest \| fixed:<usd> \| max`; the book never proposes past it without saying so |
+| P7 | ¿Referencias o tono? | links · "que se sienta como…" · sin referencias | `--refs` |
+Then: `node engine/studio.mjs new <slug> --title "..." --series ... --format ... --start ... --platform ... --ar ... --seconds ... --lang ... --cast ... [--chars ...] --budget ... --refs "..."`.
+
+## Step 0.5: load the vertical DNA (always)
 Read the vertical's file in `references/verticals/` before writing a single line:
 | Vertical | File |
 |---|---|
@@ -23,53 +39,58 @@ Read the vertical's file in `references/verticals/` before writing a single line
 | Micro-drama / vertical novela series (TikTok, Reels) | `micro-drama.md` |
 | Fantasy short (epic or cozy) | `fantasy-short.md` |
 | Long-form meditation, sleep, ambient or focus (10 min to 3 h) | `meditation-longform.md`, then follow the **`format-longform`** skill (its own pipeline: `engine/longform.mjs`) |
+
 A new vertical gets a new DNA file (research → what makes it great → structure → writing rules → picture → sound → pacing numbers → QC → failure modes) before its first video. Every retro adds its lessons to that file.
 
-## The pipeline
-| # | Step | Output | Gate | Cost (30 s) |
-|---|---|---|---|---|
-| 1 | **Writers' room** (`story-architect` + DNA): premise → game → beat map → draft at target density → punch-up → character pass → rubric ≥ 8. The user's own scripts are kept and a punched version is offered side by side. | script + alternatives | **Gate 1: script** | $0 |
-| 2 | **Table read / radio cut**: voices (ElevenLabs), laughs and SFX edited at the vertical's pace. **This audio sets every shot's duration.** Pacing QC runs here, on audio. | `audio/radio-cut.mp3`, shot timings | — | $0 |
-| 3 | **Look**: one storyboard grid per scene with **GPT Image 2.5** (all images in the studio use GPT Image 2.5), character sheets/sets reused from the bible. | boards | — | ~$0.08 / scene |
-| 4 | **Production Book** (artifact): script, direction, DNA checklist, sheets, set, boards + shot table, the animatic (boards cut to the radio cut), the exact video prompts, model + cost estimate. | book link | **Gate 2: book** | $0 |
-| 5 | **Film**: one multi-shot generation per scene, all scenes in parallel, all in the same model. Shot durations = radio-cut durations. No prompt ever asks for silence. | clips | — | sitcom ≈ $0.57 |
-| 6 | **Auto edit**: conform to the radio cut, cut silences > 0.4 s, laughs overlap and duck, captions, style finish. | cut | — | $0 |
-| 7 | **QC**: visual rubric + transcript check + pacing metrics from the DNA. Reroll only failed scenes. | scores | — | rerolls only |
-| 8 | **Final**: video + the Production Book updated with takes, QC and real cost. | mp4 + book | the user reviews | — |
-| 9 | **Retro**: lessons → DNA file + style sheet. | — | — | — |
+## The recipes (engine: `lib/flow.mjs`)
+| Format kind | Formats | Steps after the script and cast | Edit with |
+|---|---|---|---|
+| scenes | sitcom, micro-drama, anime | radio cut (`radio.mjs`, pacing must pass) → storyboard grids (`gen.mjs storyboard`) + `animatic.mjs` → book → `gen.mjs scenes` → `continuity.mjs` + `qc.mjs` per take | `edit.mjs` |
+| clips | AI influencer, UGC, podcast, cinematic, fantasy, other | first/last frames per shot (`gen.mjs frame`, or `"frame": "@A:last"` to open on the previous shot's last frame) → book → `gen.mjs clip <slug> --shot <id>` (identity, jumps and dialogue evals run on every take) | `cut.mjs` |
+| longform | meditation, sleep, ambient, focus | plan + `longform.mjs estimate` → book → `gen.mjs narration`, `bed`, `loops` | `longform.mjs build` |
+Every recipe ends the same way: `studio.mjs qc` (identity across every cut, transcript against the script, 720p H.264 yuv420p, -14 LUFS, contact sheet) → look at the sheet yourself → `studio.mjs deliver` (receipt + final book) → republish the book → send the mp4 → `npm run check` and push the backup → retro.
 
-Target after gate 2: **≤ 10 min** to the final. Run generations in parallel in the background.
+## Gates and what each one checks
+| Step | Who | Done when |
+|---|---|---|
+| Intake | engine | all seven answers stored (`intake.json`) |
+| Series bible (new series only) | the creator | `series/<id>/series.json` filled (premise, cast with wants, room map, voices, intro, ending, rules) and approved |
+| Concept | the creator | `concept.md` approved |
+| Script | the creator | the shotlist's dialogue approved; editing it later reopens the gate |
+| Cast | the creator | every character exists in the bible with a written look **that names its marks** (freckles, moles, glasses, earrings...), a sheet or reference, a voice if it speaks, and an approved sheet (`cast.mjs approve` or `studio.mjs approve-character <id> --said "..."`) |
+| Radio cut | engine | pacing passes (scenes formats) |
+| Storyboard / frames | engine | grids + animatic + continuity plan (scenes) or first/last frames (clips); no prompt leaves out a character's marks |
+| Production Book | the creator | `book.mjs` built and published; his yes locks the budget (spent + estimate) |
+| Film | engine | every take used passed its evals, or the creator accepted that exact take in his words (`studio.mjs accept-take`) |
+| Edit | engine | the final was cut by the engine from those takes (fingerprinted) |
+| Final QC | engine | `studio.mjs qc` passed on this exact file |
+| Delivery | engine | `studio.mjs deliver` wrote a receipt whose hash matches the file |
+| Retro | the creator | lessons written to the DNA file and the series bible |
+
+## Creative calls are the creator's
+Anything that changes how the video looks or sounds after the book was approved needs the creator's yes first, even when free: captions, zoom or reframing, crops, cuts, music, voices, a different look. Lay out the options with their trade-offs and wait. Rerolls and extra spend need their explicit yes (`phase.mjs budget <slug> --add N --said "..."`). Overrides exist only with their words and are printed in the book: `studio.mjs override <slug> <step> --said "..." --reason "..."`.
+
+## Sending files to the creator
+The guard hook only lets a video or audio file reach the creator when it has a delivery receipt matching its hash. A file to ask them something (a preview, a draft) must carry PREVIEW or DRAFT in its name and be presented as such, never as the delivery.
 
 ## Models (cost first; check Kie's live price feed before every new project)
 - **Images: GPT Image 2.5 Sunburst** (`gpt2.5`), always. 1K $0.03, 2K $0.05, 4K $0.08.
-- **Video, by vertical** (one model per video, never mixed):
-  - **Sitcom:** Seedance 2 Mini **480p** ($0.019/s). The broadcast finish downsamples to SD, so 720p is wasted. If a scene fails twice, the whole video moves to Wan 3.0 Prime 480p.
-  - **UGC ad, influencer and cinematic:** 720p. Each gets its first cheap test in its own vertical before committing.
-- **Voices and SFX:** ElevenLabs (premade voices work on every plan).
-- **Veo is excluded.**
+- **Video, by format** (one model per video, never mixed):
+  - **Sitcom:** Seedance 2 Mini **480p** ($0.019/s). The broadcast finish downsamples to SD, so 720p is wasted. Veo stays out of the sitcom.
+  - **Photoreal humans (AI influencer, UGC, cinematic):** Veo 3.1 Quality 720p ($1.25 per 8 s), the winner of an A/B test against Veo Lite, Veo Fast and Kling 3.0. Veo can burn its own captions and jump inside a shot: the evals catch both; never hide them with captions or a zoom without asking.
+- **Voices, SFX, speech-to-speech, voice clones:** ElevenLabs (premade voices work on every plan; voice clones need a paid plan).
 - **Never pay for a draft that the final can't reuse.** The free draft is the radio cut plus the animatic.
 
 ## Rules
 - Fix at the cheapest stage: script (free) → radio cut (free) → board ($0.08) → video.
-- Estimate before filming and put the number in the Production Book.
-- Delivery: 720p, H.264 yuv420p, under 30 MB.
+- Delivery: 720p, H.264 yuv420p (long-form: its own output size). Keep the book's video copy under 16 MB (book.mjs re-encodes).
+- 15 minutes max from approval to delivery; at most one reroll per scene inside the budget.
 - Never reproduce real people other than the user (with their own photos and voice), brand logos without permission, or copyrighted characters. Never name real shows or actors in prompts.
-- Phase tracking: `node engine/phase.mjs status <slug>`.
 
-## Commands (pipeline v4)
-1. `node engine/phase.mjs new <slug> ...`, write `concept.md` and the shotlist (lines carry `delivery`, optional `beat` and `laugh`), then `phase.mjs approve <slug> concept`.
-2. `node engine/radio.mjs <slug>`: voices, laughs and pacing QC. Shot durations get written into the shotlist. Fix the script or `pace.tempo` until it passes.
-3. `node engine/gen.mjs storyboard <slug>` (GPT Image 2.5), then `node engine/animatic.mjs <slug>` (boards cut to the radio cut).
-4. `node engine/book.mjs <slug>`, then publish `projects/<slug>/book/index.html` as an Artifact with the files in `book/files.json`. **Gate 2: wait for the user.**
-5. `node engine/phase.mjs approve <slug> storyboard`, then `node engine/gen.mjs scenes <slug>` (all scenes in parallel).
-6. `node engine/qc.mjs scenes <slug>`, look at the strips, then `qc.mjs score ...`.
-7. `node engine/edit.mjs <slug>`: transcript-aligned tight cut, laughs on line ends, chunked captions, freeze and outro, finish, final + pacing QC.
-8. `node engine/book.mjs <slug>` again (final mode), republish the same file, send the mp4.
-
-## Production safeguards (each one comes from a real failed production). Non-negotiable.
+## Production safeguards. Non-negotiable.
 | # | Failure that happened | Safeguard | Where |
 |---|---|---|---|
-| 1 | Spent ~2× the approved budget on unapproved rerolls | **Budget lock.** Approving the Production Book locks its estimate; `gen.mjs` refuses any job past it (BUDGET STOP). Extra spend only after the user says yes: `phase.mjs budget <slug> --add N --note "..."`. | `gen.mjs job()`, `phase.mjs` |
+| 1 | Spent ~2× the approved budget on unapproved rerolls | **Budget lock.** Approving the Production Book (`studio.mjs approve <slug> book`) locks its estimate; `gen.mjs` refuses any job past it, and any video job before it (BUDGET STOP). Extra spend only after the creator says yes: `phase.mjs budget <slug> --add N --said "..."`. | `gen.mjs job()`, `phase.mjs` |
 | 2 | Over an hour of rerolls and engine changes mid-production | **15-minute rule.** At most one reroll per scene, and only if it fits the approved budget. Never change the engine during a production; deliver, report, fix after. | this skill + memory |
 | 3 | The set plate was the daytime dining angle, so wides drifted to the wrong angle and to daylight | **Plate check before filming.** `set.json → platesMeta` (angle, time); the plan check blocks a night scene with a day plate. | `lib/state.mjs` |
 | 4 | Takes filmed against different plates were cut together (angles and couch changed between scenes) | **Plate stamp.** Every take records its plate; `edit.mjs` refuses mixed plates. | `gen.mjs`, `edit.mjs` |
@@ -78,4 +99,13 @@ Target after gate 2: **≤ 10 min** to the final. Run generations in parallel in
 | 7 | The exit walk was trimmed into a glitch | **Silent action shots are never trimmed** (exits, walks, reactions keep their planned length). | `edit.mjs` |
 | 8 | The evil laugh and howl were cut as "silence" | **Vocalizations** (laughs, howls, barks) are protected and keep their audience laugh. | `edit.mjs` |
 | 9 | Each take re-invented the voices | **Voice unify.** Every spoken line in the cut is re-voiced with ElevenLabs speech-to-speech in the character's official voice; timing is kept, so lip sync holds. | `edit.mjs`, `lib/eleven.mjs` |
-| 10 | I never watched the final at real speed | **Human check before sending.** A contact sheet at 4 fps of the whole final, plus the full transcript against the script. Any doubt gets reported to the user with the video, never hidden. | this skill |
+| 10 | I never watched the final at real speed | **Human check before sending.** A contact sheet at 4 fps of the whole final, plus the full transcript against the script. Any doubt gets reported to the creator with the video, never hidden. | this skill |
+| 11 | A character lost her freckles in one shot. The prompt left them out, the shot started on a profile frame, the project ran outside the pipeline, and the old check judged 360 px frames inside one scene and only knew wardrobe | **Identity eval.** High-res face crops every 0.5 s, each compared side by side with the character's locked face anchor (`bible/characters/<id>/face-anchor.jpg`, set with `--lock-anchor` on the approved take) and the reference. A distinctive mark (freckles, mole, glasses, earrings...) that fades or vanishes for 1 s or more fails. Runs automatically on every take (`gen.mjs clip`, `continuity.mjs`) and on every final (`studio.mjs qc`); standalone: `continuity.mjs <slug> --identity <video>`. A 4 fps thumbnail sheet is not an identity check. | `lib/identity.mjs`, `continuity.mjs` |
+| 12 | Same failure: the shot's prompt was written by hand and dropped "freckles" | **Prompt check.** A video prompt that leaves out a distinctive mark of a character in it is refused (PROMPT STOP). | `gen.mjs job()` |
+| 13 | Same failure: the shot ran through a one-off script, so the budget lock, prompt check and continuity never ran | **No one-off runners.** Every paid job goes through `gen.mjs` (first/last-frame shots: `gen.mjs clip <slug> --shot <id>`, which runs every take eval); the guard hook denies any script or inline code outside `engine/` that calls Kie or ElevenLabs. Every format, not only the sitcom. | `gen.mjs clip` |
+| 14 | A Veo 3.1 Quality first+last-frame shot jumped at 4.4 s inside the shot. No check looked for cuts inside a shot that should be one continuous move; the creator had to spot it | **Jump check (free).** ffmpeg scdet (threshold 8) on every generated shot: a jump in the last 0.7 s is an **end snap** (the model snapping onto its last frame) and gets a suggested trim one frame before it; any other jump is an **internal jump** (major: reads as a jump cut, the creator decides, a reroll needs his sí). Runs on every take in `gen.mjs clip` (stored on the take; an end snap trims it in `cut.mjs`) and standalone: `continuity.mjs <slug> --jumps <shot.mp4>`. For single shots only, not a final cut. | `lib/jumps.mjs`, `gen.mjs clip`, `continuity.mjs` |
+| 15 | That project had no `phases`, so every gate was skipped ("legacy projects skip gates"); 10 of 13 projects had no budget; `--force` and `--draft` skipped QC and continuity | **Flow v5.** `studio.mjs` + `lib/flow.mjs`: every project starts with the intake, every command asks `requireStep()`, the creator's gates need his words and reopen when what he approved changes, no legacy bypass, no `--force`, a draft is never deliverable. Projects from before v5 are archived read-only. | `lib/flow.mjs`, every engine command |
+| 16 | A video could reach the creator with nothing proving it passed | **Delivery receipt.** `studio.mjs qc` fingerprints the file that passed; `studio.mjs deliver` writes the receipt; the guard hook denies sending any video or audio without a matching receipt (PREVIEW/DRAFT files excepted, presented as such). | `studio.mjs`, `scripts/hooks/guard.mjs` |
+| 17 | Captions and a zoom were added to a finished video without asking | **Creative calls are the creator's.** Captions, zoom, crops, cuts, music, voices, look: options first, his choice, then act. Editors add nothing creative on their own (`cut.mjs` is a plain cut). | this skill, memory |
+
+Phase tracking: `node engine/studio.mjs status <slug>`. Every engine command also prints the exact next step when it stops.

@@ -66,11 +66,12 @@ flowchart LR
   E --> V([Your video])
 ```
 
-- **You approve two things:** the script and the budget. Nothing is spent before that.
+- **One enforced path, every format.** Every video starts with seven quick questions (single or series, format, idea or from scratch, platform, cast, budget, references) and moves step by step: concept, script, cast, storyboard, Production Book, film, edit, final QC, delivery. The engine refuses a step out of order, and a Claude Code hook stops one-off scripts and undelivered files.
+- **You approve the creative gates:** concept, script, cast and the Production Book (the budget), in your own words. Nothing is spent on video before that.
 - **The budget is locked in code.** Once you approve the Production Book, the engine refuses any job that would go past it. Extra spend needs your explicit yes.
 - **Audio first.** A "radio cut" of the voices sets every shot's length before any picture is paid for, so pacing is right on the first take.
 - **One generation per scene** with all its shots, in the cheapest model that keeps quality (Seedance 2 Mini by default).
-- **Automatic QC:** a vision judge checks positions, physics, dialogue, light and geography; the editor cuts silences, unifies voices, adds captions, laughs or music, and checks loudness.
+- **Automatic QC:** every take is checked for identity (faces and marks like freckles or glasses, against a locked face), jumps inside the shot, dialogue, positions, physics, light and geography; the final is checked across every cut before a delivery receipt is issued.
 
 ## For long-form: meditation, sleep and ambient
 
