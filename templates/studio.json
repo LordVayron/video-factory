@@ -1,0 +1,31 @@
+{
+  "_how": "Written by the onboarding skill at the repo root (gitignored). Edit any time.",
+  "creator": {
+    "name": "",
+    "language": "es",
+    "languages": [
+      "es",
+      "en"
+    ]
+  },
+  "wants": "UGC ads for my skincare brand",
+  "formats": [
+    "ugc-ad"
+  ],
+  "platforms": [
+    "tiktok",
+    "instagram-reels"
+  ],
+  "ar": "9:16",
+  "brand": {
+    "name": "",
+    "product": "",
+    "audience": "",
+    "tone": "",
+    "assets": []
+  },
+  "characters": "create new",
+  "budgetPerVideoUsd": 3,
+  "firstProject": "",
+  "createdAt": ""
+}

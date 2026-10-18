@@ -8,7 +8,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
-studio.json
+/studio.json
 
 # Your work: characters, sets, series and projects stay on your machine
 bible/characters/*

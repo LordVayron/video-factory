@@ -55,6 +55,7 @@ Kie credits: 1 credit = $0.005. ElevenLabs voices are billed by ElevenLabs in ch
    - Series (sitcom, micro-drama, anime series): start the series with the `format-series` skill, then the first episode.
    - Everything else: `node engine/phase.mjs new <slug> --style <style> --title "..." --format <vertical> --lang <lang> --ar <ar>`. Styles: `ugc-phone`, `hyperreal`, `anime`, `podcast`, `retro-sitcom` (or a new one with `style.mjs new`).
    - If they have characters or a product, run the `cast` skill for them first (sheets and voices go in `bible/`).
+   - Styles ship as `draft`. The first project in a style needs its look locked once: `node engine/style.mjs northstar <style> "<a scene from their idea>"` (one GPT Image 2.5 frame, about $0.05, ask first), show it, then `node engine/style.mjs approve <style> --northstar <file>`. Every later project in that style reuses it. Long-form projects skip this.
 3. **Summarize** in 4–6 lines: what you understood, the assumptions you made, the project you created, and the next step (the script, gate 1). Ask: "Do you want me to write the first script now?"
 4. **Tell them how to make other things:** "Every format lives in its own conversation. To make something different (another format, another series, another brand), open a new conversation in this folder and just say what you want, for example: 'hazme un video de meditación de 20 minutos para dormir', 'quiero una novela para TikTok sobre una heredera secreta', 'make a UGC ad for my coffee brand'. I'll read your profile and pick the right pipeline."
 
