@@ -1,0 +1,67 @@
+{
+  "id": "anime",
+  "name": "Anime (2D TV/film cel look)",
+  "kind": "stylized",
+  "status": "draft",
+  "description": "Anime shorts, ads and series in a 2D cel-animated look.",
+  "look": "A frame from a high-budget 2D anime series: clean confident line art, cel shading with two-tone shadows, painted watercolor-style backgrounds, expressive eyes, crisp silhouettes, soft bloom on highlights.",
+  "imageRules": "Characters stay exactly on-model (proportions, eye shape, hair, costume details, colors). Backgrounds are painted, characters are cel-shaded; no 3D shading.",
+  "negative": "3D render, CGI, photorealism, western cartoon style, inconsistent line weight, muddy shading, extra fingers, text, watermark, collage",
+  "palette": [],
+  "camera": "Anime grammar: dramatic angles, speed lines for action, held poses with small loops (blinks, hair sway), pans across painted backgrounds, smash cuts on reactions.",
+  "motion": "2D anime motion: limited-animation feel, held poses with hair and cloth sway, snappy key poses, lip flaps on dialogue, no 3D camera rotation around characters. Line art and flat colors stay identical to the first frame.",
+  "audio": {
+    "dialogue": "native",
+    "laughTrack": false,
+    "music": "anime-style score or J-pop sting",
+    "sfx": "anime whooshes, impact hits"
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
+    "prompt": "An anime character model sheet of {who} on a plain light background, 2x2 grid: top-left front head and shoulders, top-right three-quarter view, bottom-left side profile, bottom-right full body standing turnaround pose. {look}. Identical design, colors and costume in all four. Thin white gutters. No text, no labels."
+  },
+  "refPolicy": "sheet",
+  "setRef": true,
+  "finish": "none",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "wan3",
+    "res": "720p",
+    "talk": null,
+    "storyboardGrid": "gpt2.5"
+  },
+  "candidates": {
+    "video": [
+      "wan3",
+      "kling3",
+      "sd2-fast",
+      "grok"
+    ]
+  },
+  "qc": {
+    "minEach": 7,
+    "minAvg": 8,
+    "extra": {
+      "frame": {
+        "onModel": "Characters match their model sheet exactly; line weight and cel shading consistent; no 3D look."
+      },
+      "clip": {
+        "onModel": "Characters stay on-model through motion; lines don't boil or melt; no drift into 3D shading."
+      }
+    }
+  },
+  "northStar": null,
+  "lookTest": {
+    "winner": null,
+    "results": []
+  },
+  "lessons": []
+}

@@ -1,0 +1,8 @@
+{
+  "id": "90s-broadcast",
+  "style": "A still frame from a 1990s American network multi-camera sitcom, recorded off-air from TV: standard-definition softness, warm NTSC color, flat bright soundstage lighting, an ordinary built set with lived-in props. Framed the way a multi-camera sitcom is: eye level, slightly long lens, actors in the middle distance. Real animals in real costumes and real actors, photographed on a TV set; nothing looks CGI, glossy or stock-photo.",
+  "motion": "Shot like a 90s multi-camera sitcom: locked-off pedestal camera at eye level, no fancy moves. Animals keep natural animal behaviour inside their costumes (ear flicks, slow blinks, sniffing, padding on all fours); mouths move only on their own lines. Keep the standard-definition broadcast texture of the first frame.",
+  "negative": "glossy, stock photo, HDR, shallow depth of field, cinematic grade, cartoon, 3D render, collage, split screen, text, watermark",
+  "setRef": false,
+  "notes": "Never name real shows or actors in prompts: it pulls real likenesses and sets (and GPT Image refuses). Nano Banana Pro gave the most convincing frame grabs in the 2026-10-08 look test."
+}

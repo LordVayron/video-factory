@@ -1,0 +1,63 @@
+{
+  "id": "",
+  "name": "",
+  "kind": "realistic",
+  "status": "draft",
+  "description": "When to use this style (one sentence).",
+  "look": "Image prompt prefix that defines the medium: what kind of footage or artwork this is, camera/film/texture, light, palette.",
+  "imageRules": "Extra rules every keyframe must follow.",
+  "negative": "What this style must never look like.",
+  "palette": [],
+  "camera": "Camera grammar for the cinematographer: lenses, distances, moves allowed.",
+  "motion": "Sentence appended to every motion prompt.",
+  "audio": {
+    "dialogue": "native",
+    "laughTrack": false,
+    "music": "",
+    "sfx": ""
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
+    "prompt": "A 2x2 grid of four images of the same {who} in {set}: top-left front view head and shoulders, top-right three-quarter view, bottom-left side profile, bottom-right full body. {look}. Identical face, body, wardrobe and details in all four. Thin white gutters between panels. No text, no labels."
+  },
+  "refPolicy": "sheet",
+  "setRef": true,
+  "finish": "none",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "wan3",
+    "res": "720p",
+    "talk": "kling-avatar",
+    "storyboardGrid": "gpt2.5"
+  },
+  "candidates": {
+    "video": [
+      "wan3",
+      "wan3-prime",
+      "kling3",
+      "sd2-fast"
+    ]
+  },
+  "qc": {
+    "minEach": 7,
+    "minAvg": 8,
+    "extra": {
+      "frame": {},
+      "clip": {}
+    }
+  },
+  "northStar": null,
+  "lookTest": {
+    "winner": null,
+    "results": []
+  },
+  "lessons": []
+}

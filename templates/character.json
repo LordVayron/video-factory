@@ -1,0 +1,21 @@
+{
+  "_how": "Copy to bible/characters/<id>/character.json, then: node engine/cast.mjs sheet <id> --style <style>",
+  "id": "milo",
+  "name": "Milo",
+  "species": "cat",
+  "look": "a chubby orange tabby cat with round amber eyes and a white chest, wearing small round glasses and a navy knitted vest",
+  "traits": "a self-appointed CEO who treats every household event like a board meeting",
+  "flaw": "too proud to admit he is a house cat",
+  "role": "straight man / schemer",
+  "voiceDesc": "dry, deadpan baritone",
+  "voice": {
+    "eleven": "onwK4e9ZLuTAKqWW03F9",
+    "sampleText": {
+      "en": "Per my last memo, the food bowl is under new management.",
+      "es": "Según mi último memorándum, el plato de comida está bajo nueva administración."
+    }
+  },
+  "sheets": [],
+  "refs": [],
+  "looks": {}
+}

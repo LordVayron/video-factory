@@ -1,0 +1,71 @@
+{
+  "id": "hyperreal",
+  "name": "Hyperreal (indistinguishable from camera footage)",
+  "kind": "realistic",
+  "status": "draft",
+  "description": "Anything that must pass as real modern footage: influencers talking to camera, lifestyle scenes, testimonials, cinematic live action.",
+  "look": "An unretouched frame from real footage shot on a modern full-frame cinema camera: natural skin texture with pores, peach fuzz and small imperfections, real hair flyaways, accurate color, motivated natural light with soft falloff, subtle lens character, true-to-life proportions. Real people in real places.",
+  "imageRules": "Skin is never airbrushed; eyes have natural catchlights and slight asymmetry; hands have five fingers with real knuckles; clothing has wrinkles and real fabric weight; backgrounds are real lived-in places.",
+  "negative": "AI sheen, plastic or waxy skin, airbrushing, perfect symmetry, HDR, over-saturation, glowing edges, stock-photo posing, 3D render, extra fingers, warped text, collage",
+  "palette": [],
+  "camera": "Real camera behaviour: 24-85mm, eye level, motivated moves only (slow push, handheld micro-drift for intimacy). Shallow-to-moderate depth of field like a real lens. Talking heads: eye-line into or just off the lens, chest-up framing.",
+  "motion": "Natural human micro-motion: breathing, small head tilts, blinks, real weight shifts. Hands move with purpose. No floaty or slow-motion feel. Keep exact skin and fabric texture from the first frame.",
+  "audio": {
+    "dialogue": "native",
+    "laughTrack": false,
+    "music": "optional, low",
+    "sfx": "real room tone"
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
+    "prompt": "A 2x2 grid of four unretouched candid photographs of the same {who}, all taken in {set} in the same natural light: top-left head-and-shoulders facing camera, top-right three-quarter view, bottom-left side profile, bottom-right full body. {look}. Identical face, hair, body and wardrobe in all four. Thin white gutters between panels. No text, no labels."
+  },
+  "refPolicy": "native",
+  "setRef": true,
+  "finish": "film",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "wan3-prime",
+    "res": "720p",
+    "talk": "kling-avatar",
+    "storyboardGrid": "gpt2.5"
+  },
+  "candidates": {
+    "video": [
+      "wan3-prime",
+      "kling3",
+      "sd2-fast",
+      "sd2"
+    ],
+    "talk": [
+      "kling-avatar",
+      "infinitetalk"
+    ]
+  },
+  "qc": {
+    "minEach": 7,
+    "minAvg": 8.5,
+    "extra": {
+      "frame": {
+        "realism": "Passes as an unedited photo: real skin texture, natural light, correct hands, no AI sheen."
+      },
+      "clip": {
+        "realism": "Passes as real footage: natural micro-motion, no waxy skin, no warping hands, believable lip-sync."
+      }
+    }
+  },
+  "northStar": null,
+  "lookTest": {
+    "winner": null,
+    "results": []
+  },
+  "lessons": []
+}

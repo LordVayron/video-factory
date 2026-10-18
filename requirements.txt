@@ -1,0 +1,5 @@
+# Python helpers used by engine/lib/*.py (alignment, pitch, panel trim)
+numpy>=1.26
+faster-whisper>=1.0
+Pillow>=10.0
+pypdf>=4.0

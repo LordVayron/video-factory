@@ -1,0 +1,68 @@
+{
+  "id": "ugc-phone",
+  "name": "UGC phone video (creator ads and testimonials)",
+  "kind": "realistic",
+  "status": "draft",
+  "description": "Ads and posts that should feel filmed by a real person on their phone: selfie testimonials, unboxings, product demos.",
+  "look": "A frame from a vertical video filmed on a modern smartphone front camera by a real person at home: phone-camera wide lens, slight edge distortion, auto-exposure and auto-white-balance look, mixed window daylight and room light, mild phone noise and sharpening, everyday background clutter. Authentic, unpolished, not a studio production.",
+  "imageRules": "Product packaging and logos must match the product reference exactly with readable, correct text. The creator holds the product naturally at arm's length. Real skin texture.",
+  "negative": "studio lighting, cinematic grade, shallow cinema depth of field, perfect skin, stock-photo smile, glossy ad look, warped packaging text, extra fingers, collage",
+  "palette": [],
+  "camera": "Selfie arm's-length framing, chest-up, slight handheld drift, occasional reframing; product close-ups held toward the lens. No tripod-smooth moves, no drone, no dolly.",
+  "motion": "Handheld selfie micro-shake and natural reframing; the creator talks with real energy, glances at the product, gestures; product labels stay sharp and readable.",
+  "audio": {
+    "dialogue": "native",
+    "laughTrack": false,
+    "music": "optional low bed",
+    "sfx": "room tone"
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
+    "prompt": "A 2x2 grid of four phone-camera frames of the same {who} filmed at home in {set}: top-left selfie facing camera at arm's length, top-right three-quarter, bottom-left side profile, bottom-right full body in a mirror. {look}. Identical face, hair and outfit in all four. Thin white gutters. No text, no labels."
+  },
+  "refPolicy": "native",
+  "setRef": true,
+  "finish": "phone",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "wan3-prime",
+    "res": "720p",
+    "talk": "kling-avatar",
+    "storyboardGrid": "gpt2.5"
+  },
+  "candidates": {
+    "video": [
+      "wan3-prime",
+      "kling3",
+      "sd2-fast"
+    ]
+  },
+  "qc": {
+    "minEach": 7,
+    "minAvg": 8,
+    "extra": {
+      "frame": {
+        "product": "Product shape, colors, logo and label text are identical to the product reference and readable.",
+        "authenticity": "Feels filmed by a real person on a phone, not a studio ad."
+      },
+      "clip": {
+        "product": "Product stays correct and readable through the whole clip.",
+        "authenticity": "Phone-video feel holds: handheld, natural, no ad gloss."
+      }
+    }
+  },
+  "northStar": null,
+  "lookTest": {
+    "winner": null,
+    "results": []
+  },
+  "lessons": []
+}

@@ -1,0 +1,69 @@
+{
+  "id": "podcast",
+  "name": "Video podcast (real studio, multi-camera)",
+  "kind": "realistic",
+  "status": "draft",
+  "description": "Two or more people talking at microphones in a podcast studio, cut between a wide and singles.",
+  "look": "A frame from a real modern video podcast filmed with cinema cameras: hosts at a table with broadcast microphones on boom arms, warm practical lamps and an acoustic-panel back wall with a few personal props, soft key light from the side, natural skin texture, shallow depth of field on singles.",
+  "imageRules": "Each person has their own mic close to the mouth; headphones optional; hands rest naturally; eyes look at the other host or just off camera; the studio layout is identical in every angle.",
+  "negative": "plastic skin, AI sheen, mic floating or merging with the face, extra fingers, warped text on mics or walls, stock-photo smiles, collage",
+  "palette": [],
+  "camera": "Three-camera podcast grammar: a locked wide two-shot, a locked single per host (slightly off-axis, 50-85mm), an occasional slow push on a single during a key line. Cut on who is speaking.",
+  "motion": "Hosts talk naturally: lips match the words, small head nods, hand gestures near the mic, the listener reacts (nods, smiles). Cameras locked; the studio stays identical.",
+  "audio": {
+    "dialogue": "talk",
+    "laughTrack": false,
+    "music": "intro sting only",
+    "sfx": "studio room tone"
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
+    "prompt": "A 2x2 grid of four unretouched frames of the same {who} in {set}: top-left at the mic facing camera, top-right three-quarter at the mic, bottom-left side profile at the mic, bottom-right seated wide from head to toe. {look}. Identical face, hair and outfit in all four. Thin white gutters. No text, no labels."
+  },
+  "refPolicy": "native",
+  "setRef": true,
+  "finish": "film",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "wan3-prime",
+    "res": "720p",
+    "talk": "kling-avatar",
+    "storyboardGrid": "gpt2.5"
+  },
+  "candidates": {
+    "video": [
+      "wan3-prime",
+      "kling3"
+    ],
+    "talk": [
+      "kling-avatar",
+      "infinitetalk"
+    ]
+  },
+  "qc": {
+    "minEach": 7,
+    "minAvg": 8.5,
+    "extra": {
+      "frame": {
+        "studio": "Mics, table and back wall identical to the set plate; the mic sits correctly in front of the mouth."
+      },
+      "clip": {
+        "lipsync": "Lips match the spoken words closely, the listener reacts naturally, the mic never merges with the face."
+      }
+    }
+  },
+  "northStar": null,
+  "lookTest": {
+    "winner": null,
+    "results": []
+  },
+  "lessons": []
+}

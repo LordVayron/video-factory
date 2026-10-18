@@ -1,0 +1,11 @@
+{
+  "_how": "Copy to bible/sets/<id>/set.json, then: node engine/cast.mjs plate <id> --style <style> \"<description>\" and approve-set",
+  "id": "living-room",
+  "name": "Living room",
+  "look": "a cozy 1990s city apartment living room on a sitcom soundstage: a patterned couch center facing camera, coffee table, front door on the left wall, kitchen doorway on the right, window and lamp behind the couch",
+  "plates": [],
+  "useAsRef": true,
+  "geography": "Front door frame left, couch center, kitchen doorway frame right.",
+  "status": "draft",
+  "platesMeta": {}
+}

@@ -1,0 +1,98 @@
+{
+  "id": "retro-sitcom",
+  "name": "Retro TV sitcom (90s multi-cam, off-air look)",
+  "kind": "realistic",
+  "status": "draft",
+  "description": "Sitcoms and skits that should look like a real 1990s network TV episode recorded off-air (the Bad Cat look).",
+  "look": "A frame grab from a 1990s American network multi-camera sitcom, recorded off-air from TV: standard-definition softness, warm NTSC color, flat bright overhead soundstage lighting, mild analog noise, an ordinary built set with lived-in props. Framed the way a multi-camera sitcom is: eye level, slightly long lens, actors in the middle distance. Real animals in real costumes and real actors, photographed on a TV set.",
+  "imageRules": "Animals keep natural animal posture and real house-pet size; costumes fit like real garments (loose, bunching). Everyone is lit by the room's overhead light with soft shadows on the floor.",
+  "negative": "glossy, stock photo, studio portrait, HDR, shallow depth of field, cinematic grade, cartoon, 3D render, plastic fur, composited or pasted-in subjects, collage, text",
+  "palette": [
+    "#9DB5A0",
+    "#C9A97A",
+    "#3B4A6B",
+    "#E9DFC8"
+  ],
+  "camera": "Multi-cam grammar: locked pedestal cameras at eye level, 35-85mm, wide establishing, then medium singles, then reaction close-ups. Characters keep their screen side (180-degree rule). No handheld, no drone, no fancy moves; at most a slow pan following movement.",
+  "motion": "Shot like a 90s multi-camera sitcom: locked camera at eye level. Animals keep natural behaviour inside their costumes (ear flicks, slow blinks, padding on all fours); mouths move only on their own lines. Keep the standard-definition broadcast texture of the first frame.",
+  "audio": {
+    "dialogue": "native",
+    "laughTrack": true,
+    "music": "short slap-bass sitcom stings between scenes",
+    "sfx": "studio-audience chuckles and laughs on punchlines, room tone"
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
+    "prompt": "A 2x2 grid of four frame grabs from the same 1990s network sitcom episode, recorded off-air, all showing the same {who} inside {set}: top-left medium close-up facing camera, top-right three-quarter view, bottom-left side profile, bottom-right full body from head to toe. {look}. Lit by the same flat overhead soundstage light in every panel, with real shadows. Identical individual, markings, wardrobe and accessories in all four. Thin white gutters between panels. No text, no labels."
+  },
+  "refPolicy": "native",
+  "setRef": false,
+  "finish": "broadcast",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "sd2-mini",
+    "res": "480p",
+    "talk": "kling-avatar",
+    "storyboardGrid": "gpt2.5"
+  },
+  "candidates": {
+    "video": [
+      "wan3-prime",
+      "kling3",
+      "sd2-fast"
+    ]
+  },
+  "qc": {
+    "minEach": 7,
+    "minAvg": 8,
+    "extra": {
+      "frame": {
+        "realism": "Nothing looks pasted in: subjects share the room's light, softness and texture; sizes are real; reads as a real TV frame grab."
+      },
+      "clip": {
+        "realism": "Looks like real off-air TV footage throughout: no AI sheen, no sticker-like subjects, camera stays put."
+      }
+    }
+  },
+  "northStar": null,
+  "lookTest": {
+    "winner": {
+      "video": "wan3-prime",
+      "res": "1080p",
+      "keyframe": "gpt2.5",
+      "date": "2026-10-09"
+    },
+    "results": [
+      {
+        "date": "2026-10-08",
+        "shot": "realism-test s03",
+        "notes": "Wan 3.0 Prime 1080p and Kling 3.0 Pro 1080p both read as real once the character was generated natively in-scene; Wan showed clearer lip movement. Wan 3.0 720p and Seedance Mini 720p are draft quality."
+      },
+      {
+        "date": "2026-10-09",
+        "winner": "wan3-prime",
+        "notes": "look test on s05: Wan Prime sharp and stable with speech; Kling Pro generated almost no dialogue audio; Seedance Fast capped at 720p."
+      }
+    ]
+  },
+  "lessons": [
+    "Never feed studio reference photos to realistic shots: models paste them in like stickers. Generate characters inside the set from text, then use those crops.",
+    "Video models move the camera and invent rooms unless locked; use an end-frame lock for shots where a subject crosses the frame.",
+    "Name no real shows or actors in prompts (pulls real likenesses; GPT Image refuses).",
+    "Wan 3.0 Prime still moves the camera on ~1 in 4 locked shots; locking the end frame to the start keyframe (endFrame = keyframe) fixed it every time. Consider endFrame on every locked dialogue shot.",
+    "Nano Banana Pro keyframes tend to drift wider than the storyboard and sometimes show studio lights; QC catches it, crop rescue fixes framing for free.",
+    "Wan sometimes inserts a hard cut near the end of a clip; scdet catches it, a trim fixes it.",
+    "Night/day scenes need a per-scene 'lighting' lock; the style look's 'bright lighting' overrides night otherwise (scenes A/B refilmed).",
+    "Pipeline v3 works: 3 scenes filmed in parallel in ~2.5 min on wan3-prime 720p; one storyboard grid per scene holds blocking and identity.",
+    "the look's 'flat bright overhead soundstage lighting' overrode the night lock in close-ups. scenePrompt now strips the style's light words under a scene lighting lock and repeats 'same lighting as Shot 1; windows show dark night' per shot. Take 2 held."
+  ],
+  "approvedAt": "2026-10-09T08:27:48.522Z"
+}

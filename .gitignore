@@ -1,0 +1,34 @@
+# Dependencies and caches
+node_modules/
+.cache/
+__pycache__/
+*.pyc
+
+# Secrets and your personal profile
+.env
+.env.*
+!.env.example
+studio.json
+
+# Your work: characters, sets, series and projects stay on your machine
+bible/characters/*
+!bible/characters/.gitkeep
+bible/sets/*
+!bible/sets/.gitkeep
+bible/sfx/*
+!bible/sfx/.gitkeep
+series/*
+!series/.gitkeep
+projects/*
+!projects/.gitkeep
+assets/
+
+# Engine scratch
+*.lock
+*.tmp
+*.log
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store

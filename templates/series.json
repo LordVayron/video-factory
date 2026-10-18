@@ -1,0 +1,109 @@
+{
+  "_how": "Copy to series/<id>/series.json. The format-series skill fills it in with you.",
+  "id": "my-series",
+  "title": "My Series",
+  "logline": "One sentence: who, what they want, why they can never get it.",
+  "vertical": "sitcom-90s",
+  "style": "retro-sitcom",
+  "lang": "en",
+  "ar": "9:16",
+  "cast": {
+    "milo": {
+      "role": "the schemer: pompous, target of every deflation"
+    },
+    "rex": {
+      "role": "the sidekick: literal, joyful, accidentally right"
+    }
+  },
+  "sets": {
+    "living-room": {
+      "bible": "living-room"
+    }
+  },
+  "runningBits": [
+    "Rex asks one sincere question that ruins the plan."
+  ],
+  "episodeLength": {
+    "target": [
+      40,
+      55
+    ]
+  },
+  "rules": [
+    "Humans only hear barks and meows; the audience hears the animals talk."
+  ],
+  "roomMap": {
+    "layout": "Living room from the multi-cam side. Couch center facing camera. Front door LEFT, kitchen RIGHT.",
+    "eyelines": "People at the door look screen-right toward the couch.",
+    "exits": "Enter through the front door (left); leave toward the kitchen behind the couch, left to right."
+  },
+  "writingBible": ".claude/skills/studio/references/verticals/sitcom-writing-bible.md",
+  "voices": {
+    "milo": {
+      "eleven": "onwK4e9ZLuTAKqWW03F9",
+      "ttsModel": "eleven_v3",
+      "tts": {
+        "stability": 0.5,
+        "similarity_boost": 0.85,
+        "style": 0.2,
+        "use_speaker_boost": true
+      },
+      "sts": {
+        "stability": 0.55,
+        "similarity_boost": 0.9,
+        "style": 0,
+        "use_speaker_boost": true
+      },
+      "seed": 4242,
+      "description": "ElevenLabs premade voice: dry British baritone"
+    },
+    "rex": {
+      "eleven": "TX3LPaxmHKxFdv7VOQHJ",
+      "ttsModel": "eleven_v3",
+      "tts": {
+        "stability": 0.5,
+        "similarity_boost": 0.85,
+        "style": 0.3,
+        "use_speaker_boost": true
+      },
+      "sts": {
+        "stability": 0.55,
+        "similarity_boost": 0.9,
+        "style": 0,
+        "use_speaker_boost": true
+      },
+      "seed": 4242,
+      "description": "ElevenLabs premade voice: eager young tenor"
+    }
+  },
+  "intro": {
+    "length": 3.6,
+    "video": {
+      "model": "sd2-mini",
+      "res": "720p",
+      "seconds": 6,
+      "trimStart": 0.6
+    },
+    "music": {
+      "prompt": "1990s network sitcom opening theme, upbeat and warm, slap bass, bright saxophone hook, handclaps, 118 bpm, instrumental",
+      "pick": 1,
+      "start": 0,
+      "gainDb": -4,
+      "tail": 4
+    },
+    "sounds": {
+      "street-day": {
+        "prompt": "busy city street at golden hour, cars passing, people chatting, birds",
+        "seconds": 7,
+        "gainDb": -16
+      }
+    },
+    "variants": {
+      "day": {
+        "frame": "sets/exterior-9x16.png",
+        "prompt": "slow push-in on a brownstone apartment building at golden hour, people walking by"
+      }
+    }
+  },
+  "episodes": []
+}
