@@ -151,10 +151,34 @@
   .tapes { position: relative; min-height: 440px; background: #2a0f20 url("img/web/format-tapes.jpg") center / cover; }
   .tapes::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(180deg, rgba(0,0,0,.12) 0 1px, transparent 1px 3px); }
 
-  /* 6. shelf */
+  /* 6. the rental shelf: a rotating slider of format tapes */
   .shelf { background: radial-gradient(80% 70% at 50% 45%, #181a29, #141522 70%, #121119); }
-  .shot { max-width: 1180px; margin: 26px auto 0; padding: 0 var(--gutter); }
-  .shot img { width: 100%; height: auto; aspect-ratio: 2400 / 1350; -webkit-mask-image: radial-gradient(75% 72% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(75% 72% at 50% 50%, #000 62%, transparent 100%); }
+  .slider { position: relative; max-width: 1180px; margin: 30px auto 0; padding: 0 var(--gutter); }
+  .slides { position: relative; display: grid; }
+  .slide { grid-area: 1 / 1; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: clamp(20px, 3.5vw, 52px); align-items: center;
+    opacity: 0; visibility: hidden; transform: translateX(40px) rotate(.4deg); transition: opacity .7s ease, transform .9s cubic-bezier(.2,.8,.2,1), visibility 0s .9s; }
+  .slide.on { opacity: 1; visibility: visible; transform: none; transition: opacity .7s ease, transform .9s cubic-bezier(.2,.8,.2,1), visibility 0s; }
+  .slide.out { transform: translateX(-40px) rotate(-.4deg); }
+  .slide .art { position: relative; }
+  .slide .art img { width: 100%; height: auto; aspect-ratio: 1100 / 936; -webkit-mask-image: radial-gradient(72% 70% at 50% 50%, #000 66%, transparent 100%); mask-image: radial-gradient(72% 70% at 50% 50%, #000 66%, transparent 100%); }
+  .slide .art { display: grid; justify-items: center; }
+  .soon { margin-top: -6px; display: inline-flex; align-items: center; gap: 10px; background: rgba(18,17,25,.86); border: 2px solid var(--cream); padding: 9px 14px; font-weight: 900; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+  .soon::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 10px #ff3b30; animation: blink 1.2s steps(2) infinite; }
+  .slide .k { font-family: var(--display); font-size: 15px; text-transform: uppercase; color: var(--cream-dim); }
+  .slide h3 { font-family: var(--display); font-weight: 400; color: var(--pink); text-transform: uppercase; font-size: clamp(32px, 3.6vw, 52px); line-height: .92; margin: 8px 0 14px; }
+  .slide p { font-size: 16px; line-height: 1.6; color: #d4ccbd; }
+  .slide dl { margin: 20px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; font-size: 13px; border-top: 1px solid rgba(233,224,207,.14); padding-top: 16px; }
+  .slide dt { font-weight: 800; letter-spacing: .1em; text-transform: uppercase; font-size: 10.5px; color: var(--cream-dim); padding-top: 2px; }
+  .slider-ui { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 26px; }
+  .slider-ui button.arrow { width: 46px; height: 46px; border: 2px solid var(--cream); background: transparent; cursor: pointer; font-size: 18px; font-weight: 900; display: grid; place-items: center; transition: background .2s, color .2s, border-color .2s; }
+  .slider-ui button.arrow:hover { background: var(--pink); border-color: var(--pink); color: var(--ink); }
+  .dots { display: flex; gap: 8px; }
+  .dots button { position: relative; overflow: hidden; width: 54px; height: 6px; border: 0; background: rgba(233,224,207,.2); cursor: pointer; padding: 0; }
+  .dots button i { position: absolute; inset: 0; background: var(--pink); transform-origin: left; transform: scaleX(0); }
+  .dots button.on i { animation: fill var(--dur, 5s) linear forwards; }
+  .slider.paused .dots button.on i { animation-play-state: paused; }
+  @keyframes fill { to { transform: scaleX(1) } }
+  .dots button.done i { transform: scaleX(1); }
 
   /* 7. safeguards */
   .rated { max-width: var(--max); margin: 36px auto 0; display: grid; grid-template-columns: repeat(3, 1fr); border: 2px solid var(--cream); }
@@ -247,6 +271,8 @@
     .steps, .rated { grid-template-columns: 1fr; }
     .rated article { border-right: 0 !important; }
     .set-grid { grid-template-columns: 1fr; }
+    .slide { grid-template-columns: 1fr; }
+    .slide h3 { font-size: 36px; }
     .outline-col { writing-mode: horizontal-tb; transform: none; font-size: 60px; }
     .tapes { min-height: 520px; }
     .fmt { grid-template-columns: 1fr auto; } .fmt span { display: none; }
@@ -259,7 +285,7 @@
 <header class="nav">
   <div class="wrap">
     <a class="brand" href="#top" aria-label="Video Factory, back to top"><span class="rbadge"><b>R</b></span><strong>Video Factory</strong></a>
-    <nav aria-label="Sections"><a href="#watch">Watch</a><a href="#how">How it works</a><a href="#formats">Formats</a><a href="#faq">FAQ</a></nav>
+    <nav aria-label="Sections"><a href="#watch">Watch</a><a href="#how">How it works</a><a href="#formats">Formats</a><a href="#shelf">Samples</a><a href="#faq">FAQ</a></nav>
     <a class="btn cream" href="https://github.com/LordVayron/video-factory" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
@@ -385,16 +411,44 @@
   <p class="sheet-foot">Plus cinematic shorts. <b>Long-form meditations</b> render 30 minutes of 1080p in about 5 minutes, because the scenes loop seamlessly.</p>
 </section>
 
-<!-- 6. box art -->
-<section class="sheet shelf" aria-label="Box art">
-  <p class="sheet-head">Box art by the machine</p>
+<!-- 6. the rental shelf -->
+<section class="sheet shelf" id="shelf" aria-label="Sample tapes">
+  <p class="sheet-head">The rental shelf</p>
   <div class="sec-title">
-    <p class="k">Covers, posters, thumbnails</p>
-    <h2>It designs the box too.</h2>
-    <p>The same studio makes the art around your video: covers, thumbnails and posters in any style, from 80s horror paperbacks to glossy VHS sleeves.</p>
+    <p class="k">Coming soon to a tape deck near you</p>
+    <h2>One factory. Every genre.</h2>
+    <p>The same studio that shot the pilot makes ads, dramas, AI influencers and hour-long meditations. Sample tapes for each format are on their way.</p>
   </div>
-  <div class="shot reveal"><img src="img/web/covers-shot.jpg" width="2400" height="1350" loading="lazy" alt="A worn horror paperback called Nightshift by Your Agent, with a camcorder monster on the cover, next to a VHS sleeve called The Haunted Studio and its cassette."></div>
-  <p class="sheet-foot">Every image on this page was generated by the studio you install.</p>
+  <div class="slider reveal" id="slider" aria-roledescription="carousel" aria-label="Sample formats">
+    <div class="slides">
+      <article class="slide on" data-video="" aria-roledescription="slide" aria-label="1 of 4">
+        <div class="art"><img src="img/web/cover-ugc.jpg" width="1100" height="936" alt="VHS box and tape of The Glow Up, a 15-second UGC ad: a smiling creator films herself holding a glowing serum bottle."><span class="soon">Sample coming soon</span></div>
+        <div><p class="k">Format · UGC ad</p><h3>The Glow Up</h3><p>A creator-style product review that doesn't look like an ad: a hook in the first two seconds, your product on screen by three, real specifics and one clear call to action.</p>
+          <dl><dt>Length</dt><dd>15–30 seconds, 9:16</dd><dt>Typical cost</dt><dd>$1–3</dd><dt>You bring</dt><dd>Product photos and the selling points</dd></dl></div>
+      </article>
+      <article class="slide" data-video="" aria-roledescription="slide" aria-label="2 of 4">
+        <div class="art"><img src="img/web/cover-drama.jpg" width="1100" height="936" alt="VHS box and tape of The Secret Heiress, episode 1 of 40: a woman in a black gown holds a torn will on a mansion staircase."><span class="soon">Sample coming soon</span></div>
+        <div><p class="k">Format · Micro-drama</p><h3>The Secret Heiress</h3><p>A vertical novela for TikTok and Reels: conflict in the first three seconds, one power shift per scene and a cliffhanger that makes the next episode a must-watch.</p>
+          <dl><dt>Length</dt><dd>60–120 second episodes</dd><dt>Typical cost</dt><dd>$2–5 per episode</dd><dt>Locked</dt><dd>The same faces, sets and voices for 40 episodes</dd></dl></div>
+      </article>
+      <article class="slide" data-video="" aria-roledescription="slide" aria-label="3 of 4">
+        <div class="art"><img src="img/web/cover-influencer.jpg" width="1100" height="936" alt="VHS box and tape of Clone Me: a woman points at the camera next to a glowing hologram copy of herself."><span class="soon">Sample coming soon</span></div>
+        <div><p class="k">Format · AI influencer</p><h3>Clone Me</h3><p>Your face and your voice, talking to camera without you filming. Built from your own photos and voice samples, with your consent, for daily posts that sound like you.</p>
+          <dl><dt>Length</dt><dd>15–60 seconds</dd><dt>Typical cost</dt><dd>$1–4</dd><dt>Only you</dt><dd>It refuses anyone else's likeness</dd></dl></div>
+      </article>
+      <article class="slide" data-video="" aria-roledescription="slide" aria-label="4 of 4">
+        <div class="art"><img src="img/web/cover-meditation.jpg" width="1100" height="936" alt="VHS box and tape of Midnight Lake, a 30-minute sleep meditation: a full moon over a misty lake and a lit cabin."><span class="soon">Sample coming soon</span></div>
+        <div><p class="k">Format · Meditation &amp; sleep</p><h3>Midnight Lake</h3><p>A long-form meditation with seamless looping scenes, a calm voice that leaves real pauses and a music bed underneath. It ships as a 1080p video for YouTube and an MP3 for podcast apps.</p>
+          <dl><dt>Length</dt><dd>10 minutes to 3 hours, 16:9</dd><dt>Typical cost</dt><dd>About $2 for 30 minutes</dd><dt>Render</dt><dd>30 minutes of 1080p in about 5 minutes</dd></dl></div>
+      </article>
+    </div>
+    <div class="slider-ui">
+      <button class="arrow" type="button" data-dir="-1" aria-label="Previous tape">←</button>
+      <div class="dots" role="tablist" aria-label="Choose a tape"></div>
+      <button class="arrow" type="button" data-dir="1" aria-label="Next tape">→</button>
+    </div>
+  </div>
+  <p class="sheet-foot">Want one first? <b>Install it and make your own</b> in your next conversation.</p>
 </section>
 
 <!-- 7. safeguards -->
@@ -489,6 +543,33 @@
   document.getElementById("tvClose").addEventListener("click", closeTv);
   document.getElementById("tvRoom").addEventListener("click", (e) => { if (e.target.id === "tvRoom") closeTv(); });
   tv.addEventListener("close", () => ep.pause());
+
+  // Rental shelf: rotates every 5 s, pauses on hover/focus or when off screen, arrows and dots to jump.
+  // A slide with data-video set will later open the CRT player with that sample.
+  (() => {
+    const root = document.getElementById("slider"); if (!root) return;
+    const slides = [...root.querySelectorAll(".slide")], dotsBox = root.querySelector(".dots"), DUR = 5000;
+    root.style.setProperty("--dur", DUR + "ms");
+    const dots = slides.map((_, i) => { const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-label", "Tape " + (i + 1)); b.innerHTML = "<i></i>"; b.onclick = () => go(i, true); dotsBox.append(b); return b; });
+    let cur = 0, timer = null, paused = false, visible = true;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function go(n, user) {
+      const prev = cur; cur = (n + slides.length) % slides.length;
+      slides.forEach((s, i) => { s.classList.toggle("on", i === cur); s.classList.toggle("out", i === prev && i !== cur); s.setAttribute("aria-hidden", i !== cur); });
+      dots.forEach((d, i) => { d.classList.toggle("on", i === cur); d.classList.toggle("done", i < cur); const x = d.firstChild; x.style.animation = "none"; void x.offsetWidth; x.style.animation = ""; d.setAttribute("aria-selected", i === cur); });
+      schedule();
+    }
+    function schedule() { clearTimeout(timer); if (!paused && visible && !reduce) timer = setTimeout(() => go(cur + 1), DUR); }
+    root.querySelectorAll(".arrow").forEach((b) => (b.onclick = () => go(cur + Number(b.dataset.dir), true)));
+    const pause = (p) => { paused = p; root.classList.toggle("paused", p); schedule(); };
+    root.addEventListener("mouseenter", () => pause(true)); root.addEventListener("mouseleave", () => pause(false));
+    root.addEventListener("focusin", () => pause(true)); root.addEventListener("focusout", () => pause(false));
+    root.addEventListener("keydown", (e) => { if (e.key === "ArrowRight") go(cur + 1); if (e.key === "ArrowLeft") go(cur - 1); });
+    let x0 = null; root.addEventListener("touchstart", (e) => (x0 = e.touches[0].clientX), { passive: true });
+    root.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) go(cur + (dx < 0 ? 1 : -1)); x0 = null; });
+    if ("IntersectionObserver" in window) new IntersectionObserver(([e]) => { visible = e.isIntersecting; root.classList.toggle("paused", !visible || paused); schedule(); }, { threshold: .3 }).observe(root);
+    go(0);
+  })();
 
   const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((x) => x.isIntersecting && (x.target.classList.add("in"), io.unobserve(x.target))), { threshold: .12 }) : null;
   document.querySelectorAll(".reveal").forEach((el) => (io ? io.observe(el) : el.classList.add("in")));
