@@ -32,3 +32,8 @@ assets/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Landing page: only the web-ready assets are committed
+site/img/*.png
+site/*.bak.html
+site/renders/

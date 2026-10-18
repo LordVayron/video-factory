@@ -18,6 +18,8 @@
 
 ---
 
+**Website:** https://lordvayron.github.io/video-factory/ · watch the pilot episode made with it.
+
 ## Install it in one message
 
 Open **Claude Code** or **Codex** and paste:
