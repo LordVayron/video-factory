@@ -138,6 +138,38 @@
   .step .gate { position: absolute; top: 18px; right: 16px; font-size: 9.5px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; background: var(--pink); color: var(--ink); padding: 5px 8px; }
   .step .gate.free { background: transparent; color: var(--cream-dim); border: 1.5px solid rgba(233,224,207,.25); }
 
+  /* production-book sheets scattered on the desk behind the steps */
+  #how { isolation: isolate; }
+  #how > :not(.desk) { position: relative; z-index: 2; }
+  .desk { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .desk::after { content: ""; position: absolute; inset: 0; background: radial-gradient(55% 50% at 50% 60%, rgba(23,21,31,.4), transparent 75%); }
+  .paper { position: absolute; left: var(--x); top: var(--y); width: var(--w); transform: translate3d(0, calc(var(--p, 0) * var(--depth) * 1px), 0); will-change: transform; }
+  .paper img { width: 100%; height: auto; box-shadow: 0 18px 40px rgba(0,0,0,.65), 0 2px 0 rgba(255,255,255,.04);
+    opacity: 0; transform: translate3d(var(--fx, 0), -120vh, 0) rotate(calc(var(--r) * 3)); filter: grayscale(.4) sepia(.2) brightness(.78) contrast(1.05);
+    transition: transform 1.1s cubic-bezier(.18,.9,.25,1.08) calc(var(--i) * 110ms), opacity .6s ease calc(var(--i) * 110ms), filter .5s ease; }
+  .desk.dealt .paper img { opacity: .62; transform: rotate(var(--r)); }
+  .desk.dealt .paper.lit img { opacity: 1; filter: none; transform: rotate(calc(var(--r) * .4)) scale(1.07); transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .35s ease, filter .35s ease; }
+  .desk.dealt .paper.lit { z-index: 3; }
+  .desk.has-lit .paper:not(.lit) img { opacity: .3; }
+  /* a pink highlighter tab shows which step the sheet belongs to */
+  .paper span { position: absolute; top: -12px; left: 14px; background: var(--pink); color: var(--ink); font-weight: 900; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; padding: 4px 8px; opacity: 0; transform: translateY(6px); transition: opacity .3s, transform .3s; }
+  .desk.dealt .paper.lit span { opacity: 1; transform: none; }
+  .steps .step { background: rgba(23,21,31,.84); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .step.lit { border-color: var(--pink); }
+  @media (max-width: 980px) { .paper.far { display: none; } }
+  @media (max-width: 720px) {
+    .desk { display: none; }
+    .steps .step { background: linear-gradient(rgba(23,21,31,.9), rgba(23,21,31,.9)), var(--sheet) center / cover; transition: background .5s ease, border-color .3s; backdrop-filter: none; }
+    .steps .step.lit { background: linear-gradient(rgba(23,21,31,.62), rgba(23,21,31,.86)), var(--sheet) center / cover; }
+    .step[data-step="1"] { --sheet: url("img/web/sheet-script.jpg"); }
+    .step[data-step="2"] { --sheet: url("img/web/sheet-radio.jpg"); }
+    .step[data-step="3"] { --sheet: url("img/web/sheet-storyboard.jpg"); }
+    .step[data-step="4"] { --sheet: url("img/web/sheet-book.jpg"); }
+    .step[data-step="5"] { --sheet: url("img/web/sheet-shoot.jpg"); }
+    .step[data-step="6"] { --sheet: url("img/web/sheet-edit.jpg"); }
+  }
+  @media (prefers-reduced-motion: reduce) { .paper { transform: none !important; } .paper img { transition: none; } }
+
   /* 5. formats */
   .set-grid { max-width: var(--max); margin: 36px auto 0; padding: 0 var(--gutter); display: grid; grid-template-columns: minmax(0, 1.3fr) auto minmax(0, .9fr); gap: clamp(14px, 2vw, 28px); align-items: stretch; }
   .charset { min-width: 0; border: 2px solid var(--pink); padding: clamp(20px, 2.6vw, 34px); display: grid; align-content: center; }
@@ -368,6 +400,16 @@
 
 <!-- 4. how it works -->
 <section class="sheet" id="how" aria-label="How it works">
+  <div class="desk" id="desk" aria-hidden="true">
+    <div class="paper" data-step="1" style="--i:0;--x:1%;--y:6%;--w:19vw;--r:-7deg;--depth:-60;--fx:-30vw"><img src="img/web/sheet-script.jpg" alt="" loading="lazy"><span>01 · Script</span></div>
+    <div class="paper" data-step="2" style="--i:1;--x:70%;--y:3%;--w:25vw;--r:5deg;--depth:-90;--fx:20vw"><img src="img/web/sheet-radio.jpg" alt="" loading="lazy"><span>02 · Radio cut</span></div>
+    <div class="paper far" data-step="3" style="--i:2;--x:78%;--y:33%;--w:22vw;--r:-4deg;--depth:40;--fx:30vw"><img src="img/web/sheet-character.jpg" alt="" loading="lazy"><span>03 · Storyboard</span></div>
+    <div class="paper far" data-step="3" style="--i:3;--x:54%;--y:20%;--w:24vw;--r:3deg;--depth:-30;--fx:10vw"><img src="img/web/sheet-storyboard.jpg" alt="" loading="lazy"><span>03 · Storyboard</span></div>
+    <div class="paper far" data-step="3" style="--i:4;--x:-2%;--y:40%;--w:16vw;--r:6deg;--depth:70;--fx:-25vw"><img src="img/web/sheet-set.jpg" alt="" loading="lazy"><span>03 · Storyboard</span></div>
+    <div class="paper" data-step="4" style="--i:5;--x:14%;--y:58%;--w:17vw;--r:-3deg;--depth:20;--fx:-15vw"><img src="img/web/sheet-book.jpg" alt="" loading="lazy"><span>04 · Production Book</span></div>
+    <div class="paper" data-step="5" style="--i:6;--x:44%;--y:62%;--w:26vw;--r:-6deg;--depth:60;--fx:5vw"><img src="img/web/sheet-shoot.jpg" alt="" loading="lazy"><span>05 · The shoot</span></div>
+    <div class="paper" data-step="6" style="--i:7;--x:74%;--y:66%;--w:24vw;--r:4deg;--depth:90;--fx:25vw"><img src="img/web/sheet-edit.jpg" alt="" loading="lazy"><span>06 · The edit</span></div>
+  </div>
   <p class="sheet-head">How it works</p>
   <div class="sec-title">
     <p class="k">From one sentence to a finished video</p>
@@ -375,12 +417,12 @@
     <p>The factory works like a real production: audio first, storyboards before footage, a budget before any money is spent, and quality control before anything reaches you.</p>
   </div>
   <div class="steps reveal">
-    <article class="step"><span class="gate">You approve</span><span class="n">01</span><h3>The script</h3><p>A writers' room pass with real comedy and drama craft: a premise, a game, a beat map, a punch-up and a scored rubric. You read it and say yes, or ask for changes.</p></article>
-    <article class="step"><span class="gate free">Free</span><span class="n">02</span><h3>The radio cut</h3><p>Every line is voiced with ElevenLabs and timed with laughs, music or pauses. The audio sets how long each shot runs, so the pacing is right before any picture exists.</p></article>
-    <article class="step"><span class="gate free">≈ $0.08 / scene</span><span class="n">03</span><h3>The storyboard</h3><p>One GPT Image 2.5 grid per scene, built from locked character sheets and set plates, then cut into an animatic you can watch.</p></article>
-    <article class="step"><span class="gate">You approve</span><span class="n">04</span><h3>The Production Book</h3><p>One page with the script, boards, animatic, exact prompts and the cost. Approving it locks the budget in code. Nothing more is spent without your yes.</p></article>
-    <article class="step"><span class="gate free">≈ $0.04 / second</span><span class="n">05</span><h3>The shoot</h3><p>Each scene is filmed in one multi-shot generation, all scenes in parallel. A vision judge checks positions, physics, dialogue, light and geography on every take.</p></article>
-    <article class="step"><span class="gate free">Free</span><span class="n">06</span><h3>The edit</h3><p>Tight cuts, unified voices, captions, laughs or music, a series intro and outro, loudness and a final QC. You get the mp4 and an updated Production Book.</p></article>
+    <article class="step" data-step="1"><span class="gate">You approve</span><span class="n">01</span><h3>The script</h3><p>A writers' room pass with real comedy and drama craft: a premise, a game, a beat map, a punch-up and a scored rubric. You read it and say yes, or ask for changes.</p></article>
+    <article class="step" data-step="2"><span class="gate free">Free</span><span class="n">02</span><h3>The radio cut</h3><p>Every line is voiced with ElevenLabs and timed with laughs, music or pauses. The audio sets how long each shot runs, so the pacing is right before any picture exists.</p></article>
+    <article class="step" data-step="3"><span class="gate free">≈ $0.08 / scene</span><span class="n">03</span><h3>The storyboard</h3><p>One GPT Image 2.5 grid per scene, built from locked character sheets and set plates, then cut into an animatic you can watch.</p></article>
+    <article class="step" data-step="4"><span class="gate">You approve</span><span class="n">04</span><h3>The Production Book</h3><p>One page with the script, boards, animatic, exact prompts and the cost. Approving it locks the budget in code. Nothing more is spent without your yes.</p></article>
+    <article class="step" data-step="5"><span class="gate free">≈ $0.04 / second</span><span class="n">05</span><h3>The shoot</h3><p>Each scene is filmed in one multi-shot generation, all scenes in parallel. A vision judge checks positions, physics, dialogue, light and geography on every take.</p></article>
+    <article class="step" data-step="6"><span class="gate free">Free</span><span class="n">06</span><h3>The edit</h3><p>Tight cuts, unified voices, captions, laughs or music, a series intro and outro, loudness and a final QC. You get the mp4 and an updated Production Book.</p></article>
   </div>
   <p class="sheet-foot">Typical turnaround: <b>about 15 minutes</b> from your approval to the finished video.</p>
 </section>
@@ -569,6 +611,39 @@
     root.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) go(cur + (dx < 0 ? 1 : -1)); x0 = null; });
     if ("IntersectionObserver" in window) new IntersectionObserver(([e]) => { visible = e.isIntersecting; root.classList.toggle("paused", !visible || paused); schedule(); }, { threshold: .3 }).observe(root);
     go(0);
+  })();
+
+  // Production-book sheets: dealt onto the desk when the section arrives, drift with the scroll,
+  // and the sheet for a step lights up when that step is hovered or focused (or centred, on touch screens).
+  (() => {
+    const how = document.getElementById("how"), desk = document.getElementById("desk"); if (!desk) return;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const papers = [...desk.querySelectorAll(".paper")], steps = [...how.querySelectorAll(".step")];
+    const light = (n) => {
+      papers.forEach((p) => p.classList.toggle("lit", p.dataset.step === String(n)));
+      steps.forEach((s) => s.classList.toggle("lit", s.dataset.step === String(n)));
+      desk.classList.toggle("has-lit", n != null);
+    };
+    new IntersectionObserver(([e]) => { if (e.isIntersecting) desk.classList.add("dealt"); }, { threshold: .18 }).observe(how);
+    steps.forEach((s) => {
+      s.addEventListener("mouseenter", () => light(s.dataset.step));
+      s.addEventListener("mouseleave", () => light(null));
+      s.tabIndex = 0;
+      s.addEventListener("focus", () => light(s.dataset.step));
+      s.addEventListener("blur", () => light(null));
+    });
+    if (matchMedia("(hover: none)").matches) {
+      const io2 = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && light(e.target.dataset.step)), { rootMargin: "-45% 0px -45% 0px" });
+      steps.forEach((s) => io2.observe(s));
+    }
+    if (!reduce) {
+      let raf = 0;
+      const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
+        const r = how.getBoundingClientRect(), p = (innerHeight - r.top) / (innerHeight + r.height) - .5;
+        how.style.setProperty("--p", Math.max(-.6, Math.min(.6, p)).toFixed(3));
+      }); };
+      addEventListener("scroll", onScroll, { passive: true }); onScroll();
+    }
   })();
 
   const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((x) => x.isIntersecting && (x.target.classList.add("in"), io.unobserve(x.target))), { threshold: .12 }) : null;
