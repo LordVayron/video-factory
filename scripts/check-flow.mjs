@@ -58,6 +58,19 @@ export default function checkFlow(t, ROOT) {
     } finally { fs.rmSync(cdir, { recursive: true, force: true }); }
   }
 
+  // The Secret Heiress (2026-10-19): a whole episode filmed before anyone saw one scene, on a format the editor
+  // couldn't finish, and a reopened book that re-estimated filmed scenes.
+  {
+    const sc = { kind: "x", slug: "p", format: "micro-drama", scenes: [{ id: "A" }, { id: "B" }], flow: { v: 5, approved: {} } };
+    t("pilot gate: only the first scene can be filmed before the creator approves the pilot", stops(() => F.requirePilot(sc, ["A", "B"])) && !stops(() => F.requirePilot(sc, ["A"])));
+    t("pilot gate: an approved pilot opens the rest", !stops(() => F.requirePilot({ ...sc, flow: { v: 5, approved: { pilot: { said: "sí" } } } }, ["B"])));
+    t("pilot gate is wired into gen scenes and gen clip", engine("gen.mjs").includes("requirePilot(sl, todo.map((sc) => sc.id))") && engine("gen.mjs").includes("requirePilot(sl, [id])"));
+    t("a format its editor can't finish stops before prices and the book", !F.editReady({ format: "micro-drama" }) && F.editReady({ format: "sitcom" }) && F.editReady({ format: "ugc" }));
+    t("the book estimates only what is still to film", engine("book.mjs").includes("filmed(sc) ? 0 :") && engine("book.mjs").includes("filmed(s) ? 0 :"));
+    t("the dialogue check spells heard numbers (\"400\" = \"four hundred\")", fs.readFileSync(path.join(ROOT, "engine", "lib", "align.py"), "utf8").includes("def spell(n)"));
+    t("edit.mjs keeps a drama's pauses and drops sitcom laugh rules for other formats", engine("edit.mjs").includes('sl.format !== "sitcom" ? [] :') && engine("edit.mjs").includes("rules.maxFirstLaugh != null"));
+  }
+
   // Live price analysis comes before every Production Book, and its pick drives the estimate and the film.
   t("every recipe runs the live price analysis right before the book", ["sitcom", "influencer", "meditation"].every((f) => { const r = F.recipe({ format: f, intake: {} }); return r.indexOf("models") === r.indexOf("book") - 1; }));
   t("no model is hidden from the price analysis by rule", !fs.readFileSync(path.join(ROOT, "engine", "lib", "models.mjs"), "utf8").includes("hidden: true"));

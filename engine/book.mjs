@@ -108,14 +108,17 @@ const radio = R.file ? copy(abs(R.file), "radio-cut.mp3") : null;
 const animatic = copy(path.join(dir, "out", "animatic.mp4"), "animatic.mp4");
 
 // ---- Prompts + estimate
+// Only what is still to film is estimated: a scene or shot with a chosen take costs nothing more. (2026-10-19: a
+// reopened book re-estimated six filmed scenes and the budget lock jumped from $8.80 to $15.86.)
+const filmed = (x) => x.clip != null && !!x.clips?.[x.clip];
 let promptsHtml = "", est = 0, estRows = "";
 if (kind === "scenes") {
   promptsHtml = (sl.scenes || []).map((sc) => { const voices = [...new Set(P.sceneShots(sl, sc).flatMap((s) => (s.dialogue || []).map((l) => l.char)))]; return `<details><summary>Scene ${esc(sc.id)} · ${P.sceneSecs(P.sceneShots(sl, sc))} s</summary><pre>${esc(P.scenePrompt(sl, sc, P.sceneRefs(sl, sc), { voiceRefs: voices }))}</pre></details>`; }).join("");
-  estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "clips") {
   promptsHtml = (sl.shots || []).map((s) => `<details><summary>Shot ${esc(s.id)} · ${esc(getModel(s.model || pick.video).label)} · ${s.duration} s</summary><pre>${esc(P.clipPrompt(sl, s))}</pre></details>`).join("");
-  estRows = (sl.shots || []).map((s) => { const m = getModel(s.model || pick.video); const cr = m.cost({ res: s.res || pick.res, duration: s.duration }); est += cr; return `<tr><td>Shot ${esc(s.id)}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  estRows = (sl.shots || []).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration }); est += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "longform") {
   const L = sl.longform || {};

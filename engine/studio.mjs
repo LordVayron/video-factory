@@ -8,6 +8,7 @@
 //   node engine/studio.mjs status <slug>                          every step, done or not, and the exact next action
 //   node engine/studio.mjs approve <slug> <step> --said "the creator's exact words" [--notes "..."]
 //   node engine/studio.mjs approve-character <id> --said "..."    a new character's sheet, look (with marks) and voice
+//   node engine/studio.mjs approve-pilot <slug> --said "..."              the creator approves the first filmed scene/shot; only then the rest
 //   node engine/studio.mjs accept-take <slug> <shot> <n> --said "..." --reason "..."   use a take that failed an eval
 //   node engine/studio.mjs override <slug> <step> --said "the creator's exact words" --reason "..."   logged, shown in the book
 //   node engine/studio.mjs prices <slug> [--pick <model>]          live Kie prices → best quality for the cost; sets the project's video model
@@ -81,6 +82,9 @@ const commands = {
     if (mode === "new") {
       if (fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`la serie ${seriesId} ya existe; usa --series episode:${seriesId}`);
       commands.series(["new", seriesId]);
+      // The template is a sitcom's; a new series takes its format's style and DNA (a micro-drama inherited
+      // "retro-sitcom" and its scene prompts asked for a 1990s multi-camera look, 2026-10-19).
+      P.writeJSON(seriesFile(seriesId), { ...P.readJSON(seriesFile(seriesId)), style: flag("--style") || STYLE[format], vertical: format });
     }
     const [bmode, busd] = flag("--budget").split(":");
     const intake = {
@@ -145,12 +149,20 @@ const commands = {
   },
 
   // A take that failed an eval (for example a jump inside the shot) is used only if the creator accepts that exact take, in his words.
+  // The pilot gate (lib/flow.mjs): the creator approves the first filmed scene or shot before the rest is filmed.
+  "approve-pilot"() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop('approve-pilot <slug> --said "palabras exactas del creador"');
+    F.approvePilot(slug, said);
+    console.log(`piloto aprobado con las palabras del creador; ya se puede filmar el resto (gen.mjs scenes / clip)`);
+  },
+
   "accept-take"() {
     const [slug, id, n] = pos, said = flag("--said"), reason = flag("--reason");
     if (!slug || !id || !n || !said || !reason) throw new F.FlowStop('accept-take <slug> <shot> <take number> --said "palabras exactas del creador" --reason "qué falla y por qué se acepta"');
     P.updateShotlist(slug, (sl) => {
       F.assertV5(sl);
-      const s = P.shot(sl, id), t = s.clips?.[Number(n) - 1];
+      const s = P.findItem(sl, id), t = s.clips?.[Number(n) - 1]; // a shot (clips formats) or a scene (scenes formats)
       if (!t) throw new F.FlowStop(`${id} no tiene toma ${n}`);
       t.accepted = { said, reason, at: now() };
       s.clip = Number(n) - 1;

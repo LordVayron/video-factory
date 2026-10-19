@@ -41,9 +41,13 @@ for (const sc of sl.scenes) {
   let ci = sc.clip;
   if (ci == null && draft && sc.clips?.length) ci = sc.clips.length - 1;
   if (ci == null) { console.error(`stop: scene ${sc.id} has no approved take (qc.mjs scenes, or --draft)`); process.exit(1); }
-  if (!draft && !sc.clips[ci].qc?.pass) { console.error(`stop: scene ${sc.id} take ${ci + 1} hasn't passed QC`); process.exit(1); }
-  // Continuity eval is a hard gate: no take with a character in the wrong place gets cut in.
-  if (!draft && !sc.clips[ci].continuity?.pass) { console.error(`stop: scene ${sc.id} take ${ci + 1} ${sc.clips[ci].continuity ? "failed" : "has no"} continuity eval (node engine/continuity.mjs ${slug} --scene ${sc.id})`); process.exit(1); }
+  // A take is usable when it passed its evals (qc.mjs score or continuity.mjs) or the creator accepted it in his words
+  // (studio.mjs accept-take): the same rule as the flow's film step.
+  const tk = sc.clips[ci];
+  if (!draft && !(tk.qc?.pass || tk.continuity?.pass || tk.accepted?.said)) { console.error(`stop: scene ${sc.id} take ${ci + 1} hasn't passed QC (or been accepted by the creator)`); process.exit(1); }
+  // Continuity eval is a hard gate: no take with a character in the wrong place gets cut in, unless the creator
+  // accepted that exact take in his words (studio.mjs accept-take, printed in the book).
+  if (!draft && !sc.clips[ci].continuity?.pass && !tk.accepted?.said) { console.error(`stop: scene ${sc.id} take ${ci + 1} ${sc.clips[ci].continuity ? "failed" : "has no"} continuity eval (node engine/continuity.mjs ${slug} --scene ${sc.id})`); process.exit(1); }
   const part = path.join(tmp, `${sc.id}.mp4`);
   ff(["-i", sc.clips[ci].file, "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p`,
     "-af", "aresample=48000,aformat=channel_layouts=stereo", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-c:a", "pcm_s16le", path.relative(dir, part).replace(/\.mp4$/, ".mov")]);
@@ -89,7 +93,9 @@ for (const x of found) {
 // Speech pieces: each line minus its long internal pauses; the gap after a piece is internal (0.3 s) or planned.
 const pieces = [];
 for (const [k, x] of found.entries()) {
-  const inner = silences.filter(([a, b]) => a > x.start + 0.05 && b < x.end - 0.05 && b - a > 0.5);
+  // Pauses inside a line are tightened only in the sitcom; a drama keeps the actor's breath (2026-10-19, The Secret
+  // Heiress: the tight cut ran 200 wpm).
+  const inner = sl.format !== "sitcom" ? [] : silences.filter(([a, b]) => a > x.start + 0.05 && b < x.end - 0.05 && b - a > 0.5);
   let a = x.start;
   for (const [s, e] of inner) { pieces.push({ a, b: s + 0.05, after: 0.3, x }); a = e - 0.05; }
   const next = found[k + 1];
@@ -319,7 +325,10 @@ for (const [a, b] of busy) { if (a > cursor) { const g = a - cursor; const endLi
   const silentAfter = endLine ? sl.shots.slice(sl.shots.indexOf(endLine.shot) + 1).filter((s, i, arr) => !(s.dialogue || []).length && arr.slice(0, i).every((z) => !(z.dialogue || []).length)).reduce((n, s) => n + (s.duration || 1.5), 0) : 0;
   const action = silentAfter + (endLine?.shot.moves ? 2.5 : 0) + (endLine ? lines.slice(lines.indexOf(lines.find((y) => y.id === endLine.id)) + 1).filter((y, i, arr) => isVocal(y.l) && arr.slice(0, i).every((z) => isVocal(z.l))).length * 1.8 : 0); // on-screen movement, not dead air
   const beat = (timed.find((x) => Math.abs(x.a - a) < 0.05)?.l.beat || 0) + action; if (g - beat >= 0.4) dead += g - beat; maxGap = Math.max(maxGap, g - beat); } cursor = Math.max(cursor, b); }
-const rules = sl.paceRules || { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 };
+// Laugh rules are the sitcom's; any other format is held to a natural 130-165 wpm (same split as radio.mjs).
+const rules = sl.paceRules || (sl.format === "sitcom"
+  ? { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 }
+  : { minWpm: 130, maxWpm: 175, maxGap: 0.9, maxDeadPct: 15 });
 const pacing = {
   length: Math.round(total * 10) / 10, wpm: Math.round(nWords / (speech / 60)), maxUnplannedGap: Math.round(maxGap * 100) / 100,
   deadAirPct: Math.round((dead / tightLen) * 1000) / 10, laughs: laughs.length, firstLaugh: laughs[0] ? Math.round(laughs[0].at * 10) / 10 : null,
@@ -333,7 +342,8 @@ if (reps.length) problems.push(`repeated words in the dialogue: ${reps.join(", "
 if (pacing.wpm < rules.minWpm) problems.push(`delivery ${pacing.wpm} wpm < ${rules.minWpm}`);
 if (pacing.maxUnplannedGap > rules.maxGap) problems.push(`gap ${pacing.maxUnplannedGap}s > ${rules.maxGap}s`);
 if (pacing.deadAirPct > rules.maxDeadPct) problems.push(`dead air ${pacing.deadAirPct}% > ${rules.maxDeadPct}%`);
-if (pacing.firstLaugh == null || pacing.firstLaugh > rules.maxFirstLaugh) problems.push(`first laugh at ${pacing.firstLaugh}s`);
+if (rules.maxFirstLaugh != null && (pacing.firstLaugh == null || pacing.firstLaugh > rules.maxFirstLaugh)) problems.push(`first laugh at ${pacing.firstLaugh}s`);
+if (rules.maxWpm && pacing.wpm > rules.maxWpm) problems.push(`delivery ${pacing.wpm} wpm > ${rules.maxWpm}`);
 if (loud < -15.5 || loud > -12.5) problems.push(`loudness ${loud} LUFS`);
 if (peak > -1) problems.push(`true peak ${peak} dB`);
 const fq = { loudness: loud, truePeak: peak, duration: Math.round((total + introLen) * 10) / 10, intro: Math.round(introLen * 10) / 10, pacing, lines: lines.map((x) => ({ id: x.id, found: x.found, start: x.start })), problems, pass: !problems.length, at: new Date().toISOString() };

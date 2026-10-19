@@ -106,7 +106,9 @@ const commands = {
   },
   plate() {
     const styleId = flag("--style");
-    const desc = argv[2];
+    // The description is the first positional argument after the set id, wherever the flags go (it used to be
+    // argv[2], so `plate <set> --style <id> "<desc>"`, the documented order, sent "--style" as the description).
+    const desc = argv.slice(2).find((a, i, all) => !a.startsWith("--") && !(all[i - 1] || "").startsWith("--"));
     if (!id || !styleId || !desc) throw new Error('usage: plate <set> --style <id> "<description>"');
     const st = P.style(styleId);
     const dir = path.join(P.BIBLE, "sets", id);

@@ -1,6 +1,6 @@
 {
   "name": "video-factory",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "An AI video studio run by your coding agent (Claude Code or Codex) on Kie.ai and ElevenLabs: UGC ads, micro-dramas, sitcoms, fantasy shorts, long-form meditation and more.",
   "type": "module",

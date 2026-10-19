@@ -18,13 +18,13 @@ import { planCheck } from "./state.mjs";
 // "clips": one first/last-frame generation per shot (influencer, UGC, cinematic...). "longform": loops + narration.
 export const FORMATS = {
   sitcom: { kind: "scenes", label: "Sitcom" },
-  "micro-drama": { kind: "scenes", label: "Micro-drama" },
-  anime: { kind: "scenes", label: "Anime" },
+  "micro-drama": { kind: "scenes", label: "Micro-drama", editMissing: "a music score under the episode, stings on each power shift and a swell under the ending (edit.mjs mixes only laughs, cues and the sitcom intro)" },
+  anime: { kind: "scenes", label: "Anime", editMissing: "a music score under the episode, stings on each power shift and a swell under the ending (edit.mjs mixes only laughs, cues and the sitcom intro)" },
   influencer: { kind: "clips", label: "AI influencer" },
   ugc: { kind: "clips", label: "UGC / ad" },
   podcast: { kind: "clips", label: "Podcast clip" },
-  cinematic: { kind: "clips", label: "Cinematic" },
-  fantasy: { kind: "clips", label: "Fantasy" },
+  cinematic: { kind: "clips", label: "Cinematic", editMissing: "a music score and sound design (cut.mjs mixes only the takes' sound and an ambience bed)" },
+  fantasy: { kind: "clips", label: "Fantasy", editMissing: "a music score and sound design (cut.mjs mixes only the takes' sound and an ambience bed)" },
   other: { kind: "clips", label: "Other" },
   meditation: { kind: "longform", label: "Meditation / long-form" },
 };
@@ -57,7 +57,9 @@ export function castIds(sl) {
 const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "plate"]);
 const strip = (o) => JSON.parse(JSON.stringify(o ?? null, (k, v) => (RUNTIME.has(k) ? undefined : v)));
 export const FINGERPRINT = {
-  series: (sl) => sha(sl.series ? (() => { try { return fs.readFileSync(path.join(P.PROJECTS, "..", "series", sl.series, "series.json"), "utf8"); } catch { return null; } })() : null),
+  // The series bible without its own approval stamp (approving writes `approved` into series.json, 2026-10-19),
+  // the voice profiles (approved at the cast gate) and the episode list (grows every episode).
+  series: (sl) => sha(sl.series ? (() => { try { const { approved, voices, episodes, ...bible } = JSON.parse(fs.readFileSync(path.join(P.PROJECTS, "..", "series", sl.series, "series.json"), "utf8")); return JSON.stringify(bible); } catch { return null; } })() : null),
   concept: (sl) => sha(fs.existsSync(path.join(dir(sl), "concept.md")) ? fs.readFileSync(path.join(dir(sl), "concept.md"), "utf8") : null),
   script: (sl) => sha(kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
   cast: (sl) => sha(castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null])),
@@ -139,8 +141,14 @@ function boardCheck(sl) {
   return bad.length ? no(bad.join("; ")) : ok("storyboard y prompts revisados");
 }
 
+// FORMAT READINESS (2026-10-19, The Secret Heiress): a format whose editor can't finish it (a drama with no score,
+// no stings, no swell) was filmed anyway and came out as a dry, unusable cut. A format with `editMissing` stops here,
+// before the prices and the book, until the editor can do it. No spend on a video the engine can't finish.
+export const editReady = (sl) => !FORMATS[sl.format]?.editMissing;
+
 // Live price analysis: fresh (7 days at most) and its pick is the model the book estimates and the film uses.
 function modelsCheck(sl) {
+  if (!editReady(sl)) return no(`FORMAT NOT READY: the ${FORMATS[sl.format].label} editor can't make ${FORMATS[sl.format].editMissing}. Build that in the engine before any spend.`);
   const pc = sl.priceCheck;
   if (!pc) return no("sin análisis de precios en vivo (studio.mjs prices)");
   if ((Date.now() - Date.parse(pc.at)) / 864e5 > 7) return no(`el análisis de precios tiene más de 7 días (${pc.at.slice(0, 10)}); vuelve a correrlo`);
@@ -248,7 +256,9 @@ export function stepStatus(sl, id) {
   const S = STEPS[id];
   const ov = sl.flow?.overrides?.find((o) => o.step === id && o.fp === (FINGERPRINT[id] ? FINGERPRINT[id](sl) : o.fp));
   if (ov) return { ok: true, detail: `OVERRIDE: "${ov.said}" (${ov.reason})`, override: true };
-  const c = S.check(sl);
+  // A check that throws (a cast member not in the bible yet, a missing file) is a step that isn't ready, not a crash.
+  let c;
+  try { c = S.check(sl); } catch (e) { c = no(e.message); }
   return S.who === "creator" ? both(c, approvedNow(sl, id)) : c;
 }
 
@@ -276,6 +286,28 @@ export function requireStep(sl, step, what = step) {
   }
   // Every paid step after the book needs the budget the book locked.
   if (r.indexOf(step) >= r.indexOf("film") && sl.budget?.approvedCredits == null) throw new FlowStop(`"${what}": no hay presupuesto aprobado (se fija al aprobar el Production Book)`);
+}
+
+// PILOT GATE (2026-10-19, The Secret Heiress: six scenes were filmed at once on a model never used in production;
+// the timing, the sound and a wardrobe bug only showed up after every credit was spent). After the book, only the
+// first scene (scenes formats) or first shot (clips formats) can be filmed. the creator watches it and approves it in his
+// words (studio.mjs approve-pilot) before anything else is filmed. A bad pilot costs one scene, not the episode.
+export const pilotId = (sl) => (kindOf(sl) === "scenes" ? sl.scenes?.[0]?.id : kindOf(sl) === "clips" ? sl.shots?.[0]?.id : null);
+export function requirePilot(sl, ids) {
+  if (kindOf(sl) === "longform" || sl.flow?.approved?.pilot) return;
+  const p = pilotId(sl), rest = ids.filter((i) => i !== p);
+  if (rest.length) throw new FlowStop(`PILOT STOP: film the pilot first (${p}), show it to the creator and record his yes: studio.mjs approve-pilot ${sl.slug} --said "..." . Only then ${rest.join(", ")}.`);
+}
+export function approvePilot(slug, said) {
+  if (!said?.trim()) throw new FlowStop('approve-pilot necesita las palabras exactas del creador: --said "..."');
+  return P.updateShotlist(slug, (sl) => {
+    assertV5(sl);
+    const id = pilotId(sl), item = (sl.scenes || []).find((x) => x.id === id) || (sl.shots || []).find((x) => x.id === id);
+    if (!item?.clips?.length) throw new FlowStop(`el piloto ${id} todavía no está filmado`);
+    sl.flow.approved ||= {};
+    sl.flow.approved.pilot = { said: said.trim(), at: new Date().toISOString(), item: id, take: (item.clip ?? item.clips.length - 1) + 1 };
+    sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `approve pilot ${id}`, said: said.trim() }];
+  });
 }
 
 export function approve(slug, id, said, extra = {}) {

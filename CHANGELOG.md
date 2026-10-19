@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.0, 2026-10-19: pilot gate and format readiness
+
+- **Pilot gate:** after the Production Book only the first scene or shot can be filmed; the creator watches it and approves it in their words (`studio.mjs approve-pilot <slug> --said "..."`) before the rest is filmed. A bad pilot costs one scene, not the episode.
+- **Format readiness:** micro-drama, anime, cinematic and fantasy stop at the price step until the editor can score them (music, stings, swell). No spend on a video the engine can't finish.
+- Scenes send each character's face and full-body views, so wardrobe holds when a scene opens on someone else.
+- The book estimates only what is still to film; the dialogue check spells heard numbers ("400" = "four hundred"); the edit keeps a drama's pauses and applies laugh rules only to the sitcom; the radio cut has drama pacing rules.
+- New series take their format's style; `accept-take` works for scenes; `cast.mjs plate` reads its description in any position; `studio.mjs status` never crashes on a missing character.
+
 ## 2.2.0, 2026-10-19: the script always reaches the model
 
 - **Dialogue word for word, enforced.** `gen.mjs clip` used to send only the shot's visual prompt, so the video model never got the script and improvised. Now every clip prompt is the shot's prompt plus every line verbatim at a calm natural pace (140-160 wpm), and `job()` refuses any speaking video job whose prompt leaves out a line or doesn't declare its lines (**DIALOGUE STOP**). The Production Book shows the exact prompt the model receives.

@@ -238,6 +238,10 @@ export function sceneRefs(sl, sc) {
     const f = [v.front, v.threeQuarter].filter(Boolean).map((x) => path.join(c.dir, x)).find((x) => fs.existsSync(x))
       || existing(c.dir, c.refs || c.sheets || ["sheet.png"])[0];
     if (f) out.push({ role: "character", id, name: c.name, look: characterLook(c, st.id).look, file: f });
+    // The full-body view too, so the wardrobe is locked when a scene opens on someone else (2026-10-19: Clara's
+    // black gown turned wine, then ivory, in a scene that opened on Victor's close-up and only had her face).
+    const full = v.full && path.join(c.dir, v.full);
+    if (full && fs.existsSync(full) && full !== f) out.push({ role: "character", id, name: `${c.name} (full body, exact wardrobe)`, look: characterLook(c, st.id).look, file: full });
   }
   const setId = sc.set || sl.set;
   if (setId) {

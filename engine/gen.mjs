@@ -36,7 +36,7 @@ import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
 import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
 import * as eleven from "./lib/eleven.mjs";
-import { requireStep, assertV5, takeOk, kindOf, FlowStop } from "./lib/flow.mjs";
+import { requireStep, requirePilot, assertV5, takeOk, kindOf, FlowStop } from "./lib/flow.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 
 const argv = process.argv.slice(2);
@@ -389,6 +389,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const pk = pick(sl);
     const want = flag("--scenes")?.split(",");
     const todo = (sl.scenes || []).filter((sc) => (want ? want.includes(sc.id) : !sc.clips?.length));
+    requirePilot(sl, todo.map((sc) => sc.id));
     report(await pool(todo, (sc) => renderScene(slug, sl, sc, flag("--model", sc.videoModel || pk.video), flag("--res", pk.res))));
   },
 
@@ -487,6 +488,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
       n = Number(flag("--eval"));
       if (!s.clips?.[n - 1]) throw new Error(`${id} has no take ${flag("--eval")}`);
     } else {
+      requirePilot(sl, [id]);
       if (s.clip != null && takeOk(s.clips?.[s.clip]) && !has("--redo")) return console.log(`${id} already has a take that passes every eval (use --redo for another, inside the budget)`);
       let first = s.frame;
       const m = /^@(\w+):last$/.exec(first || "");

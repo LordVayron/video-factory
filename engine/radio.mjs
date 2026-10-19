@@ -134,13 +134,19 @@ const pacing = {
   firstLaugh: laughs[0] ? Math.round(laughs[0].at * 10) / 10 : null,
   secondsPerLaugh: laughs.length ? Math.round((total / laughs.length) * 10) / 10 : null,
 };
-const rules = sl.paceRules || { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 };
+// Laugh rules are the sitcom's; a drama has none and speaks at a natural 140-165 wpm (the creator, 2026-10-19:
+// "que no hable tan rápido"). sl.paceRules overrides either set.
+const sitcom = sl.format === "sitcom";
+const rules = sl.paceRules || (sitcom
+  ? { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 }
+  : { minWpm: 130, maxWpm: 165, maxGap: 0.9, maxDeadPct: 15 }); // held silent reactions are the drama's grammar (micro-drama DNA)
 const problems = [...planCheck(sl).problems.map((x) => `continuity plan: ${x}`)];
 if (pacing.wpm < rules.minWpm) problems.push(`delivery ${pacing.wpm} wpm < ${rules.minWpm} (raise pace.tempo)`);
+if (rules.maxWpm && pacing.wpm > rules.maxWpm) problems.push(`delivery ${pacing.wpm} wpm > ${rules.maxWpm} (lower pace.tempo or add beats)`);
 if (pacing.maxUnplannedGap > rules.maxGap) problems.push(`gap ${pacing.maxUnplannedGap}s > ${rules.maxGap}s`);
 if (pacing.deadAirPct > rules.maxDeadPct) problems.push(`dead air ${pacing.deadAirPct}% > ${rules.maxDeadPct}%`);
-if (pacing.firstLaugh == null || pacing.firstLaugh > rules.maxFirstLaugh) problems.push(`first laugh at ${pacing.firstLaugh}s > ${rules.maxFirstLaugh}s`);
-if (pacing.secondsPerLaugh == null || pacing.secondsPerLaugh > rules.maxSecondsPerLaugh) problems.push(`a laugh every ${pacing.secondsPerLaugh}s > ${rules.maxSecondsPerLaugh}s`);
+if (rules.maxFirstLaugh != null && (pacing.firstLaugh == null || pacing.firstLaugh > rules.maxFirstLaugh)) problems.push(`first laugh at ${pacing.firstLaugh}s > ${rules.maxFirstLaugh}s`);
+if (rules.maxSecondsPerLaugh != null && (pacing.secondsPerLaugh == null || pacing.secondsPerLaugh > rules.maxSecondsPerLaugh)) problems.push(`a laugh every ${pacing.secondsPerLaugh}s > ${rules.maxSecondsPerLaugh}s`);
 sl.radio = { file: "audio/radio-cut.mp3", ...pacing, laughTimes: laughs.map((L) => ({ kind: L.kind, at: Math.round(L.at * 100) / 100, shot: L.shot })), problems, pass: !problems.length, at: new Date().toISOString() };
 P.saveShotlist(slug, sl);
 

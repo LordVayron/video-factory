@@ -21,6 +21,25 @@ segs, _ = model.transcribe(media, language=lang, word_timestamps=True)
 words = [{"w": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)} for s in segs for w in s.words]
 
 lines = json.load(open(lines_path, encoding="utf8"))
+
+# Whisper writes numbers as digits ("400") while scripts spell them ("four hundred"): a correct take failed its
+# dialogue check (2026-10-19). A heard number the script doesn't write in digits is spelled out, same timestamps.
+ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
+TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+def spell(n):
+    if n < 20: return [ONES[n]]
+    if n < 100: return [TENS[n // 10]] + (spell(n % 10) if n % 10 else [])
+    if n < 1000: return spell(n // 100) + ["hundred"] + (spell(n % 100) if n % 100 else [])
+    return spell(n // 1000) + ["thousand"] + (spell(n % 1000) if n % 1000 else [])
+script_text = " ".join(norm(t) for l in lines for t in l["text"].split())
+spelled = []
+for w in words:
+    n = norm(w["w"])
+    if n.isdigit() and int(n) < 1000000 and n not in script_text.split():
+        spelled += [{**w, "w": part} for part in spell(int(n))]
+    else:
+        spelled.append(w)
+words = spelled
 script_tokens, owner = [], []
 for i, l in enumerate(lines):
     for t in l["text"].split():
