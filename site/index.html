@@ -201,6 +201,8 @@
   .play-art:hover img, .play-art:focus-visible img { transform: scale(1.015) rotate(-.3deg); filter: saturate(1.1) brightness(1.05); }
   .play-art:hover .play-chip, .play-art:focus-visible .play-chip { transform: scale(1.06); box-shadow: 0 16px 40px rgba(0,0,0,.6), 0 0 0 10px rgba(227,72,155,.3); }
   .play-art:focus-visible { outline: 2px solid var(--pink); outline-offset: 6px; }
+  .price-note { margin: 14px 0 0; font-size: 12px; color: var(--cream-dim); }
+  .price-note b { color: var(--pink); }
   .soon { margin-top: -6px; display: inline-flex; align-items: center; gap: 10px; background: rgba(18,17,25,.86); border: 2px solid var(--cream); padding: 9px 14px; font-weight: 900; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
   .soon::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 10px #ff3b30; animation: blink 1.2s steps(2) infinite; }
   .slide .k { font-family: var(--display); font-size: 15px; text-transform: uppercase; color: var(--cream-dim); }
@@ -370,10 +372,11 @@
   </div>
   <div class="spine" aria-label="Key numbers">
     <div><b>10</b><span>Video formats</span></div>
-    <div><b>≈ $2</b><span>Per finished video</span></div>
+    <div><b>≈ $2*</b><span>Per finished video</span></div>
     <div><b>4</b><span>Approvals from you</span></div>
     <div><b>5</b><span>Questions to set up</span></div>
   </div>
+  <p class="price-note"><b>*</b> Prices depend on the quality and the model you choose; these are average prices.</p>
   <p class="sheet-foot">© Video Factory contributors 2026. <b>Not affiliated with Anthropic, OpenAI, Kie.ai or ElevenLabs.</b></p>
 </section>
 
@@ -381,7 +384,7 @@
 <section class="sheet shelf" id="shelf" aria-label="Sample tapes">
   <div class="sec-title">
     <h2>One factory. Every genre.</h2>
-    <p>A 90s sitcom, an AI influencer, ads, dramas and hour-long meditations, all from the same studio. Press play on the first two tapes: every frame, voice and cut was made by the factory.</p>
+    <p>A 90s sitcom, an AI influencer, ads, dramas and hour-long meditations, all from the same studio. Press play on the first three tapes: every frame, voice and cut was made by the factory.</p>
   </div>
   <div class="slider reveal" id="slider" aria-roledescription="carousel" aria-label="Sample formats">
     <div class="slides">
@@ -393,27 +396,27 @@
       <article class="slide" data-video="media/two-suitcases.mp4" aria-roledescription="slide" aria-label="2 of 6">
         <button class="art play-art" type="button" data-play data-src="media/two-suitcases.mp4" data-poster="media/two-suitcases-poster.jpg" data-caption="Two Suitcases · AI influencer vlog" aria-label="Play Two Suitcases, a 15-second AI influencer vlog"><img src="img/web/cover-suitcases.jpg" width="1100" height="936" alt="VHS box and tape of Two Suitcases, a 15-second AI influencer vlog: a curly-haired woman in a camel coat takes a selfie on a golden-hour New York street next to two vintage suitcases."><span class="play-chip"><i></i>Play the vlog</span></button>
         <div><p class="k">Format · AI influencer · Now playing</p><h3>Two Suitcases</h3><p>A creator walks through SoHo and tells you her best mistake. Two shots on Veo 3.1 Quality, the second voiced in her cloned voice, with her face and freckles checked on every frame against a locked reference. No camera, no crew, no actor.</p>
-          <dl><dt>Length</dt><dd>16 seconds, 9:16</dd><dt>Cost</dt><dd>About $2.50 in video, picked from live prices</dd><dt>Checked</dt><dd>Identity, jumps and dialogue on every take</dd></dl></div>
+          <dl><dt>Length</dt><dd>16 seconds, 9:16</dd><dt>Cost</dt><dd>About $2.50 in video, picked from live prices*</dd><dt>Checked</dt><dd>Identity, jumps and dialogue on every take</dd></dl></div>
       </article>
-      <article class="slide" data-video="" aria-roledescription="slide" aria-label="3 of 6">
-        <div class="art"><img src="img/web/cover-ugc.jpg" width="1100" height="936" alt="VHS box and tape of The Glow Up, a 15-second UGC ad: a smiling creator films herself holding a glowing serum bottle."><span class="soon">Sample coming soon</span></div>
-        <div><p class="k">Format · UGC ad</p><h3>The Glow Up</h3><p>A creator-style product review that doesn't look like an ad: a hook in the first two seconds, your product on screen by three, real specifics and one clear call to action.</p>
-          <dl><dt>Length</dt><dd>15–30 seconds, 9:16</dd><dt>Typical cost</dt><dd>$1–3</dd><dt>You bring</dt><dd>Product photos and the selling points</dd></dl></div>
+      <article class="slide" data-video="media/glow-up.mp4" aria-roledescription="slide" aria-label="3 of 6">
+        <button class="art play-art" type="button" data-play data-src="media/glow-up.mp4" data-poster="media/glow-up-poster.jpg" data-caption="The Glow Up · UGC ad" aria-label="Play The Glow Up, a 19-second UGC ad"><img src="img/web/cover-ugc.jpg" width="1100" height="936" alt="VHS box and tape of The Glow Up, a 19-second UGC ad: a smiling creator in a pink towel films herself holding a glowing serum bottle."><span class="play-chip"><i></i>Play the ad</span></button>
+        <div><p class="k">Format · UGC ad · Now playing</p><h3>The Glow Up</h3><p>Fresh out of the shower, a creator swears she's on her third bottle of a serum she can't stop talking about. It reads like a friend's story, not an ad: the product in her hand from the first frame, the script spoken word for word at a natural pace, and one code at the end. The creator, her voice and the serum are all made up.</p>
+          <dl><dt>Length</dt><dd>19 seconds, 9:16</dd><dt>Cost</dt><dd>About $6 in video on Seedance 2.5, picked from live prices*</dd><dt>Checked</dt><dd>Identity, jumps and dialogue on every take</dd></dl></div>
       </article>
       <article class="slide" data-video="" aria-roledescription="slide" aria-label="4 of 6">
         <div class="art"><img src="img/web/cover-drama.jpg" width="1100" height="936" alt="VHS box and tape of The Secret Heiress, episode 1 of 40: a woman in a black gown holds a torn will on a mansion staircase."><span class="soon">Sample coming soon</span></div>
         <div><p class="k">Format · Micro-drama</p><h3>The Secret Heiress</h3><p>A vertical novela for TikTok and Reels: conflict in the first three seconds, one power shift per scene and a cliffhanger that makes the next episode a must-watch.</p>
-          <dl><dt>Length</dt><dd>60–120 second episodes</dd><dt>Typical cost</dt><dd>$2–5 per episode</dd><dt>Locked</dt><dd>The same faces, sets and voices for 40 episodes</dd></dl></div>
+          <dl><dt>Length</dt><dd>60–120 second episodes</dd><dt>Typical cost</dt><dd>$2–5 per episode*</dd><dt>Locked</dt><dd>The same faces, sets and voices for 40 episodes</dd></dl></div>
       </article>
       <article class="slide" data-video="" aria-roledescription="slide" aria-label="5 of 6">
         <div class="art"><img src="img/web/cover-influencer.jpg" width="1100" height="936" alt="VHS box and tape of Clone Me: a woman points at the camera next to a glowing hologram copy of herself."><span class="soon">Sample coming soon</span></div>
         <div><p class="k">Format · AI influencer</p><h3>Clone Me</h3><p>Your face and your voice, talking to camera without you filming. Built from your own photos and voice samples, with your consent, for daily posts that sound like you.</p>
-          <dl><dt>Length</dt><dd>15–60 seconds</dd><dt>Typical cost</dt><dd>$1–4</dd><dt>Only you</dt><dd>It refuses anyone else's likeness</dd></dl></div>
+          <dl><dt>Length</dt><dd>15–60 seconds</dd><dt>Typical cost</dt><dd>$1–4*</dd><dt>Only you</dt><dd>It refuses anyone else's likeness</dd></dl></div>
       </article>
       <article class="slide" data-video="" aria-roledescription="slide" aria-label="6 of 6">
         <div class="art"><img src="img/web/cover-meditation.jpg" width="1100" height="936" alt="VHS box and tape of Midnight Lake, a 30-minute sleep meditation: a full moon over a misty lake and a lit cabin."><span class="soon">Sample coming soon</span></div>
         <div><p class="k">Format · Meditation &amp; sleep</p><h3>Midnight Lake</h3><p>A long-form meditation with seamless looping scenes, a calm voice that leaves real pauses and a music bed underneath. It ships as a 1080p video for YouTube and an MP3 for podcast apps.</p>
-          <dl><dt>Length</dt><dd>10 minutes to 3 hours, 16:9</dd><dt>Typical cost</dt><dd>About $2 for 30 minutes</dd><dt>Render</dt><dd>30 minutes of 1080p in about 5 minutes</dd></dl></div>
+          <dl><dt>Length</dt><dd>10 minutes to 3 hours, 16:9</dd><dt>Typical cost</dt><dd>About $2 for 30 minutes*</dd><dt>Render</dt><dd>30 minutes of 1080p in about 5 minutes</dd></dl></div>
       </article>
     </div>
     <div class="slider-ui">
@@ -458,14 +461,16 @@
     <h2>Six steps. The calls are yours.</h2>
     <p>The factory works like a real production: audio first, storyboards before footage, a budget before any money is spent, and quality control before anything reaches you.</p>
   </div>
+  <p class="price-note"><b>*</b> Prices depend on the quality and the model you choose; these are average prices.</p>
   <div class="steps reveal">
     <article class="step" data-step="1"><span class="gate">You approve</span><span class="n">01</span><h3>The script</h3><p>A writers' room pass with real comedy and drama craft: a premise, a game, a beat map, a punch-up and a scored rubric. You read it and say yes, or ask for changes.</p></article>
     <article class="step" data-step="2"><span class="gate free">Free</span><span class="n">02</span><h3>The radio cut</h3><p>Every line is voiced with ElevenLabs and timed with laughs, music or pauses. The audio sets how long each shot runs, so the pacing is right before any picture exists.</p></article>
-    <article class="step" data-step="3"><span class="gate free">≈ $0.08 / scene</span><span class="n">03</span><h3>The storyboard</h3><p>One GPT Image 2.5 grid per scene, built from locked character sheets and set plates, then cut into an animatic you can watch.</p></article>
+    <article class="step" data-step="3"><span class="gate free">≈ $0.08 / scene*</span><span class="n">03</span><h3>The storyboard</h3><p>One GPT Image 2.5 grid per scene, built from locked character sheets and set plates, then cut into an animatic you can watch.</p></article>
     <article class="step" data-step="4"><span class="gate">You approve</span><span class="n">04</span><h3>The Production Book</h3><p>One page with the script, boards, animatic, exact prompts and the cost. Approving it locks the budget in code. Nothing more is spent without your yes.</p></article>
-    <article class="step" data-step="5"><span class="gate free">≈ $0.04 / second</span><span class="n">05</span><h3>The shoot</h3><p>Each scene is filmed in one multi-shot generation, all scenes in parallel. A vision judge checks positions, physics, dialogue, light and geography on every take.</p></article>
+    <article class="step" data-step="5"><span class="gate free">≈ $0.04 / second*</span><span class="n">05</span><h3>The shoot</h3><p>Each scene is filmed in one multi-shot generation, all scenes in parallel. A vision judge checks positions, physics, dialogue, light and geography on every take.</p></article>
     <article class="step" data-step="6"><span class="gate free">Free</span><span class="n">06</span><h3>The edit</h3><p>Tight cuts, unified voices, captions, laughs or music, a series intro and outro, loudness and a final QC. You get the mp4 and an updated Production Book.</p></article>
   </div>
+  <p class="price-note"><b>*</b> Prices depend on the quality and the model you choose; these are average prices.</p>
   <p class="sheet-foot">Typical turnaround: <b>about 15 minutes</b> from your approval to the finished video.</p>
 </section>
 
@@ -480,18 +485,19 @@
   <div class="set-grid reveal">
     <div class="charset">
       <p class="cap">Main format set</p>
-      <div class="fmt"><b>UGC Ads</b><span>15–30 s · 9:16</span><em>$1–3</em></div>
-      <div class="fmt"><b>Micro-Dramas</b><span>60–120 s episodes</span><em>$2–5</em></div>
-      <div class="fmt"><b>Sitcoms</b><span>40–60 s episodes</span><em>$2–5</em></div>
-      <div class="fmt"><b>Fantasy Shorts</b><span>30–90 s</span><em>$2–6</em></div>
-      <div class="fmt"><b>Meditation &amp; Sleep</b><span>10 min – 3 h · 16:9</span><em>≈ $2</em></div>
-      <div class="fmt"><b>AI Influencer</b><span>your face, your voice</span><em>$1–4</em></div>
-      <div class="fmt"><b>Anime</b><span>20–40 s</span><em>$1–3</em></div>
-      <div class="fmt"><b>Podcast Clips</b><span>30–60 s</span><em>$1–3</em></div>
+      <div class="fmt"><b>UGC Ads</b><span>15–30 s · 9:16</span><em>$1–3*</em></div>
+      <div class="fmt"><b>Micro-Dramas</b><span>60–120 s episodes</span><em>$2–5*</em></div>
+      <div class="fmt"><b>Sitcoms</b><span>40–60 s episodes</span><em>$2–5*</em></div>
+      <div class="fmt"><b>Fantasy Shorts</b><span>30–90 s</span><em>$2–6*</em></div>
+      <div class="fmt"><b>Meditation &amp; Sleep</b><span>10 min – 3 h · 16:9</span><em>≈ $2*</em></div>
+      <div class="fmt"><b>AI Influencer</b><span>your face, your voice</span><em>$1–4*</em></div>
+      <div class="fmt"><b>Anime</b><span>20–40 s</span><em>$1–3*</em></div>
+      <div class="fmt"><b>Podcast Clips</b><span>30–60 s</span><em>$1–3*</em></div>
     </div>
     <div class="outline-col" aria-hidden="true">Formats</div>
     <div class="tapes" role="img" aria-label="A stack of VHS tapes labelled UGC ads, sitcoms, micro-dramas, fantasy, anime, meditation and podcast clips"></div>
   </div>
+  <p class="price-note"><b>*</b> Prices depend on the quality and the model you choose; these are average prices.</p>
   <p class="sheet-foot">Plus cinematic shorts. <b>Long-form meditations</b> render 30 minutes of 1080p in about 5 minutes, because the scenes loop seamlessly.</p>
 </section>
 
@@ -520,7 +526,7 @@
   <div class="sec-title"><h2>Before you press play</h2></div>
   <div class="faq reveal">
     <details><summary>What do I need?</summary><p>A coding agent (Claude Code or Codex), a Kie.ai account for images, video and music, and an ElevenLabs account for voices. Your agent installs Node, ffmpeg and Python for you if they are missing.</p></details>
-    <details><summary>How much does a video cost?</summary><p>A 30–60 second short usually costs $1 to $5 in Kie.ai credits. A 30-minute meditation costs about $2, because the picture loops. Voices are billed by ElevenLabs. You always see the exact estimate before anything is spent.</p></details>
+    <details><summary>How much does a video cost?</summary><p>A 30–60 second short usually costs $1 to $5 in Kie.ai credits. A 30-minute meditation costs about $2, because the picture loops. Voices are billed by ElevenLabs. You always see the exact estimate before anything is spent. These prices depend on the quality and the model you choose; they are averages.</p></details>
     <details><summary>How do I install it?</summary><p>Open Claude Code or Codex and paste: <code>Install https://github.com/LordVayron/video-factory and set it up for me.</code> Your agent clones it, installs everything, checks your machine and asks you five questions about what you want to make.</p></details>
     <details><summary>Can I make my own series?</summary><p>Yes. The factory locks each character's look, voice and seat, plus the sets and a series intro, so episode ten looks and sounds like episode one. Petty Capitalists is one example.</p></details>
     <details><summary>Can I use my face, my product or my brand?</summary><p>Yes: your own photos and voice for an AI influencer, or your product shots for UGC ads. It refuses real public figures, copyrighted characters and brands you don't own.</p></details>

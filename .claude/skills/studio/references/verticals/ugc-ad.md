@@ -62,3 +62,12 @@ The ad must not look like an ad. It must look like a real person who found somet
 
 - Loose prompts let the model improvise physics and add unscripted words. Lock the dialogue word for word.
 - Slow speech on a long clip reads as AI. Shorten the duration instead.
+
+## Lessons from the landing sample "The Glow Up" (Seedance 2.5, 19 s)
+
+- **Dialogue must sound spoken, not written.** Short fragments ("Two weeks. No filter. Look.") and slogan shapes read as robotic. Write one flowing sentence per shot joined with "and" / "so", the way a friend tells a story.
+- **A model without the script improvises, fast.** An improvised take can have a better tone than the written lines, but it ran at almost 380 wpm and dropped the product name. Use improvisation as a writing source, then lock the lines. Budget about 18 words per 8 s (140–150 wpm); if the call to action doesn't fit, make the last shot longer instead of speeding the voice up.
+- **Towel and bare shoulders get refused** by some image and video models (the refusal can come back as a generic "Internal Error" and isn't billed). Plan a robe or a top for creators unless the look depends on it.
+- **No real brands in a character sheet.** A sheet is a reference for every frame, so a brand in it leaks everywhere. Put the product in the sheet unlabeled.
+- **Voices:** stock TTS voices can sound synthetic; `gen.mjs voice-design` from a written description ("natural woman around thirty, relaxed, light vocal fry, phone-mic sound") gives more natural options.
+- **Product in hand from the first frame** keeps it steady and consistent across shots.
