@@ -212,7 +212,7 @@ function wan(key, model, label, table, tier) {
 function veo(tier, label, table, costTier) {
   return {
     key: { veo3_lite: "veo-lite", veo3_fast: "veo-fast", veo3: "veo" }[tier],
-    hidden: true, // not offered by default (cost and look); kept for reference
+    hidden: false, // offered like any model: the live price analysis (lib/pricing.mjs) decides per project
     kind: "video", tier: costTier, label: `${label} (4/6/8s, speaks dialogue in prompt)`,
     model: "veo-3-1", resolutions: ["720p", "1080p"], speaks: true, refs: 3,
     build: (r) => {

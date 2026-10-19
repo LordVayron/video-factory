@@ -10,6 +10,7 @@
 //   node engine/studio.mjs approve-character <id> --said "..."    a new character's sheet, look (with marks) and voice
 //   node engine/studio.mjs accept-take <slug> <shot> <n> --said "..." --reason "..."   use a take that failed an eval
 //   node engine/studio.mjs override <slug> <step> --said "the creator's exact words" --reason "..."   logged, shown in the book
+//   node engine/studio.mjs prices <slug> [--pick <model>]          live Kie prices → best quality for the cost; sets the project's video model
 //   node engine/studio.mjs qc <slug>                              final QC of out/<slug>.mp4 (identity, dialogue, format, loudness)
 //   node engine/studio.mjs deliver <slug>                         delivery receipt + final Production Book
 //   node engine/studio.mjs series new <id> --title "..."          series/<id>/series.json from the template
@@ -23,6 +24,7 @@ import * as P from "./lib/project.mjs";
 import * as F from "./lib/flow.mjs";
 import { identityCheck } from "./lib/identity.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
+import { livePrices, videoOptions, recommend, newFamilies, QUALITY } from "./lib/pricing.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -162,6 +164,37 @@ const commands = {
     const [slug, step] = pos;
     F.override(slug, step, flag("--said"), flag("--reason"));
     console.log(`override registrado en ${slug}: ${step}. Aparece en el Production Book.`);
+  },
+
+  // Live price analysis (models step): every video model the engine can run for this format, priced live on Kie for
+  // this project's length and resolution, ranked by quality; the recommendation follows the intake's budget mode.
+  async prices() {
+    const slug = pos[0];
+    let sl = P.loadShotlist(slug);
+    F.requireStep(sl, "models", "studio prices");
+    const kind = F.kindOf(sl);
+    const secs = kind === "scenes" ? (sl.scenes || []).reduce((n, sc) => n + P.sceneSecs(P.sceneShots(sl, sc)), 0)
+      : kind === "clips" ? (sl.shots || []).reduce((n, s) => n + (s.duration || 8), 0) : (sl.longform?.scenes || []).filter((s) => s.motion !== "kenburns").reduce((n, s) => n + (s.seconds || 8), 0);
+    const clips = kind === "clips" ? (sl.shots || []).length : kind === "longform" ? (sl.longform?.scenes || []).length : (sl.scenes || []).length;
+    const live = await livePrices();
+    const options = videoOptions(live.rows, { format: sl.format, kind, seconds: secs, clips });
+    if (!options.length) throw new F.FlowStop("ningún modelo del motor aparece en los precios en vivo; revisa engine/lib/pricing.mjs");
+    const baseline = kind === "longform" ? sl.longform?.videoModel : (() => { try { return P.style(sl.style).models?.video; } catch { return null; } })();
+    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline });
+    const want = flag("--pick");
+    const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
+    if (!pick) throw new F.FlowStop(`--pick ${want} no está entre las opciones: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
+    const fresh = newFamilies(live.rows);
+    sl = P.updateShotlist(slug, (x) => {
+      x.priceCheck = { at: now(), seconds: secs, fetched: live.fetched, warning: live.warning || null, options: options.slice(0, 10), recommended: rec, pick, picked: want ? "creator" : "recommended", newOnKie: fresh };
+      if (kind === "longform") { x.longform.videoModel = pick.key; x.longform.res = pick.res; }
+      else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
+    });
+    console.log(`Precios en vivo de Kie${live.fetched ? " (recién descargados)" : ` (de hace ${live.ageH.toFixed(1)} h)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
+    for (const o of options) console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)}  ${o.note}`);
+    console.log(`\nRecomendado (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Elegido: ${pick.label} ${pick.res}${want ? " (elección del creador)" : ""}.`);
+    if (fresh.length) console.log(`Modelos en Kie que el motor aún no usa: ${fresh.join(", ")}. Si alguno promete más calidad o menos costo para este formato, propón probarlo.`);
+    console.log("Muestra esta tabla al creador; queda también en el Production Book.");
   },
 
   // Final QC: one pass over the whole final, every format. Writes sl.finalQc5 tied to the file's hash.

@@ -25,7 +25,11 @@ const allowedCode = (f) => inside(f, "engine") || inside(f, "scripts");
 export function decide({ tool_name: tool, tool_input: input = {} }) {
   // Rule 1: commands.
   if (/^(Bash|PowerShell)$/.test(tool)) {
-    const cmd = String(input.command || "");
+    const raw = String(input.command || "");
+    // Parts of the command that only read files (grep lib/kie.mjs, sed -n, cat...) can't call anything: drop them
+    // before looking for inline code, so a read next to an unrelated `node -e` is not mistaken for an API call.
+    const READ = /^\s*(cd|grep|rg|sed\s+-n|cat|head|tail|less|ls|wc|diff|git\s+(log|diff|show|status)|echo|printf|find)\b/;
+    const cmd = raw.split(/(&&|\|\||;|\||\n)/).filter((p) => !READ.test(p)).join(" ");
     // Inline code or a raw HTTP call that reaches a paid API.
     if (API.test(cmd) && /(node|python3?|py)\s+(-e|-c|--eval|--input-type|-)\b|<<|curl|wget|Invoke-(WebRequest|RestMethod)|fetch\(/i.test(cmd))
       return deny("Paid API call outside the engine. Use the engine commands (gen.mjs, cut.mjs, continuity.mjs, studio.mjs): they carry the budget lock, the flow gates and the ledger.");

@@ -39,4 +39,4 @@ Engine keys are in `engine/lib/models.mjs` (`node engine/gen.mjs models`).
 - **≈ $1.75 per episode**, or ≈ $3.50 with all finals at 720p. Higgsfield would charge ~$1.55 for a single 8s Seedance clip.
 
 
-Veo is hidden by default (cost and look). Offer it only if the user asks for it.
+No model is excluded by rule: `studio.mjs prices <slug>` (engine/lib/pricing.mjs) prices every model live for each project and recommends the best quality for the cost. For photoreal talking humans, Veo 3.1 Quality 720p won an A/B test; it can burn captions and jump inside a shot, which the take evals catch.

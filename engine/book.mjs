@@ -126,6 +126,10 @@ if (kind === "longform") {
 const ledger = (() => { try { const l = P.readJSON(path.join(dir, "ledger.json"), []); return Array.isArray(l) ? l : l.jobs || []; } catch { return []; } })();
 const spent = ledger.reduce((n, j) => n + (j.ok !== false ? j.credits || 0 : 0), 0);
 
+// ---- Live prices: the options the model was picked from
+const pc = sl.priceCheck;
+const pricesHtml = !pc ? "" : `<div class="note"><h3>Video model · live Kie prices ${esc(pc.at.slice(0, 10))}</h3><div class="shots"><table class="narrow"><thead><tr><th>Model</th><th class="num">Quality</th><th class="num">${pc.seconds} s</th><th>Best for</th></tr></thead><tbody>${pc.options.map((o) => `<tr><td>${o.key === pc.pick.key && o.res === pc.pick.res ? "<b>→ " : ""}${esc(o.label)} ${esc(o.res)}${o.key === pc.pick.key && o.res === pc.pick.res ? "</b>" : ""}${o.key === pc.recommended?.key && o.res === pc.recommended?.res ? ' <span class="tag">recommended</span>' : ""}</td><td class="num">${o.q}/10</td><td class="num">$${o.usd.toFixed(2)}</td><td>${esc(o.note)}</td></tr>`).join("")}</tbody></table></div>${pc.newOnKie?.length ? `<p class="muted">Also on Kie, not in the engine yet: ${esc(pc.newOnKie.join(", "))}.</p>` : ""}</div>`;
+
 // ---- Evals that run (the same list every project gets)
 const evals = [
   ...(kind === "scenes" ? ["Radio cut pacing (before filming)", "Continuity plan: every change of place shown on screen", "Per take: visual QC, positions, physics, light, geography, dialogue, identity"] : []),
@@ -243,7 +247,7 @@ ${radio || animatic ? `<section><div class="slate"><span class="no">06</span><h2
 <section><div class="slate"><span class="no">08</span><h2>Cost and checks</h2><span class="muted">${final ? "estimate before filming" : "what approving this book locks as the budget"}</span></div>
 <div class="shots"><table class="narrow"><thead><tr><th>Item</th><th class="num">Length</th><th class="num">Cost</th></tr></thead><tbody>${estRows}<tr><td>Already spent</td><td></td><td class="num">${usd(spent)}</td></tr></tbody>
 <tfoot><tr><td>${final ? "Total (real)" : "Total (no rerolls)"}</td><td></td><td class="num">${usd(spent + (final ? 0 : est))}</td></tr></tfoot></table></div>
-<div class="note"><h3>Evals that run on this video</h3><ul>${evals.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></section>
+${pricesHtml}<div class="note"><h3>Evals that run on this video</h3><ul>${evals.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></section>
 
 <section><div class="slate"><span class="no">09</span><h2>Approvals</h2><span class="muted">in the creator's words</span></div>
 ${flowLog ? `<div class="shots"><table class="narrow"><thead><tr><th>When</th><th>Step</th><th>the creator</th></tr></thead><tbody>${flowLog}</tbody></table></div>` : `<p class="muted">Nothing approved yet.</p>`}

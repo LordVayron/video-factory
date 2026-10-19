@@ -61,7 +61,7 @@ export const FINGERPRINT = {
   concept: (sl) => sha(fs.existsSync(path.join(dir(sl), "concept.md")) ? fs.readFileSync(path.join(dir(sl), "concept.md"), "utf8") : null),
   script: (sl) => sha(kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
   cast: (sl) => sha(castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null])),
-  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate }),
+  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res }),
   retro: () => "retro",
 };
 
@@ -128,6 +128,16 @@ function boardCheck(sl) {
     }
   }
   return bad.length ? no(bad.join("; ")) : ok("storyboard y prompts revisados");
+}
+
+// Live price analysis: fresh (7 days at most) and its pick is the model the book estimates and the film uses.
+function modelsCheck(sl) {
+  const pc = sl.priceCheck;
+  if (!pc) return no("sin análisis de precios en vivo (studio.mjs prices)");
+  if ((Date.now() - Date.parse(pc.at)) / 864e5 > 7) return no(`el análisis de precios tiene más de 7 días (${pc.at.slice(0, 10)}); vuelve a correrlo`);
+  const want = kindOf(sl) === "longform" ? sl.longform?.videoModel : sl.defaults?.videoModel;
+  if (want !== pc.pick?.key) return no(`el modelo del proyecto (${want}) no es el elegido en el análisis (${pc.pick?.key})`);
+  return ok(`${pc.pick.label} ${pc.pick.res} · $${pc.pick.usd} en vivo (${pc.at.slice(0, 10)})`);
 }
 
 function bookCheck(sl) {
@@ -204,6 +214,7 @@ export const STEPS = {
   cast: { name: "Casting y sets", who: "creator", check: castCheck, next: "cast.mjs sheet / approve-character, luego approve cast" },
   radio: { name: "Radio cut", who: "auto", check: radioCheck, next: "radio.mjs" },
   board: { name: "Storyboard y prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (escenas) o gen.mjs frame (clips)" },
+  models: { name: "Precios en vivo", who: "auto", check: modelsCheck, next: "studio.mjs prices <slug> (analiza Kie en vivo y elige el mejor modelo para la calidad y el costo; --pick <modelo> si el creador elige otro)" },
   book: { name: "Production Book", who: "creator", check: bookCheck, next: "book.mjs, publicarlo, luego approve book (bloquea el presupuesto)" },
   film: { name: "Filmación", who: "auto", check: filmCheck, next: "gen.mjs scenes | clip --shot | narration/bed/loops" },
   edit: { name: "Edición", who: "auto", check: editCheck, next: "edit.mjs | cut.mjs | longform.mjs build" },
@@ -220,7 +231,7 @@ export function recipe(sl) {
     "concept", "script", "cast",
     ...(k === "scenes" ? ["radio"] : []),
     ...(k === "longform" ? [] : ["board"]),
-    "book", "film", "edit", "qc", "deliver", "retro",
+    "models", "book", "film", "edit", "qc", "deliver", "retro",
   ];
 }
 

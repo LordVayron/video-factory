@@ -45,9 +45,9 @@ A new vertical gets a new DNA file (research → what makes it great → structu
 ## The recipes (engine: `lib/flow.mjs`)
 | Format kind | Formats | Steps after the script and cast | Edit with |
 |---|---|---|---|
-| scenes | sitcom, micro-drama, anime | radio cut (`radio.mjs`, pacing must pass) → storyboard grids (`gen.mjs storyboard`) + `animatic.mjs` → book → `gen.mjs scenes` → `continuity.mjs` + `qc.mjs` per take | `edit.mjs` |
-| clips | AI influencer, UGC, podcast, cinematic, fantasy, other | first/last frames per shot (`gen.mjs frame`, or `"frame": "@A:last"` to open on the previous shot's last frame) → book → `gen.mjs clip <slug> --shot <id>` (identity, jumps and dialogue evals run on every take) | `cut.mjs` |
-| longform | meditation, sleep, ambient, focus | plan + `longform.mjs estimate` → book → `gen.mjs narration`, `bed`, `loops` | `longform.mjs build` |
+| scenes | sitcom, micro-drama, anime | radio cut (`radio.mjs`, pacing must pass) → storyboard grids (`gen.mjs storyboard`) + `animatic.mjs` → live prices → book → `gen.mjs scenes` → `continuity.mjs` + `qc.mjs` per take | `edit.mjs` |
+| clips | AI influencer, UGC, podcast, cinematic, fantasy, other | first/last frames per shot (`gen.mjs frame`, or `"frame": "@A:last"` to open on the previous shot's last frame) → live prices → book → `gen.mjs clip <slug> --shot <id>` (identity, jumps and dialogue evals run on every take) | `cut.mjs` |
+| longform | meditation, sleep, ambient, focus | plan → live prices → `longform.mjs estimate` → book → `gen.mjs narration`, `bed`, `loops` | `longform.mjs build` |
 Every recipe ends the same way: `studio.mjs qc` (identity across every cut, transcript against the script, 720p H.264 yuv420p, -14 LUFS, contact sheet) → look at the sheet yourself → `studio.mjs deliver` (receipt + final book) → republish the book → send the mp4 → `npm run check` and push the backup → retro.
 
 ## Gates and what each one checks
@@ -60,7 +60,8 @@ Every recipe ends the same way: `studio.mjs qc` (identity across every cut, tran
 | Cast | the creator | every character exists in the bible with a written look **that names its marks** (freckles, moles, glasses, earrings...), a sheet or reference, a voice if it speaks, and an approved sheet (`cast.mjs approve` or `studio.mjs approve-character <id> --said "..."`) |
 | Radio cut | engine | pacing passes (scenes formats) |
 | Storyboard / frames | engine | grids + animatic + continuity plan (scenes) or first/last frames (clips); no prompt leaves out a character's marks |
-| Production Book | the creator | `book.mjs` built and published; his yes locks the budget (spent + estimate) |
+| Live prices | engine | `studio.mjs prices` ran in the last 7 days and its pick is the project's video model (the book estimates and the film uses that same model) |
+| Production Book | the creator | `book.mjs` built and published; their yes locks the budget (spent + estimate) |
 | Film | engine | every take used passed its evals, or the creator accepted that exact take in his words (`studio.mjs accept-take`) |
 | Edit | engine | the final was cut by the engine from those takes (fingerprinted) |
 | Final QC | engine | `studio.mjs qc` passed on this exact file |
@@ -73,11 +74,10 @@ Anything that changes how the video looks or sounds after the book was approved 
 ## Sending files to the creator
 The guard hook only lets a video or audio file reach the creator when it has a delivery receipt matching its hash. A file to ask them something (a preview, a draft) must carry PREVIEW or DRAFT in its name and be presented as such, never as the delivery.
 
-## Models (cost first; check Kie's live price feed before every new project)
+## Models: decided per project by the live price analysis
+- **Video:** no model is excluded by rule. Every project runs `node engine/studio.mjs prices <slug>` right before its Production Book (the flow enforces it): it reads Kie's live price feed, prices every video model the engine can run for this format at this project's length and resolution, ranks them by quality (`lib/pricing.mjs`, scored from real A/B tests), and recommends the best quality that fits the intake's budget mode ("cheapest" = the cheapest model that keeps the format's quality floor and the style's approved quality). It also lists models Kie sells that the engine doesn't run yet; when one could beat the pick, propose testing it. Show the creator the table (it is in the book too); `--pick <model>@<res>` records their choice instead. One model per video, never mixed.
+  - Typical results: sitcom → Seedance 2 Mini 480p (multi-shot scenes; the broadcast finish downsamples); photoreal humans → Veo 3.1 Quality 720p ($1.25 per 8 s, the winner of an A/B test against Veo Lite, Veo Fast and Kling 3.0). Veo can burn its own captions and jump inside a shot: the evals catch both; never hide them with captions or a zoom without asking.
 - **Images: GPT Image 2.5 Sunburst** (`gpt2.5`), always. 1K $0.03, 2K $0.05, 4K $0.08.
-- **Video, by format** (one model per video, never mixed):
-  - **Sitcom:** Seedance 2 Mini **480p** ($0.019/s). The broadcast finish downsamples to SD, so 720p is wasted. Veo stays out of the sitcom.
-  - **Photoreal humans (AI influencer, UGC, cinematic):** Veo 3.1 Quality 720p ($1.25 per 8 s), the winner of an A/B test against Veo Lite, Veo Fast and Kling 3.0. Veo can burn its own captions and jump inside a shot: the evals catch both; never hide them with captions or a zoom without asking.
 - **Voices, SFX, speech-to-speech, voice clones:** ElevenLabs (premade voices work on every plan; voice clones need a paid plan).
 - **Never pay for a draft that the final can't reuse.** The free draft is the radio cut plus the animatic.
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0, 2026-10-19: live price analysis
+
+- **`studio.mjs prices`**, a new flow step right before every Production Book: every video model the engine can run is priced from Kie's live feed for the project's length and resolution, ranked by quality, filtered by what the format needs (multi-shot scenes, first/last-frame clips, loops), and the best quality that fits the budget becomes the project's model. Models Kie sells that the engine doesn't run yet are listed.
+- **No model is excluded by rule** (Veo is offered like any other).
+- The book's estimate and the film now use the same model (the estimate used to fall back to the style's default).
+- The guard hook no longer mistakes read-only commands next to inline code for API calls.
+
+
 ## 2.0.0, 2026-10-19: flow v5
 
 - **One enforced path for every format:** `engine/studio.mjs` starts every project with a 7-question intake and moves it only through its recipe (scenes, clips or long-form). Every engine command checks its step; approvals are recorded in the user's words and reopen when what was approved changes. No `--force`, no legacy bypass, drafts are never deliverable.

@@ -11,7 +11,7 @@ An AI video studio run by a coding agent. You write and direct; `engine/` talks 
 - **Never spend past the approved budget.** Approving the Production Book locks it in code; `gen.mjs` refuses any job past it, and any video job before it. Any extra spend needs the user's explicit yes, then `node engine/phase.mjs budget <slug> --add N --said "..."`.
 - **Creative calls are the user's.** Captions, zoom, crops, cuts, music, voices, look: offer options, wait for their choice.
 - **The user's gates:** concept, script, cast, the Production Book (locks the budget) and the retro; plus the series bible for a new series. Nothing paid in video happens before the book.
-- **Cheapest option that keeps quality.** Check live prices with `npm run prices`. Images: GPT Image 2.5 (`gpt2.5`). Default video: Seedance 2 Mini (`sd2-mini`), 480p for sitcom, 720p for the rest.
+- **Best quality for the lowest cost, from live prices.** No video model is excluded by rule. Before every Production Book, `node engine/studio.mjs prices <slug>` analyzes Kie's live prices and recommends the best quality that fits the budget; the flow won't build the book without it. Images: GPT Image 2.5 (`gpt2.5`).
 - **At most one reroll per scene**, and only inside the budget. Never change the engine in the middle of a production: deliver, report, fix after.
 - **Watch the whole final** before delivering: `studio.mjs qc` (identity across every cut, transcript, format, loudness, contact sheet), then `studio.mjs deliver`. Never hide a known problem.
 - **Keys** live only in `.env`. Never print them, never put them in commands, commits or URLs.

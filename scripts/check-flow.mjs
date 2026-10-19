@@ -5,6 +5,7 @@ import path from "node:path";
 import * as F from "../engine/lib/flow.mjs";
 import * as P from "../engine/lib/project.mjs";
 import { decide } from "./hooks/guard.mjs";
+import { videoOptions, recommend } from "../engine/lib/pricing.mjs";
 
 export default function checkFlow(t, ROOT) {
   const engine = (f) => fs.readFileSync(path.join(ROOT, "engine", f), "utf8");
@@ -34,6 +35,17 @@ export default function checkFlow(t, ROOT) {
     t("a take that failed an eval is not usable", !F.takeOk({ evals: { identity: { pass: true }, jumps: { internal: 1 }, dialogue: { pass: true } } }));
     t("a take the creator accepted in his words is usable", F.takeOk({ evals: { identity: { pass: false } }, accepted: { said: "sí" } }));
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
+
+  // Live price analysis comes before every Production Book, and its pick drives the estimate and the film.
+  t("every recipe runs the live price analysis right before the book", ["sitcom", "influencer", "meditation"].every((f) => { const r = F.recipe({ format: f, intake: {} }); return r.indexOf("models") === r.indexOf("book") - 1; }));
+  t("no model is hidden from the price analysis by rule", !fs.readFileSync(path.join(ROOT, "engine", "lib", "models.mjs"), "utf8").includes("hidden: true"));
+  {
+    const rows = JSON.parse(fs.readFileSync(path.join(ROOT, "engine", "prices.json"), "utf8"));
+    const pick = (format, kind, baseline) => recommend(videoOptions(rows, { format, kind, seconds: 16, clips: 2 }), { format, budget: { mode: "cheapest" }, baseline })?.key;
+    t("price analysis: photoreal influencer gets the top tier", pick("influencer", "clips", "veo") === "veo");
+    t("price analysis: the sitcom keeps its cheap scene model", pick("sitcom", "scenes", "sd2-mini") === "sd2-mini");
+    t("price analysis: scenes formats never get a model that can't film multi-shot scenes", videoOptions(rows, { format: "sitcom", kind: "scenes", seconds: 30 }).every((o) => !o.key.startsWith("veo")));
+  }
 
   // The Claude Code guard (.claude/settings.json → scripts/hooks/guard.mjs).
   const settings = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude", "settings.json"), "utf8"));
