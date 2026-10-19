@@ -55,6 +55,11 @@ export default function checkFlow(t, ROOT) {
       t("a prompt without the line is caught", P.linesMissing("Selfie in a bathroom.", [line]).length === 1);
       t("a prompt that already quotes the line is sent as written", P.clipPrompt(sl, { prompt: `She says "${line.text}"`, dialogue: [line] }) === `She says "${line.text}"`);
       t("a silent clip says nobody speaks", /No dialogue/.test(P.clipPrompt(sl, { prompt: "Bottle on a counter." })));
+      // A real scene prompt is built (a runtime error here once stopped the book): the spec carries pose and must-nots.
+      const dsl = { format: "micro-drama", lang: "en", style: "hyperreal", title: "t", scenes: [{ id: "A", shots: ["s1", "s2"], summary: "x", seats: { [cid]: { place: "beside the table", side: "right", pose: "standing", holding: "a glass" } } }], shots: [{ id: "s1", characters: [cid], framing: "wide shot of the table", duration: 2, dialogue: [line] }, { id: "s2", characters: [cid], framing: "close-up", duration: 2, dialogue: [] }] };
+      let dp = "";
+      try { dp = P.scenePrompt(dsl, dsl.scenes[0], []); } catch (e) { dp = `ERROR ${e.message}`; }
+      t("a drama scene prompt builds, with each shot's spec, pose and must-not list", /Shot 1 SPEC/.test(dp) && /STANDING/.test(dp) && /sitting down/.test(dp) && dp.includes(line.text));
     } finally { fs.rmSync(cdir, { recursive: true, force: true }); }
   }
 
@@ -77,6 +82,11 @@ export default function checkFlow(t, ROOT) {
     t("the score is part of the book's locked budget", engine("book.mjs").includes("Score (Suno)"));
     t("a fixed intake budget is a hard cap on every paid job, before and after the book", engine("gen.mjs").includes("HARD CAP") && fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("pasa el tope fijo") && engine("phase.mjs").includes("el tope fijo del proyecto"));
     t("cast sheets and plates can be charged to the project", engine("cast.mjs").includes('...(project ? ["--project", project] : [])'));
+    t("every non-sitcom shot gets a structured spec (who is in frame, everyone's pose and props, must-not list)", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("everyone_in_the_room") && fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("must_not"));
+    t("outside the sitcom every pose is planned and only a move can change it", fs.readFileSync(path.join(ROOT, "engine", "lib", "state.mjs"), "utf8").includes("has no pose (seats.") && fs.readFileSync(path.join(ROOT, "engine", "lib", "state.mjs"), "utf8").includes("String(p.pose"));
+    t("character sheets are drawn in a neutral reference pose", engine("cast.mjs").includes("Neutral reference pose in every panel"));
+    t("a character can send a chosen sheet view as its reference (refView)", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("c.refView && v[c.refView]"));
+    t("seated characters belong to the scene's cast", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("...Object.keys(sc.seats || {})"));
     t("edit.mjs keeps a drama's pauses and drops sitcom laugh rules for other formats", engine("edit.mjs").includes('sl.format !== "sitcom" ? [] :') && engine("edit.mjs").includes("rules.maxFirstLaugh != null"));
   }
 

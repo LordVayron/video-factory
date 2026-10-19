@@ -205,7 +205,10 @@ export function scene(sl, id) {
 }
 export const findItem = (sl, id) => (sl.scenes || []).find((x) => x.id === id) || shot(sl, id);
 export const sceneShots = (sl, sc) => sc.shots.map((id) => shot(sl, id));
-export const sceneCast = (sl, sc) => [...new Set(sceneShots(sl, sc).flatMap((s) => s.characters || []))];
+// Everyone in the scene: the characters of its shots AND everyone seated in it (sc.seats). A seated character is in
+// frame in wide shots, so the model needs their marks and references (2026-10-19, The Toast: scene A named Grace in
+// its blocking without her references; the prompt check stopped it before any spend).
+export const sceneCast = (sl, sc) => [...new Set([...sceneShots(sl, sc).flatMap((s) => s.characters || []), ...Object.keys(sc.seats || {})])];
 
 // Grid layout for n vertical panels and the nearest image aspect ratio the image models support.
 // A shot's length in the video prompt: the radio cut's duration in half seconds, 1–8 s.
@@ -235,7 +238,9 @@ export function sceneRefs(sl, sc) {
   for (const id of sceneCast(sl, sc)) {
     const c = character(id);
     const v = characterLook(c, st.id).views;
-    const f = [v.front, v.threeQuarter].filter(Boolean).map((x) => path.join(c.dir, x)).find((x) => fs.existsSync(x))
+    // c.refView: the sheet view sent as the face reference (one with a neutral pose: a hand on the chin in the front
+    // view was copied into a shot of The Toast).
+    const f = [c.refView && v[c.refView], v.front, v.threeQuarter].filter(Boolean).map((x) => path.join(c.dir, x)).find((x) => fs.existsSync(x))
       || existing(c.dir, c.refs || c.sheets || ["sheet.png"])[0];
     if (f) out.push({ role: "character", id, name: c.name, look: characterLook(c, st.id).look, file: f });
     // The full-body view too, so the wardrobe is locked when a scene opens on someone else (2026-10-19: Clara's
@@ -286,7 +291,7 @@ export function placesAt(sl, shotId) {
     for (const sid of sc.shots) {
       if (sid === shotId) return st;
       const s = sl.shots.find((x) => x.id === sid);
-      for (const [id, m] of Object.entries(s?.moves || {})) st = { ...st, [id]: { place: m.to, side: m.side || st[id]?.side } };
+      for (const [id, m] of Object.entries(s?.moves || {})) st = { ...st, [id]: { ...st[id], place: m.to ?? st[id]?.place, side: m.side || st[id]?.side, ...(m.pose ? { pose: m.pose } : {}), ...(m.holding !== undefined ? { holding: m.holding } : {}) } };
     }
   }
   return st;
@@ -295,7 +300,7 @@ const onCouch = (p) => /couch|sofa/i.test(p?.place || "");
 export function seatLock(sc) {
   if (!sc.seats) return "";
   return "PLACE LOCK for every shot, wides included, unless a shot below says someone moves: " + Object.entries(sc.seats).map(([id, s]) =>
-    onCouch(s) ? `${character(id).name} sits ON ${s.place} (frame ${s.side.toUpperCase()}), body on the seat, never on the floor, never standing` : `${character(id).name} is at ${s.place} (frame ${String(s.side).toUpperCase()})`).join("; ") + ".";
+    onCouch(s) ? `${character(id).name} sits ON ${s.place} (frame ${s.side.toUpperCase()}), body on the seat, never on the floor, never standing` : `${character(id).name} is ${/^(at|on|in|beside|by|near|under|behind|next)\b/i.test(s.place) ? "" : "at "}${s.place} (frame ${String(s.side).toUpperCase()})${s.pose ? `, ${String(s.pose).toUpperCase()}` : ""}${s.holding ? `, holding ${s.holding}` : ""}`).join("; ") + ".";
 }
 // Dirty singles: a single on someone sharing the couch keeps the partner's edge in frame, on the partner's side.
 export function partnerNote(sc, s, sl) {
@@ -326,6 +331,23 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     const lines = (s.dialogue || []).map((l) => `${character(l.char).name}${l.delivery ? ` (${l.delivery})` : ""} says: "${l.text}" Lip sync.`).join(" ");
     // Per-shot light reminder: close-ups are where Wan drifts back to the style's default daylight.
     const light = sc.lighting ? `Same lighting as Shot 1${/night/i.test(sc.lighting) ? "; any window in frame shows dark night outside, never daylight" : ""}.` : "";
+    // Every format but the sitcom gets a structured spec per shot (2026-10-19, The Toast pilot: Ivy toasted an empty
+    // table and sat down between two shots of the same moment): who is in frame, the exact place, pose and props of
+    // everyone in the room at that moment, the action, the dialogue, and what must not happen.
+    if (sl.format !== "sitcom") {
+      const st0 = placesAt(sl, s.id), cast = sceneCast(sl, sc);
+      const all = cast.map((id) => character(id).name);
+      const inFrame = (s.inFrame || (/wide|two-shot|group|establishing|table|three|full/i.test(s.framing || "") ? cast : s.characters || [])).map((id) => character(id).name);
+      const where = Object.fromEntries(cast.map((id) => { const p = st0[id] || {}; return [character(id).name, [p.pose && String(p.pose).toUpperCase(), p.place && (/^(at|on|in|beside|by|near|under|behind|next)\b/i.test(p.place) ? p.place : `at ${p.place}`), p.side && `frame ${String(p.side).toUpperCase()}`, p.holding && `holding ${p.holding}`].filter(Boolean).join(", ")]; }));
+      const mustNot = [
+        ...cast.flatMap((id) => { const p = st0[id] || {}; const n = character(id).name; return /stand/i.test(p.pose || "") && !s.moves?.[id] ? [`${n} sitting down`] : /seat|sit/i.test(p.pose || "") && !s.moves?.[id] ? [`${n} standing up`] : []; }),
+        "anyone resting a chin or cheek on a hand, or touching their face, unless the action says so",
+        "a character not listed here appearing, or a listed character missing from a wide shot",
+        "any change of outfit, hair, jewelry or props", "on-screen text or subtitles",
+      ];
+      const spec = { shot: k + 1, time: head.slice(head.indexOf("[") + 1, head.indexOf("]")), cut: k ? (s.continuous ? "no cut: same framing as the previous shot" : "hard cut") : "opens on Image 1", framing: s.framing || "medium shot", lens: s.lens || "35mm lens", camera: cam, in_frame: inFrame.length ? inFrame : all, everyone_in_the_room: where, action: [s.motion, moveNote(s)].filter(Boolean).join(" "), dialogue: (s.dialogue || []).length ? s.dialogue.map((l) => ({ speaker: character(l.char).name, delivery: l.delivery || "", says_exactly: l.text, lip_sync: true })) : "none", sound: s.sfx || undefined, must_not: mustNot };
+      return `Shot ${k + 1} SPEC ${JSON.stringify(spec)} Lines, word for word: ${lines || "No dialogue."}`;
+    }
     // shot.continuous: no cut — the camera keeps rolling on the previous framing (stops the model inventing a new angle).
     return [head, k ? (s.continuous ? "NO CUT: the camera keeps rolling on exactly the same framing and angle as the previous shot." : "Hard cut.") : "", `${s.framing || "medium shot"}, ${s.lens || "35mm lens"}, ${cam}.`, partnerNote(sc, s, sl), s.motion, moveNote(s), lines || "No dialogue.", light, s.sfx ? `Sound: ${s.sfx}.` : ""].filter(Boolean).join(" ");
   });
@@ -339,6 +361,8 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     sc.lighting ? `LIGHTING LOCK, overrides any other light description: ${sc.lighting}. The lighting, time of day and color temperature are identical in every shot of this scene.` : "",
     voices,
     `All dialogue is spoken in ${lang}.`,
+    // Wan rushed every line of The Secret Heiress (191 wpm, 2026-10-19): the pace is part of every scene prompt.
+    sl.format === "sitcom" ? "" : "Every line is spoken at a calm, natural pace, about 140-160 words per minute, with a short natural pause between lines and a held beat on every reaction; never rushed, never overlapping.",
     ...body,
     st.motion || "",
     sc.lighting ? `Reminder: ${sc.lighting}; the light never changes.` : "",

@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import * as P from "./project.mjs";
-import { missingMarks } from "./identity.mjs";
+import { missingMarks, castOf } from "./identity.mjs";
 import { planCheck } from "./state.mjs";
 
 // What each format films and how. "scenes": multi-shot generations from storyboard grids (sitcom pipeline).
@@ -114,7 +114,8 @@ function boardCheck(sl) {
     const pc = planCheck(sl);
     if (pc.problems.length) bad.push(`plan de continuidad: ${pc.problems.join("; ")}`);
     for (const sc of sl.scenes || []) {
-      try { const pr = P.scenePrompt(sl, sc, P.sceneRefs(sl, sc)); const miss = missingMarks(typeof pr === "string" ? pr : JSON.stringify(pr), P.sceneCast(sl, sc)); if (miss.length) bad.push(`prompt de ${sc.id} sin ${miss.join(", ")}`); } catch {}
+      // Marks are checked on the same cast job() checks at filming: the scene's cast plus anyone its prompt names.
+      try { const pr = P.scenePrompt(sl, sc, P.sceneRefs(sl, sc)); const prText = typeof pr === "string" ? pr : JSON.stringify(pr); const miss = missingMarks(prText, [...new Set([...P.sceneCast(sl, sc), ...castOf(sl, prText)])]); if (miss.length) bad.push(`prompt de ${sc.id} sin ${miss.join(", ")}`); } catch {}
       // REFERENCE CHECK (2026-10-19, Clara's gown changed color twice, $2.52): every character in a scene must reach
       // the model with a face view AND a full-body view (the wardrobe), or the book can't be built.
       try {

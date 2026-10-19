@@ -52,6 +52,8 @@ export async function sts({ file, voice, out, model = "eleven_multilingual_sts_v
 // Voice Design: a new voice from a written description. Returns previews (mp3 files + generated ids) to audition;
 // nothing is added to the account until saveDesignedVoice() keeps one.
 export async function designVoice({ description, text, outBase, model = "eleven_ttv_v3" }) {
+  // Voice Design needs 100+ characters of sample text: short lines are repeated until they reach it.
+  while (text && text.length < 100) text = `${text} ${text}`;
   const r = await fetch("https://api.elevenlabs.io/v1/text-to-voice/design?output_format=mp3_44100_128", {
     method: "POST",
     headers: { "xi-api-key": elevenKey(), "Content-Type": "application/json" },

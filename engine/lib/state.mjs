@@ -9,7 +9,7 @@ import path from "node:path";
 import { ROOT } from "./env.mjs";
 import { character } from "./project.mjs";
 
-const key = (p) => (p ? `${String(p.place).toLowerCase().replace(/\s+/g, " ").trim()}|${p.side}` : "");
+const key = (p) => (p ? `${String(p.place).toLowerCase().replace(/\s+/g, " ").trim()}|${p.side}|${String(p.pose || "").toLowerCase()}` : "");
 
 // Returns { states: { shotId: { char: place } }, problems: [] }.
 export function planCheck(sl) {
@@ -18,6 +18,9 @@ export function planCheck(sl) {
   let state = null;
   for (const sc of sl.scenes || []) {
     if (!sc.seats) { problems.push(`scene ${sc.id}: no "seats" (where each character is at the start of the scene)`); continue; }
+    // POSE PLAN (2026-10-19, The Toast pilot: Ivy stood in one shot and sat in the next): outside the sitcom every
+    // character's pose is planned (seats.<char>.pose: standing | seated) and only a shot with moves can change it.
+    if (sl.format !== "sitcom") for (const [id, p] of Object.entries(sc.seats)) if (!p.pose) problems.push(`scene ${sc.id}: ${character(id).name} has no pose (seats.${id}.pose: standing | seated)`);
     // A scene marked timeJump ("the next morning") starts fresh: nobody has to be shown moving across the cut.
     if (sc.timeJump) state = null;
     if (state) {
@@ -34,7 +37,7 @@ export function planCheck(sl) {
       for (const [id, m] of Object.entries(s.moves || {})) {
         if (!m.how) problems.push(`${s.id}: ${character(id).name} moves to "${m.to}" without saying how (moves.${id}.how)`);
         if (!/move|walk|hop|jump|leap|climb|stand|sit|run|sprint|dash|crawl|step|slide|enter|exit|follow|head|go|rush|bolt/i.test(`${s.motion} ${m.how}`)) problems.push(`${s.id}: the shot's action never shows ${character(id).name} moving`);
-        state = { ...state, [id]: { place: m.to, side: m.side || state[id]?.side } };
+        state = { ...state, [id]: { ...state[id], place: m.to ?? state[id]?.place, side: m.side || state[id]?.side, ...(m.pose ? { pose: m.pose } : {}), ...(m.holding !== undefined ? { holding: m.holding } : {}) } };
       }
       for (const c of s.characters || []) if (!state[c]) problems.push(`${s.id}: ${character(c).name} is on screen but has no place in the scene's seats`);
       states[s.id] = { ...state };

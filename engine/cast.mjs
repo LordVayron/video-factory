@@ -58,7 +58,9 @@ const commands = {
     const setLook = setId ? P.set(setId).look : st.kind === "realistic" ? "a plain, softly lit everyday room" : "a plain light background";
     const lk = P.characterLook(c, styleId);
     const who = `${c.name}, ${lk.look}`;
-    const prompt = st.characterSheet.prompt.replaceAll("{who}", who).replaceAll("{set}", setLook).replaceAll("{look}", st.look)
+    // Sheets are references for every shot: a neutral pose, so no gesture leaks into a scene (a chin on a hand did, The Toast).
+    const neutral = "Neutral reference pose in every panel: upright, arms relaxed, hands away from the face, holding nothing, no props, calm neutral expression. ";
+    const prompt = neutral + st.characterSheet.prompt.replaceAll("{who}", who).replaceAll("{set}", setLook).replaceAll("{look}", st.look)
       + (st.imageRules ? ` ${st.imageRules}` : "") + (st.negative ? ` Avoid: ${st.negative}.` : "") + (flag("--note") ? ` ${flag("--note")}` : "");
     // Realistic styles are born in the set (only the plate as a ref); stylized styles from text.
     const refs = [];

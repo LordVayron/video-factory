@@ -371,7 +371,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
       const note = flag("--note") ? ` Director's note: ${flag("--note")}` : sc.queueNote ? ` Director's note: ${sc.queueNote}` : "";
       const outBase = nextName(dir, `${sc.id}-grid`, ".png");
       fs.writeFileSync(outBase + ".lock", "");
-      const files = await job({ slug, modelKey: flag("--model", st.models?.storyboardGrid || "gpt2.5"), req: { prompt: P.boardGridPrompt(sl, sc, refs) + note, refs: urls, ar, size: "4K" }, outBase, label: `${sc.id} storyboard grid`, ext: ".png" });
+      const files = await job({ slug, modelKey: flag("--model", st.models?.storyboardGrid || "gpt2.5"), req: { prompt: P.boardGridPrompt(sl, sc, refs) + note, refs: urls, ar, size: flag("--size", "4K") }, outBase, label: `${sc.id} storyboard grid`, ext: ".png" });
       const panels = splitGrid(files[0], cols, rows, sc.shots.length, dir, path.basename(outBase));
       P.updateShotlist(slug, (x) => {
         const scx = P.scene(x, sc.id);
