@@ -115,6 +115,16 @@ function boardCheck(sl) {
     if (pc.problems.length) bad.push(`plan de continuidad: ${pc.problems.join("; ")}`);
     for (const sc of sl.scenes || []) {
       try { const pr = P.scenePrompt(sl, sc, P.sceneRefs(sl, sc)); const miss = missingMarks(typeof pr === "string" ? pr : JSON.stringify(pr), P.sceneCast(sl, sc)); if (miss.length) bad.push(`prompt de ${sc.id} sin ${miss.join(", ")}`); } catch {}
+      // REFERENCE CHECK (2026-10-19, Clara's gown changed color twice, $2.52): every character in a scene must reach
+      // the model with a face view AND a full-body view (the wardrobe), or the book can't be built.
+      try {
+        const refs = P.sceneRefs(sl, sc);
+        for (const id of P.sceneCast(sl, sc)) {
+          const mine = refs.filter((r) => r.id === id);
+          if (!mine.length) bad.push(`escena ${sc.id}: ${id} no lleva ninguna imagen de referencia`);
+          else if (!mine.some((r) => /full body/.test(r.name))) bad.push(`escena ${sc.id}: ${id} no lleva su vista de cuerpo completo (vestuario); genera su hoja con cast.mjs sheet`);
+        }
+      } catch (e) { bad.push(`escena ${sc.id}: referencias: ${e.message}`); }
     }
     if (!fs.existsSync(path.join(dir(sl), "out", "animatic.mp4"))) bad.push("sin animatic (animatic.mjs)");
   } else if (k === "clips") {

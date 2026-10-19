@@ -36,6 +36,8 @@ const jpg = (src, name, width) => {
   return name;
 };
 const copy = (src, name) => { if (!src || !fs.existsSync(src)) return null; fs.copyFileSync(src, path.join(out, name)); files[name] = name; return name; };
+// A 360 px JPEG of an image for the book (references repeat across scenes; one file per source).
+const thumb = (src, name) => { if (!src || !fs.existsSync(src)) return null; if (!files[name]) { execFileSync("ffmpeg", ["-v", "error", "-y", "-i", src, "-vf", "scale=360:-2", "-q:v", "5", path.join(out, name)]); files[name] = name; } return name; };
 const abs = (f) => (f ? (path.isAbsolute(f) ? f : path.join(dir, f)) : null);
 const usd = (cr) => `$${(cr * 0.005).toFixed(2)}`;
 const cname = (id) => { try { return P.character(id).name; } catch { return id; } };
@@ -113,7 +115,16 @@ const animatic = copy(path.join(dir, "out", "animatic.mp4"), "animatic.mp4");
 const filmed = (x) => x.clip != null && !!x.clips?.[x.clip];
 let promptsHtml = "", est = 0, estRows = "";
 if (kind === "scenes") {
-  promptsHtml = (sl.scenes || []).map((sc) => { const voices = [...new Set(P.sceneShots(sl, sc).flatMap((s) => (s.dialogue || []).map((l) => l.char)))]; return `<details><summary>Scene ${esc(sc.id)} · ${P.sceneSecs(P.sceneShots(sl, sc))} s</summary><pre>${esc(P.scenePrompt(sl, sc, P.sceneRefs(sl, sc), { voiceRefs: voices }))}</pre></details>`; }).join("");
+  // Every image a scene sends to the video model is shown next to its prompt (opening frame, each character's face
+  // and full-body views, the set plate), so wardrobe and look are checked on the images, not on the text.
+  const refThumb = (file, name, label) => { const n = thumb(file, name); return n ? `<figure><img src="${n}" alt="${esc(label)}" loading="lazy"><figcaption>${esc(label)}</figcaption></figure>` : ""; };
+  promptsHtml = (sl.scenes || []).map((sc) => {
+    const voices = [...new Set(P.sceneShots(sl, sc).flatMap((s) => (s.dialogue || []).map((l) => l.char)))];
+    const refs = P.sceneRefs(sl, sc);
+    const first = P.sceneShots(sl, sc)[0]?.board?.file || P.sceneShots(sl, sc)[0]?.boards?.[0];
+    const imgs = [refThumb(abs(first), `ref-${sc.id}-open.jpg`, "Image 1 · opening frame"), ...refs.map((r, i) => refThumb(r.file, `ref-${r.id}-${path.basename(r.file, path.extname(r.file))}.jpg`, `Image ${i + 2} · ${r.name}`))].join("");
+    return `<details><summary>Scene ${esc(sc.id)} · ${P.sceneSecs(P.sceneShots(sl, sc))} s · ${refs.length + 1} images</summary><div class="media">${imgs}</div><pre>${esc(P.scenePrompt(sl, sc, refs, { voiceRefs: voices }))}</pre></details>`;
+  }).join("");
   estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "clips") {

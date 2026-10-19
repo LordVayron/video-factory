@@ -68,6 +68,9 @@ export default function checkFlow(t, ROOT) {
     t("a format its editor can't finish stops before prices and the book", !F.editReady({ format: "micro-drama" }) && F.editReady({ format: "sitcom" }) && F.editReady({ format: "ugc" }));
     t("the book estimates only what is still to film", engine("book.mjs").includes("filmed(sc) ? 0 :") && engine("book.mjs").includes("filmed(s) ? 0 :"));
     t("the dialogue check spells heard numbers (\"400\" = \"four hundred\")", fs.readFileSync(path.join(ROOT, "engine", "lib", "align.py"), "utf8").includes("def spell(n)"));
+    t("the book can't be built if a character in a scene lacks its full-body (wardrobe) view", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("no lleva su vista de cuerpo completo"));
+    t("scenes send each character's full-body view", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("(full body, exact wardrobe)"));
+    t("the book shows every image each scene sends to the model", engine("book.mjs").includes("Image 1 · opening frame") && engine("book.mjs").includes("refThumb(r.file"));
     t("edit.mjs keeps a drama's pauses and drops sitcom laugh rules for other formats", engine("edit.mjs").includes('sl.format !== "sitcom" ? [] :') && engine("edit.mjs").includes("rules.maxFirstLaugh != null"));
   }
 
