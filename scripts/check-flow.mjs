@@ -65,12 +65,18 @@ export default function checkFlow(t, ROOT) {
     t("pilot gate: only the first scene can be filmed before the creator approves the pilot", stops(() => F.requirePilot(sc, ["A", "B"])) && !stops(() => F.requirePilot(sc, ["A"])));
     t("pilot gate: an approved pilot opens the rest", !stops(() => F.requirePilot({ ...sc, flow: { v: 5, approved: { pilot: { said: "sí" } } } }, ["B"])));
     t("pilot gate is wired into gen scenes and gen clip", engine("gen.mjs").includes("requirePilot(sl, todo.map((sc) => sc.id))") && engine("gen.mjs").includes("requirePilot(sl, [id])"));
-    t("a format its editor can't finish stops before prices and the book", !F.editReady({ format: "micro-drama" }) && F.editReady({ format: "sitcom" }) && F.editReady({ format: "ugc" }));
+    t("a format its editor can't finish stops before prices and the book", !F.editReady({ format: "cinematic" }) && F.editReady({ format: "micro-drama" }) && F.editReady({ format: "sitcom" }) && F.editReady({ format: "ugc" }));
     t("the book estimates only what is still to film", engine("book.mjs").includes("filmed(sc) ? 0 :") && engine("book.mjs").includes("filmed(s) ? 0 :"));
     t("the dialogue check spells heard numbers (\"400\" = \"four hundred\")", fs.readFileSync(path.join(ROOT, "engine", "lib", "align.py"), "utf8").includes("def spell(n)"));
     t("the book can't be built if a character in a scene lacks its full-body (wardrobe) view", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("no lleva su vista de cuerpo completo"));
     t("scenes send each character's full-body view", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("(full body, exact wardrobe)"));
     t("the book shows every image each scene sends to the model", engine("book.mjs").includes("Image 1 · opening frame") && engine("book.mjs").includes("refThumb(r.file"));
+    t("edit.mjs scores a drama: ducked score, swell into the freeze, ending sting", engine("edit.mjs").includes("5a. Drama sound design") && engine("edit.mjs").includes("if (sl.endCue)"));
+    t("a drama can't reach the book without its score, a power-shift sting and an ending sting", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("SOUND NOT PLANNED"));
+    t("a draft can cut only the filmed scenes (the pilot preview) and never writes the shotlist", engine("edit.mjs").includes("if (!partial) P.saveShotlist(slug, sl);"));
+    t("the score is part of the book's locked budget", engine("book.mjs").includes("Score (Suno)"));
+    t("a fixed intake budget is a hard cap on every paid job, before and after the book", engine("gen.mjs").includes("HARD CAP") && fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("pasa el tope fijo") && engine("phase.mjs").includes("el tope fijo del proyecto"));
+    t("cast sheets and plates can be charged to the project", engine("cast.mjs").includes('...(project ? ["--project", project] : [])'));
     t("edit.mjs keeps a drama's pauses and drops sitcom laugh rules for other formats", engine("edit.mjs").includes('sl.format !== "sitcom" ? [] :') && engine("edit.mjs").includes("rules.maxFirstLaugh != null"));
   }
 

@@ -110,6 +110,8 @@ const commands = {
     if (!add || !flag("--said")) throw new Error('usage: budget <slug> --add <credits> | --usd <dollars> --said "the creator\'s exact words"');
     if (!sl.flow?.v || sl.flow.archived) throw new Error(`${slug} no es un proyecto activo del flujo v5`);
     if (!sl.budget) throw new Error("no hay presupuesto todavía: se fija al aprobar el Production Book (studio.mjs approve <slug> book)");
+    const hard = sl.intake?.budget?.mode === "fixed" && sl.intake.budget.usd ? sl.intake.budget.usd / 0.005 : null;
+    if (hard != null && sl.budget.approvedCredits + Math.ceil(add) > hard) throw new Error(`el tope fijo del proyecto es ${sl.intake.budget.usd}: un aumento lo pasaría (cambia el tope en el intake solo si the creator lo dice)`);
     sl.budget.approvedCredits += Math.ceil(add);
     sl.budget.history.push({ add, note: `Creador: "${flag("--said")}"`, at: new Date().toISOString() });
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `budget +${add}`, said: flag("--said") }];

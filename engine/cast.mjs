@@ -2,7 +2,7 @@
 // Cast and sets (phases 3-4). Every character gets a sheet IN THE VIDEO'S STYLE, split into angle
 // views that shots use as references. Sets get an approved empty plate.
 //
-//   node engine/cast.mjs sheet <char> --style <id> [--set <setId>] [--model gpt2.5] [--note "..."]
+//   node engine/cast.mjs sheet <char> --style <id> [--set <setId>] [--model gpt2.5] [--note "..."] [--project <slug>]  (--project charges it to that project and its cap)
 //   node engine/cast.mjs split <char> --style <id> [--sheet <file>]          re-cut the 2x2 views
 //   node engine/cast.mjs approve <char> --style <id> consistency=9 anatomy=9 design=9 style=9 layout=9
 //   node engine/cast.mjs plate <set> --style <id> "<description>" [--model gpt2.5]
@@ -29,7 +29,9 @@ export const SHEET_RUBRIC = {
 };
 
 function gen(prompt, out, { model, size = "2K", ar = "1:1", refs = [] }) {
-  execFileSync(process.execPath, [path.join(ROOT, "engine", "gen.mjs"), "still", prompt, out, "--model", model, "--size", size, "--ar", ar, ...refs.flatMap((r) => ["--ref", r])], { stdio: "inherit" });
+  // --project <slug>: the image is charged to that project (its ledger and its hard budget cap), not ad hoc.
+  const project = flag("--project");
+  execFileSync(process.execPath, [path.join(ROOT, "engine", "gen.mjs"), "still", prompt, out, "--model", model, "--size", size, "--ar", ar, ...refs.flatMap((r) => ["--ref", r]), ...(project ? ["--project", project] : [])], { stdio: "inherit" });
 }
 
 // Cut a 2x2 sheet into four views, trimming the gutters.

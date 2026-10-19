@@ -131,6 +131,8 @@ if (kind === "clips") {
   promptsHtml = (sl.shots || []).map((s) => `<details><summary>Shot ${esc(s.id)} · ${esc(getModel(s.model || pick.video).label)} · ${s.duration} s</summary><pre>${esc(P.clipPrompt(sl, s))}</pre></details>`).join("");
   estRows = (sl.shots || []).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration }); est += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
+// The score (gen.mjs music, Suno) is part of the locked budget when the project has one and it isn't made yet.
+if (kind !== "longform" && sl.music?.prompt && !sl.music.files?.length) { const cr = getModel("suno").cost({}); est += cr; estRows += `<tr><td>Score (Suno)</td><td></td><td class="num">${usd(cr)}</td></tr>`; }
 if (kind === "longform") {
   const L = sl.longform || {};
   promptsHtml = `<details open><summary>Music · Suno</summary><pre>${esc(L.music?.prompt || "—")}</pre></details>` + (L.scenes || []).map((sc) => `<details><summary>Scene ${esc(sc.id)} · ${sc.motion === "kenburns" ? "still + slow pan" : `${sc.seconds || 8} s loop`}</summary><pre>${esc(`${sc.picture}. ${L.look || ""}\n\nMotion: ${sc.motion}`)}</pre></details>`).join("");

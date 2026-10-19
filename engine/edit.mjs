@@ -28,6 +28,10 @@ const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
 // Flow v5: the final cut needs every take approved by its evals; a draft only needs the book approved.
 requireStep(sl, draft ? "film" : "edit", draft ? "edit --draft" : "edit");
+// --draft cuts only the scenes filmed so far: the pilot preview, with its score and stings, for the creator to judge
+// before the rest is filmed (pilot gate). A partial draft never writes the shotlist.
+const partial = draft && (sl.scenes || []).some((sc) => !sc.clips?.length);
+if (partial) { sl.scenes = sl.scenes.filter((sc) => sc.clips?.length); const keep = new Set(sl.scenes.flatMap((sc) => sc.shots)); sl.shots = sl.shots.filter((s) => keep.has(s.id)); }
 const W = sl.ar === "16:9" ? 1280 : 720, H = sl.ar === "16:9" ? 720 : 1280;
 const tmp = path.join(dir, "out", "_edit");
 fs.mkdirSync(tmp, { recursive: true });
@@ -276,6 +280,20 @@ const lay = (file, at, gainDb) => {
 for (const L of laughs) lay(await libSound(`laugh-${L.kind}`), L.at, L.gainDb);
 for (const x of timed) if (x.l.cue) { const c = await cueFile(dir, sl, x.l.cue); lay(c.file, x.a - c.lead, c.gainDb); }
 if (outro) lay(await libSound(outroName), tightLen - 0.3, -8);
+// 5a. Drama sound design (2026-10-19, The Secret Heiress came out "dry, like a rehearsal"): the project's score
+// (sl.music, generated with gen.mjs music) runs under the whole episode at sl.music.gainDb, ducks under every line,
+// swells over the last sl.music.swell seconds into the freeze and fades out; sl.endCue lands a sting on the freeze.
+// Stings on power shifts are line cues (line.cue, lib/cues.mjs, ElevenLabs SFX).
+if (sl.music?.files?.length) {
+  const mf = P.abs(slug, sl.music.files[sl.music.pick ?? 0]);
+  const base = sl.music.gainDb ?? -17, duck = sl.music.duckDb ?? -9, sw = Math.max(0, tightLen - (sl.music.swell ?? 4));
+  const under = timed.map((x) => `between(t,${(x.a - 0.15).toFixed(2)},${(x.b + 0.25).toFixed(2)})`).join("+") || "0";
+  const k = inputs.length / 2;
+  inputs.push("-i", path.relative(dir, mf));
+  graph.push(`[${k}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${total.toFixed(2)},volume='pow(10,(${base}+if(gt(${under},0),${duck},0)+if(gt(t,${sw.toFixed(2)}),9*min(1,(t-${sw.toFixed(2)})/2.5),0))/20)':eval=frame,afade=t=in:d=1.2,afade=t=out:st=${Math.max(0, total - 1.4).toFixed(2)}:d=1.4[o${k}]`);
+  layers.push(`[o${k}]`);
+}
+if (sl.endCue) { const c = await cueFile(dir, sl, sl.endCue); lay(c.file, tightLen - 0.05, c.gainDb); }
 // Loudness in two passes: measure, then one linear gain. Single-pass loudnorm is dynamic and lifts quiet layers
 // (room tone, reverb tails) under the dialogue.
 const mixGraph = graph.slice(1).concat(`${layers.join("")}amix=inputs=${layers.length}:duration=first:normalize=0[mx]`);
@@ -349,7 +367,7 @@ if (peak > -1) problems.push(`true peak ${peak} dB`);
 const fq = { loudness: loud, truePeak: peak, duration: Math.round((total + introLen) * 10) / 10, intro: Math.round(introLen * 10) / 10, pacing, lines: lines.map((x) => ({ id: x.id, found: x.found, start: x.start })), problems, pass: !problems.length, at: new Date().toISOString() };
 // Only a real cut counts: it is fingerprinted, so the QC and the delivery receipt can prove it is this file.
 if (!draft) { sl.finalQc = fq; sl.cut = { sha: fileSha(path.join(dir, final)), takes: takesSig(sl), at: fq.at }; }
-P.saveShotlist(slug, sl);
+if (!partial) P.saveShotlist(slug, sl);
 const size = fs.statSync(path.join(dir, final)).size;
 console.log(path.join(dir, final));
 console.log(`${(size / 1e6).toFixed(1)} MB · ${pacing.length}s (trimmed ${pacing.trimmed}s of air) · ${pacing.wpm} wpm · ${laughs.length} laughs · first at ${pacing.firstLaugh}s · ${loud} LUFS · peak ${peak} dB`);

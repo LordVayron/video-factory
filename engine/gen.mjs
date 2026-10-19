@@ -90,6 +90,10 @@ async function job({ slug, modelKey, req, outBase, label, ext, register }) {
   if (slug) {
     const sl0 = P.loadShotlist(slug);
     assertV5(sl0);
+    // HARD CAP (the creator, 2026-10-19: "no more than 5 dollars, not one cent more"): an intake with a fixed budget caps
+    // every paid job of the project, images and sheets included, before and after the book.
+    const hard = sl0.intake?.budget?.mode === "fixed" && sl0.intake.budget.usd ? sl0.intake.budget.usd / 0.005 : null;
+    if (hard != null && P.ledgerTotal(slug) + (inFlight.get(slug) || 0) + credits > hard + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the project's hard cap of ${sl0.intake.budget.usd} (spent ${(P.ledgerTotal(slug) * 0.005).toFixed(2)}).`);
     const cap = sl0.budget?.approvedCredits;
     if (cap == null && !["image", "voice"].includes(m.kind)) throw new FlowStop(`BUDGET STOP: "${label}" (${m.label}) needs the budget that approving the Production Book locks.`);
     if (cap != null) {

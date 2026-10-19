@@ -18,8 +18,8 @@ import { planCheck } from "./state.mjs";
 // "clips": one first/last-frame generation per shot (influencer, UGC, cinematic...). "longform": loops + narration.
 export const FORMATS = {
   sitcom: { kind: "scenes", label: "Sitcom" },
-  "micro-drama": { kind: "scenes", label: "Micro-drama", editMissing: "a music score under the episode, stings on each power shift and a swell under the ending (edit.mjs mixes only laughs, cues and the sitcom intro)" },
-  anime: { kind: "scenes", label: "Anime", editMissing: "a music score under the episode, stings on each power shift and a swell under the ending (edit.mjs mixes only laughs, cues and the sitcom intro)" },
+  "micro-drama": { kind: "scenes", label: "Micro-drama", needsScore: true },
+  anime: { kind: "scenes", label: "Anime", needsScore: true },
   influencer: { kind: "clips", label: "AI influencer" },
   ugc: { kind: "clips", label: "UGC / ad" },
   podcast: { kind: "clips", label: "Podcast clip" },
@@ -159,6 +159,13 @@ export const editReady = (sl) => !FORMATS[sl.format]?.editMissing;
 // Live price analysis: fresh (7 days at most) and its pick is the model the book estimates and the film uses.
 function modelsCheck(sl) {
   if (!editReady(sl)) return no(`FORMAT NOT READY: the ${FORMATS[sl.format].label} editor can't make ${FORMATS[sl.format].editMissing}. Build that in the engine before any spend.`);
+  // A drama is planned with its sound before any spend: the score prompt, at least one sting on a power shift
+  // (line.cue) and the ending sting on the freeze (sl.endCue).
+  if (FORMATS[sl.format]?.needsScore) {
+    const cues = (sl.shots || []).flatMap((s) => (s.dialogue || []).filter((l) => l.cue));
+    const miss = [!sl.music?.prompt && "the score (sl.music.prompt)", !cues.length && "a sting on a power shift (line.cue + sl.cues)", !(sl.endCue && sl.cues?.[sl.endCue]) && "the ending sting (sl.endCue)"].filter(Boolean);
+    if (miss.length) return no(`SOUND NOT PLANNED: ${miss.join(", ")}`);
+  }
   const pc = sl.priceCheck;
   if (!pc) return no("sin análisis de precios en vivo (studio.mjs prices)");
   if ((Date.now() - Date.parse(pc.at)) / 864e5 > 7) return no(`el análisis de precios tiene más de 7 días (${pc.at.slice(0, 10)}); vuelve a correrlo`);
@@ -336,6 +343,8 @@ export function approve(slug, id, said, extra = {}) {
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `approve ${id}`, said: said.trim() }];
     if (id === "book") {
       const spent = P.ledgerTotal(slug);
+      const hard = sl.intake?.budget?.mode === "fixed" && sl.intake.budget.usd ? sl.intake.budget.usd / 0.005 : null;
+      if (hard != null && spent + sl.bookEstimate > hard) throw new FlowStop(`el book (gastado ${(spent * 0.005).toFixed(2)} + estimado ${(sl.bookEstimate * 0.005).toFixed(2)}) pasa el tope fijo de ${sl.intake.budget.usd}: baja el modelo, la resolución o la duración`);
       sl.budget = { approvedCredits: Math.ceil(spent + sl.bookEstimate), approvedAt: new Date().toISOString(), history: [{ add: sl.bookEstimate, note: `Production Book aprobado: "${said.trim()}"` }] };
     }
   });
