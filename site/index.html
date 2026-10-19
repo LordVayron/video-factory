@@ -266,7 +266,10 @@
     background: linear-gradient(160deg, #3a332c, #1d1915 60%, #141110); box-shadow: inset 0 2px 0 rgba(255,255,255,.08), inset 0 -10px 30px rgba(0,0,0,.6), 0 40px 90px rgba(0,0,0,.8); animation: tvon .5s cubic-bezier(.2,.8,.2,1); }
   @keyframes tvon { from { transform: scale(.92) translateY(20px); opacity: 0 } }
   .screen { position: relative; border-radius: 16px / 22px; overflow: hidden; background: #000; box-shadow: inset 0 0 0 4px #0a0908, 0 0 0 3px #4a4138; aspect-ratio: 9 / 16; }
-  .screen video { width: 100%; height: 100%; object-fit: cover; filter: saturate(1.08) contrast(1.05); }
+  .screen video { width: 100%; height: 100%; object-fit: cover; }
+  /* While a sample plays, the screen shows the real file: no scanlines, vignette, colour filter or OSD on top. */
+  .screen .lines { transition: opacity .35s ease; }
+  .screen.live .lines, .screen.live .osd { opacity: 0 !important; }
   .screen .lines { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; z-index: 1; background: repeating-linear-gradient(180deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px), radial-gradient(120% 90% at 50% 50%, transparent 60%, rgba(0,0,0,.5)); }
   .screen .osd { position: absolute; top: 14px; left: 16px; z-index: 2; font-family: "Courier New", monospace; font-weight: 700; font-size: 15px; color: #fff; text-shadow: 0 0 6px rgba(255,255,255,.6), 2px 2px 0 #000; pointer-events: none; transition: opacity .6s; }
   .screen .on { position: absolute; inset: 0; z-index: 3; background: #fff; pointer-events: none; opacity: 0; }
@@ -590,7 +593,10 @@
   document.querySelectorAll("[data-play]").forEach((b) => b.addEventListener("click", openTv));
   document.getElementById("tvClose").addEventListener("click", closeTv);
   document.getElementById("tvRoom").addEventListener("click", (e) => { if (e.target.id === "tvRoom") closeTv(); });
-  tv.addEventListener("close", () => { ep.pause(); shelf?.dispatchEvent(new Event("mouseleave")); });
+  const screen = ep.closest(".screen");
+  ep.addEventListener("playing", () => screen.classList.add("live"));
+  tv.addEventListener("close", () => {
+    screen.classList.remove("live"); ep.pause(); shelf?.dispatchEvent(new Event("mouseleave")); });
 
   // Rental shelf: rotates every 5 s, pauses on hover/focus or when off screen, arrows and dots to jump.
   // Playable tapes open the CRT player with their own video (see openTv).
