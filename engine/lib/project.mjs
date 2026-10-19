@@ -173,6 +173,27 @@ export function motionPrompt(sl, s, { voiceRefs = [], refMode = false } = {}) {
   return parts.filter(Boolean).join(" ");
 }
 
+// The script travels word for word in every speaking prompt (2026-10-19, The Glow Up: gen clip sent only the
+// visual prompt, so Seedance improvised its lines and a paid take was lost). Match ignores case, spacing,
+// quote styles and escapes, so a line inside a JSON prompt still counts.
+const normLine = (t) => String(t || "").toLowerCase().replace(/\\/g, "").replace(/[“”"‘’`']/g, "'").replace(/…/g, "...").replace(/\s+/g, " ").trim();
+export const linesMissing = (prompt, lines = []) => {
+  const p = normLine(typeof prompt === "string" ? prompt : JSON.stringify(prompt));
+  return lines.filter((l) => l.text?.trim() && !p.includes(normLine(l.text)));
+};
+
+// Clips formats: the shot's prompt plus every spoken line of the script, verbatim and at a natural pace
+// (Creador: "que no hable tan rápido"). A prompt that already quotes every line is sent as written.
+export function clipPrompt(sl, s) {
+  const base = (s.prompt || "").trim();
+  const lines = (s.dialogue || []).filter((l) => l.text?.trim());
+  if (!lines.length) return s.audioMode === "silent" || /no dialogue/i.test(base) ? base : `${base} No dialogue: nobody speaks.`;
+  if (!linesMissing(base, lines).length) return base;
+  const lang = sl.lang === "es" ? "Mexican Spanish" : "English";
+  const said = lines.map((l) => `${character(l.char).name}${l.delivery ? ` (${l.delivery})` : ""}: "${l.text}"`).join(" ");
+  return `${base} Dialogue, spoken in ${lang}, lip-synced, at a calm natural pace (about 140-160 words per minute) with small natural pauses, never rushed. Say exactly these words, word for word, nothing added, nothing left out, no improvising: ${said}`;
+}
+
 // ------------------------------------------------------------- scenes ----
 // A scene = several shots generated together. Storyboard: one grid image per scene (all panels
 // in one generation, so blocking and identity stay locked). Video: one multi-shot generation per

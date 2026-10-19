@@ -123,7 +123,16 @@ function boardCheck(sl) {
       else if (!exists(sl, s.frame)) bad.push(`${s.id}: sin cuadro inicial`);
       if (s.last && !exists(sl, s.last)) bad.push(`${s.id}: falta el cuadro final ${s.last}`);
       if (!s.prompt?.trim()) bad.push(`${s.id}: sin prompt`);
-      else { const miss = missingMarks(s.prompt, s.characters || castIds(sl)); if (miss.length) bad.push(`${s.id}: el prompt omite ${miss.join(", ")}`); }
+      else {
+        // The prompt checked is the one the model receives (P.clipPrompt: the shot's prompt plus its script).
+        try {
+          const pr = P.clipPrompt(sl, s);
+          const miss = missingMarks(pr, s.characters || castIds(sl));
+          if (miss.length) bad.push(`${s.id}: el prompt omite ${miss.join(", ")}`);
+          const gone = P.linesMissing(pr, s.dialogue || []);
+          if (gone.length) bad.push(`${s.id}: el prompt omite el diálogo ${gone.map((l) => `"${l.text}"`).join(", ")}`);
+        } catch (e) { bad.push(`${s.id}: ${e.message}`); } // e.g. a character not in the bible yet: report it, don't crash status
+      }
       if (!s.duration) bad.push(`${s.id}: sin duración`);
     }
   }

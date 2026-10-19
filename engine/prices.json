@@ -1,5 +1,59 @@
 [
  {
+  "model": "Black Forest Labs Flux 3 Klein, image editing, 4K",
+  "type": "image",
+  "credits": 6.5,
+  "usd": 0.0325,
+  "unit": "per image",
+  "official": 0.036,
+  "page": "https://kie.ai/flux-3?model=flux-3%2Fklein-edit-image"
+ },
+ {
+  "model": "Black Forest Labs Flux 3 Klein, image editing, 2K",
+  "type": "image",
+  "credits": 2.5,
+  "usd": 0.0125,
+  "unit": "per image",
+  "official": 0.014,
+  "page": "https://kie.ai/flux-3?model=flux-3%2Fklein-edit-image"
+ },
+ {
+  "model": "Black Forest Labs Flux 3 Klein, image editing, 1K",
+  "type": "image",
+  "credits": 1.6,
+  "usd": 0.008,
+  "unit": "per image",
+  "official": 0.009,
+  "page": "https://kie.ai/flux-3?model=flux-3%2Fklein-edit-image"
+ },
+ {
+  "model": "Black Forest Labs Flux 3 Klein, text to image, 4K",
+  "type": "image",
+  "credits": 6.5,
+  "usd": 0.0325,
+  "unit": "per image",
+  "official": 0.036,
+  "page": "https://kie.ai/flux-3?model=flux-3%2Fklein-text-to-image"
+ },
+ {
+  "model": "Black Forest Labs Flux 3 Klein, text to image, 2K",
+  "type": "image",
+  "credits": 2.5,
+  "usd": 0.0125,
+  "unit": "per image",
+  "official": 0.014,
+  "page": "https://kie.ai/flux-3?model=flux-3%2Fklein-text-to-image"
+ },
+ {
+  "model": "Black Forest Labs Flux 3 Klein, text to image, 1K",
+  "type": "image",
+  "credits": 1.6,
+  "usd": 0.008,
+  "unit": "per image",
+  "official": 0.009,
+  "page": "https://kie.ai/flux-3?model=flux-3%2Fklein-text-to-image"
+ },
+ {
   "model": "wan 2.6 flash, video-to-video, without audio-5.0s-1080p",
   "type": "video",
   "credits": 30,

@@ -36,6 +36,28 @@ export default function checkFlow(t, ROOT) {
     t("a take the creator accepted in his words is usable", F.takeOk({ evals: { identity: { pass: false } }, accepted: { said: "sí" } }));
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
 
+  // The script reaches the video model word for word (2026-10-19, The Glow Up: gen clip sent only the visual
+  // prompt and Seedance improvised a paid take).
+  t("job() stops a speaking video job whose prompt leaves out a line (DIALOGUE STOP)", engine("gen.mjs").includes("DIALOGUE STOP") && engine("gen.mjs").includes("P.linesMissing(req.prompt, req.lines)"));
+  t("gen clip sends the clip prompt with the script and declares its lines", engine("gen.mjs").includes("prompt: P.clipPrompt(sl, s), lines: s.dialogue || []"));
+  t("scene and shot video jobs declare their script lines", engine("gen.mjs").includes("lines: shots.flatMap((s) => s.dialogue || [])") && engine("gen.mjs").includes("lines: s.dialogue || [], frame, lastFrame"));
+  t("the Production Book shows the prompt the model receives", engine("book.mjs").includes("P.clipPrompt(sl, s)"));
+  t("gen clip keeps a paid take when an eval can't run (--eval re-runs it)", engine("gen.mjs").includes("--eval ${n}") && engine("gen.mjs").includes("evals: null"));
+  t("a shot opening on the previous take reads its real last frame", engine("gen.mjs").includes('"-update", "1"'));
+  {
+    const cid = `_check-${process.pid}`, cdir = path.join(P.BIBLE, "characters", cid);
+    P.writeJSON(path.join(cdir, "character.json"), { id: cid, name: "Checky", species: "human", look: "woman" });
+    try {
+      const sl = { lang: "en" }, line = { char: cid, text: "Okay, I swear this is my third bottle, and I'm obsessed." };
+      const pr = P.clipPrompt(sl, { prompt: "Selfie in a bathroom.", dialogue: [line] });
+      t("the clip prompt carries every line word for word", pr.includes(`"${line.text}"`) && !P.linesMissing(pr, [line]).length);
+      t("the clip prompt asks for a natural pace", /natural pace/.test(pr));
+      t("a prompt without the line is caught", P.linesMissing("Selfie in a bathroom.", [line]).length === 1);
+      t("a prompt that already quotes the line is sent as written", P.clipPrompt(sl, { prompt: `She says "${line.text}"`, dialogue: [line] }) === `She says "${line.text}"`);
+      t("a silent clip says nobody speaks", /No dialogue/.test(P.clipPrompt(sl, { prompt: "Bottle on a counter." })));
+    } finally { fs.rmSync(cdir, { recursive: true, force: true }); }
+  }
+
   // Live price analysis comes before every Production Book, and its pick drives the estimate and the film.
   t("every recipe runs the live price analysis right before the book", ["sitcom", "influencer", "meditation"].every((f) => { const r = F.recipe({ format: f, intake: {} }); return r.indexOf("models") === r.indexOf("book") - 1; }));
   t("no model is hidden from the price analysis by rule", !fs.readFileSync(path.join(ROOT, "engine", "lib", "models.mjs"), "utf8").includes("hidden: true"));

@@ -7,6 +7,8 @@
 //   node engine/gen.mjs estimate <slug>              cost of what is still to generate
 //   node engine/gen.mjs still "<prompt>" <out.png> [--model gpt2.5] [--ref f]... [--ar 9:16] [--size 1K]
 //   node engine/gen.mjs sample <charId> [--lang en] [--text "..."]     voice sample used as voice ref
+//   node engine/gen.mjs voice-design <charId> "<description>" [--text "..."]   ElevenLabs Voice Design previews (PREVIEW-design-N.mp3)
+//   node engine/gen.mjs voice-pick <charId> <n>                         keep a designed preview as the character's voice
 //   node engine/gen.mjs storyboard <slug> [--scenes A,B] [--note "..."]   one grid image per scene (all panels in one generation)
 //   node engine/gen.mjs scenes <slug> [--scenes A,B] [--model wan3-prime] [--res 720p]   film each scene in ONE multi-shot generation
 //   node engine/gen.mjs frames <slug> [--shots s01,s02] [--n 2] [--model gpt2.5]   phase 7 (or --looktest for the hero shot)
@@ -16,7 +18,7 @@
 //   node engine/gen.mjs dub    <slug> <shot>                            lip-sync approved clip to TTS lines
 //   node engine/gen.mjs talk   <image> <audio> <out.mp4> [--model infinitetalk] [--prompt "..."] [--res 480p]
 //   node engine/gen.mjs frame  <slug> <shot> first|last "<prompt>" [--ref f]...   clips formats: a shot's first or last frame (board step)
-//   node engine/gen.mjs clip   <slug> --shot <id> [--redo]   clips formats: film one shot from the shotlist; identity, jump and
+//   node engine/gen.mjs clip   <slug> --shot <id> [--redo] [--eval n]   clips formats: film one shot from the shotlist; identity, jump and
 //                                       dialogue evals run on the take and are stored on it (flow v5, film step)
 //   node engine/gen.mjs music  <slug>
 //   node engine/gen.mjs loops     <slug> [--scenes A,B] [--redo] [--new-image]   long-form: still + seamless loop clip per scene
@@ -55,6 +57,15 @@ async function pool(items, fn) {
   return out;
 }
 
+// The last decoded video frame of a clip. Seeks back 0.5 s and keeps overwriting one image, so it works when the
+// audio runs past the video (a fixed -sseof -0.05 landed after the last frame and wrote nothing, 2026-10-19).
+function lastFrame(video, out) {
+  if (fs.existsSync(out)) fs.unlinkSync(out);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-sseof", "-0.5", "-i", video, "-map", "0:v:0", "-update", "1", "-q:v", "1", out]);
+  if (!fs.existsSync(out)) throw new Error(`could not read the last frame of ${video}`);
+  return out;
+}
+
 function mediaDuration(file) {
   try {
     return Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]).toString().trim());
@@ -86,6 +97,13 @@ async function job({ slug, modelKey, req, outBase, label, ext, register }) {
       if (spent + credits > cap + 0.5) {
         throw new Error(`BUDGET STOP: "${label}" costs ${credits.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
       }
+    }
+    // DIALOGUE STOP (2026-10-19, The Glow Up: the clip prompt carried no lines and Seedance improvised a paid take).
+    // Every speaking video job declares its script lines (req.lines) and its prompt must carry each one word for word.
+    if (m.kind === "video" && m.speaks && req.sound !== false) {
+      if (!Array.isArray(req.lines)) throw new FlowStop(`DIALOGUE STOP: "${label}" doesn't declare its script lines (req.lines); every speaking video job must.`);
+      const gone = P.linesMissing(req.prompt, req.lines);
+      if (gone.length) throw new FlowStop(`DIALOGUE STOP: the prompt of "${label}" leaves out ${gone.map((l) => `"${l.text}"`).join("; ")}. The script goes to the model word for word.`);
     }
     // PROMPT CHECK (added after a character lost her freckles between two shots): a video prompt must carry every distinctive mark of the
     // characters in it (freckles, mole, glasses...). A model only keeps what the prompt says.
@@ -288,6 +306,35 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     console.log(files[0], `${mediaDuration(files[0])?.toFixed(1)}s`);
   },
 
+  // Voice Design (ElevenLabs): previews of a new voice from a description, saved as PREVIEW-design-N.mp3 in the
+  // character's folder; `voice-pick <char> <n>` keeps one on the account and makes it the character's voice.
+  async "voice-design"() {
+    const [id, description] = pos;
+    if (!id || !description) throw new Error('usage: voice-design <charId> "<description>" [--text "..."]');
+    const c = P.character(id);
+    const previews = await eleven.designVoice({ description, text: flag("--text"), outBase: path.join(c.dir, "PREVIEW-design") });
+    const cj = path.join(c.dir, "character.json");
+    const data = JSON.parse(fs.readFileSync(cj, "utf8"));
+    data.voiceDesign = { description, at: new Date().toISOString(), previews: previews.map((p) => ({ file: path.basename(p.file), id: p.id })) };
+    fs.writeFileSync(cj, JSON.stringify(data, null, 2));
+    P.ledger(null, { ok: true, label: `${id} voice design`, model: "elevenlabs-ttv", credits: 0, chars: (flag("--text") || "").length, files: previews.map((p) => path.relative(ROOT, p.file)) });
+    for (const [i, p] of previews.entries()) console.log(`${i + 1}. ${p.file} ${mediaDuration(p.file)?.toFixed(1)}s`);
+    console.log(`Pick one: node engine/gen.mjs voice-pick ${id} <n>`);
+  },
+
+  async "voice-pick"() {
+    const [id, n] = pos;
+    const c = P.character(id);
+    const cj = path.join(c.dir, "character.json");
+    const data = JSON.parse(fs.readFileSync(cj, "utf8"));
+    const p = data.voiceDesign?.previews?.[Number(n) - 1];
+    if (!p) throw new Error(`no design preview ${n} for ${id}; run voice-design first`);
+    const voiceId = await eleven.saveDesignedVoice({ name: `${c.name} (Video Factory)`, description: data.voiceDesign.description, generatedId: p.id });
+    data.voice = { provider: "elevenlabs", eleven: voiceId, designed: p.file };
+    fs.writeFileSync(cj, JSON.stringify(data, null, 2));
+    console.log(`${c.name}: voice ${voiceId} (from ${p.file}). Next: node engine/gen.mjs sample ${id} --text "..."`);
+  },
+
   async frames() {
     const slug = pos[0];
     await recover(slug);
@@ -420,52 +467,73 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   },
 
   // Clips formats, film step: one first/last-frame generation for a shot of the shotlist, through job()
-  // (budget lock, prompt check, ledger, lock file). Then every eval runs on the take and is stored on it:
-  // identity (face and marks against the locked anchor), jumps (cuts or snaps inside the shot), dialogue.
-  // The first take that passes all three becomes the shot's take; a take that fails is never used by cut.mjs.
+  // (budget lock, prompt and dialogue checks, ledger, lock file). The prompt is P.clipPrompt: the shot's prompt plus
+  // its script word for word. Then every eval runs on the take and is stored on it: identity (face and marks against
+  // the locked anchor), jumps (cuts or snaps inside the shot), dialogue. The take is recorded before the evals run,
+  // so a paid take is never lost when an eval can't run (the Kie judge can be down, 2026-10-19): `--eval <n>`
+  // re-runs the evals on take n for free. A take that fails is never used by cut.mjs.
   async clip() {
     const slug = pos[0], id = flag("--shot");
-    if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo]");
+    if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo] [--eval <take n>]");
     await recover(slug);
     const sl = P.loadShotlist(slug);
     requireStep(sl, "film", "gen clip");
     if (kindOf(sl) !== "clips") throw new FlowStop(`gen clip is for clips formats; ${sl.format} films with ${kindOf(sl) === "scenes" ? "gen scenes" : "gen loops"}`);
-    const s = P.shot(sl, id), dir = P.projectDir(slug);
-    if (s.clip != null && takeOk(s.clips?.[s.clip]) && !has("--redo")) return console.log(`${id} already has a take that passes every eval (use --redo for another, inside the budget)`);
-    let first = s.frame;
-    const m = /^@(\w+):last$/.exec(first || "");
-    if (m) {
-      const prev = P.shot(sl, m[1]), t = prev.clips?.[prev.clip];
-      if (!takeOk(t)) throw new FlowStop(`${id} opens on ${m[1]}'s last frame, and ${m[1]} has no passing take yet`);
-      first = P.abs(slug, `frames/${id}-from-${m[1]}.png`);
-      fs.mkdirSync(path.dirname(first), { recursive: true });
-      execFileSync("ffmpeg", ["-v", "error", "-y", "-sseof", "-0.05", "-i", P.abs(slug, t.file), "-frames:v", "1", first]);
-    } else first = P.abs(slug, first);
+    const s = P.shot(sl, id);
     const cast = s.characters || castOf(sl, s.prompt);
     const model = s.model || sl.defaults?.videoModel || "veo";
-    const req = {
-      prompt: s.prompt, cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: s.duration,
-      frame: await kie.upload(first), lastFrame: s.last ? await kie.upload(P.abs(slug, s.last)) : undefined,
-    };
-    const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} take`, ext: ".mp4" });
-    console.log("filmed", P.rel(slug, out));
-    const identity = await identityCheck(out, cast);
-    const jr = jumpCheck(out);
-    const lines = (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${id}-${i + 1}`, text: l.text }));
-    const dialogue = dialogueCheck(out, lines, sl.lang);
-    const evals = { identity: { pass: identity.pass, issues: identity.issues, notes: identity.notes }, jumps: { internal: jr.jumps.filter((j) => j.kind === "internal jump").length, list: jr.jumps, trimAt: jr.trimAt ?? null }, dialogue };
-    const take = { file: P.rel(slug, out), model, at: new Date().toISOString(), evals };
+    let n;
+    if (flag("--eval")) {
+      n = Number(flag("--eval"));
+      if (!s.clips?.[n - 1]) throw new Error(`${id} has no take ${flag("--eval")}`);
+    } else {
+      if (s.clip != null && takeOk(s.clips?.[s.clip]) && !has("--redo")) return console.log(`${id} already has a take that passes every eval (use --redo for another, inside the budget)`);
+      let first = s.frame;
+      const m = /^@(\w+):last$/.exec(first || "");
+      if (m) {
+        const prev = P.shot(sl, m[1]), t = prev.clips?.[prev.clip];
+        if (!takeOk(t)) throw new FlowStop(`${id} opens on ${m[1]}'s last frame, and ${m[1]} has no passing take yet`);
+        first = P.abs(slug, `frames/${id}-from-${m[1]}.png`);
+        fs.mkdirSync(path.dirname(first), { recursive: true });
+        lastFrame(P.abs(slug, t.file), first);
+      } else first = P.abs(slug, first);
+      const req = {
+        prompt: P.clipPrompt(sl, s), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: s.duration,
+        frame: await kie.upload(first), lastFrame: s.last ? await kie.upload(P.abs(slug, s.last)) : undefined,
+      };
+      const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} take`, ext: ".mp4" });
+      console.log("filmed", P.rel(slug, out));
+      P.updateShotlist(slug, (x) => {
+        const t = P.shot(x, id);
+        t.clips = [...(t.clips || []), { file: P.rel(slug, out), model, prompt: req.prompt, at: new Date().toISOString(), evals: null }];
+        n = t.clips.length;
+      });
+    }
+    const file = P.abs(slug, P.shot(P.loadShotlist(slug), id).clips[n - 1].file);
+    let evals;
+    try {
+      const identity = await identityCheck(file, cast);
+      const jr = jumpCheck(file);
+      const lines = (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${id}-${i + 1}`, text: l.text }));
+      const dialogue = dialogueCheck(file, lines, sl.lang);
+      evals = { identity: { pass: identity.pass, issues: identity.issues, notes: identity.notes }, jumps: { internal: jr.jumps.filter((j) => j.kind === "internal jump").length, list: jr.jumps, trimAt: jr.trimAt ?? null }, dialogue };
+      console.log([
+        identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
+        ...jumpLines(jr), evals.jumps.internal ? "JUMPS FAIL: an internal jump reads as a jump cut; the creator decides (studio.mjs override, or a reroll with his sí)" : "JUMPS PASS",
+        dialogue.pass ? "DIALOGUE PASS" : `DIALOGUE FAIL\n - ${dialogue.issues.join("\n - ")}`,
+      ].join("\n"));
+    } catch (e) {
+      evals = { error: e.message.slice(0, 300) };
+      console.log(`EVALS DID NOT RUN on take ${n}: ${evals.error}\nThe paid take is kept. Re-run the evals for free: node engine/gen.mjs clip ${slug} --shot ${id} --eval ${n}`);
+    }
+    let ok = false;
     P.updateShotlist(slug, (x) => {
-      const t = P.shot(x, id);
-      t.clips = [...(t.clips || []), take];
-      if (takeOk(take) && (t.clip == null || !takeOk(t.clips[t.clip]))) t.clip = t.clips.length - 1;
+      const t = P.shot(x, id), take = t.clips[n - 1];
+      take.evals = evals;
+      ok = takeOk(take);
+      if (ok && (t.clip == null || !takeOk(t.clips[t.clip]))) t.clip = n - 1;
     });
-    console.log([
-      identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
-      ...jumpLines(jr), evals.jumps.internal ? "JUMPS FAIL: an internal jump reads as a jump cut; the creator decides (studio.mjs override, or a reroll with his sí)" : "JUMPS PASS",
-      dialogue.pass ? "DIALOGUE PASS" : `DIALOGUE FAIL\n - ${dialogue.issues.join("\n - ")}`,
-      takeOk(take) ? `${id}: take approved by the evals` : `${id}: this take fails; one reroll fits only inside the locked budget, otherwise ask the creator`,
-    ].join("\n"));
+    if (!evals.error) console.log(ok ? `${id}: take ${n} approved by the evals` : `${id}: take ${n} fails; one reroll fits only inside the locked budget, otherwise ask the creator`);
   },
 
   async talk() {
@@ -639,7 +707,7 @@ async function renderScene(slug, sl, sc, modelKey, res) {
   fs.mkdirSync(dir, { recursive: true });
   const outBase = nextName(dir, `${sc.id}-${modelKey}`, ".mp4");
   fs.writeFileSync(outBase + ".lock", "");
-  return job({ slug, modelKey, req: { prompt, frame, refs: refUrls, refAudio, res, ar: sl.ar, duration, sound: true }, outBase, label: `scene ${sc.id} ${modelKey} ${res} ${duration}s`, ext: ".mp4",
+  return job({ slug, modelKey, req: { prompt, lines: shots.flatMap((s) => s.dialogue || []), frame, refs: refUrls, refAudio, res, ar: sl.ar, duration, sound: true }, outBase, label: `scene ${sc.id} ${modelKey} ${res} ${duration}s`, ext: ".mp4",
     // The set plate used is stamped on the take: edit.mjs refuses to cut together takes filmed against different plates.
     register: { shot: sc.id, stage: "clips", entry: { model: modelKey, res, prompt, scene: true, plate: path.basename(refs.find((r) => r.role === "set")?.file || "") } } });
 }
@@ -677,7 +745,7 @@ async function renderShot(slug, sl, s, modelKey, res, { tag } = {}) {
   if (s.queueNote) prompt += ` Director's note: ${s.queueNote}`;
   // End-frame lock: pinning the last frame stops the model from wandering into an invented room.
   const lastFrame = s.endFrame ? await kie.upload(P.abs(slug, s.endFrame)) : undefined;
-  const req = { prompt, frame, lastFrame, refs: lastFrame ? [] : refs, refAudio: lastFrame ? [] : refAudio, res, ar: sl.ar, duration: s.duration, sound: s.audioMode !== "silent" };
+  const req = { prompt, lines: s.dialogue || [], frame, lastFrame, refs: lastFrame ? [] : refs, refAudio: lastFrame ? [] : refAudio, res, ar: sl.ar, duration: s.duration, sound: s.audioMode !== "silent" };
   const dir = P.abs(slug, "clips");
   fs.mkdirSync(dir, { recursive: true });
   const outBase = nextName(dir, `${s.id}${tag ? "-" + tag : ""}-${modelKey}`, ".mp4");

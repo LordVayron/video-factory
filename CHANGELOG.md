@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.0, 2026-10-19: the script always reaches the model
+
+- **Dialogue word for word, enforced.** `gen.mjs clip` used to send only the shot's visual prompt, so the video model never got the script and improvised. Now every clip prompt is the shot's prompt plus every line verbatim at a calm natural pace (140-160 wpm), and `job()` refuses any speaking video job whose prompt leaves out a line or doesn't declare its lines (**DIALOGUE STOP**). The Production Book shows the exact prompt the model receives.
+- A paid take is recorded before its evals run; if an eval can't run, `gen.mjs clip <slug> --shot <id> --eval <n>` re-runs them for free.
+- `"frame": "@A:last"` reads the real last video frame, also when the audio runs longer than the video.
+- `gen.mjs voice-design <char> "<description>"` and `voice-pick <char> <n>`: design a new ElevenLabs voice from a description and keep one.
+- `phase.mjs budget --usd <dollars>` (`--add` is in credits); `studio.mjs status` no longer crashes when a cast member isn't in the bible yet.
+
 ## 2.1.0, 2026-10-19: live price analysis
 
 - **`studio.mjs prices`**, a new flow step right before every Production Book: every video model the engine can run is priced from Kie's live feed for the project's length and resolution, ranked by quality, filtered by what the format needs (multi-shot scenes, first/last-frame clips, loops), and the best quality that fits the budget becomes the project's model. Models Kie sells that the engine doesn't run yet are listed.

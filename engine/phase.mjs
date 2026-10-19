@@ -102,18 +102,19 @@ const commands = {
     }
     console.log(`${which} approved for ${slug}`);
   },
-  // Only after the creator explicitly approves extra spend (a reroll, a refilm): phase.mjs budget <slug> --add <credits> --note "..."
+  // Only after the creator explicitly approves extra spend (a reroll, a refilm):
+  // phase.mjs budget <slug> --add <credits> | --usd <dollars> --said "..." (--add 2.52 once added 3 credits, 2026-10-19)
   budget() {
     const sl = P.loadShotlist(slug);
-    const add = Number(flag("--add", "0"));
-    if (!add || !flag("--said")) throw new Error('usage: budget <slug> --add <credits> --said "the creator\'s exact words"');
+    const add = flag("--usd") ? Number(flag("--usd")) / 0.005 : Number(flag("--add", "0"));
+    if (!add || !flag("--said")) throw new Error('usage: budget <slug> --add <credits> | --usd <dollars> --said "the creator\'s exact words"');
     if (!sl.flow?.v || sl.flow.archived) throw new Error(`${slug} no es un proyecto activo del flujo v5`);
     if (!sl.budget) throw new Error("no hay presupuesto todavía: se fija al aprobar el Production Book (studio.mjs approve <slug> book)");
     sl.budget.approvedCredits += Math.ceil(add);
     sl.budget.history.push({ add, note: `Creador: "${flag("--said")}"`, at: new Date().toISOString() });
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `budget +${add}`, said: flag("--said") }];
     P.saveShotlist(slug, sl);
-    console.log(`budget now ${sl.budget.approvedCredits} cr; spent ${P.ledgerTotal(slug).toFixed(1)}`);
+    console.log(`budget now ${sl.budget.approvedCredits} cr ($${(sl.budget.approvedCredits * 0.005).toFixed(2)}); spent ${P.ledgerTotal(slug).toFixed(1)} cr`);
   },
 };
 

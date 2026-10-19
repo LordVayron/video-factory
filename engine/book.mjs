@@ -114,7 +114,7 @@ if (kind === "scenes") {
   estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "clips") {
-  promptsHtml = (sl.shots || []).map((s) => `<details><summary>Shot ${esc(s.id)} · ${esc(getModel(s.model || pick.video).label)} · ${s.duration} s</summary><pre>${esc(s.prompt)}</pre></details>`).join("");
+  promptsHtml = (sl.shots || []).map((s) => `<details><summary>Shot ${esc(s.id)} · ${esc(getModel(s.model || pick.video).label)} · ${s.duration} s</summary><pre>${esc(P.clipPrompt(sl, s))}</pre></details>`).join("");
   estRows = (sl.shots || []).map((s) => { const m = getModel(s.model || pick.video); const cr = m.cost({ res: s.res || pick.res, duration: s.duration }); est += cr; return `<tr><td>Shot ${esc(s.id)}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "longform") {
