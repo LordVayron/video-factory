@@ -18,7 +18,7 @@
 
 ---
 
-**Website:** https://lordvayron.github.io/video-factory/ · watch the pilot episode made with it.
+**Website:** https://videofactory-tv.vercel.app · watch the pilot episode made with it.
 
 ## Install it in one message
 

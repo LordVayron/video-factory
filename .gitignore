@@ -37,3 +37,5 @@ desktop.ini
 site/img/*.png
 site/*.bak.html
 site/renders/
+
+.vercel
