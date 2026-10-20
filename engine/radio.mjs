@@ -25,7 +25,9 @@ if (!slug) { console.error("usage: radio.mjs <slug>"); process.exit(1); }
 const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
 requireStep(sl, "radio", "radio");
-const pace = { gap: 0.25, tempo: 1.0, lead: 0.12, tail: 0.6, ...(sl.pace || {}) };
+const pace = { gap: 0.25, tempo: 1.0, lead: 0.12, tail: 0.6, innerPause: 0.18, ...(sl.pace || {}) };
+// atempo below 0.85 smears the voice into slow motion (the creator heard it on a past drama at 0.7); slow the read with real pauses instead.
+if (pace.tempo < 0.85 || pace.tempo > 1.2) throw new Error(`pace.tempo ${pace.tempo} fuera de 0.85-1.2: suena en cámara lenta o acelerado. Usa pace.innerPause, beats o gap para alargar.`);
 const ff = (args) => execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...args], { cwd: dir, stdio: ["ignore", "inherit", "inherit"] });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 
@@ -37,24 +39,27 @@ for (const s of sl.shots) {
     const c = P.character(l.char);
     if (!c.voice?.eleven) throw new Error(`${c.name} has no voice.eleven`);
     const f = path.join(dir, "audio", "radio", `${s.id}-${i + 1}.mp3`);
-    const key = `${l.delivery || ""}|${l.text}`;
+    const key = `${l.delivery || ""}|${l.text}${pace.speed ? `|speed ${pace.speed}` : ""}${pace.ttsModel ? `|${pace.ttsModel}` : ""}`;
     // The raw voice is cached by text + delivery (ElevenLabs call); the cleanup and tempo rerun every time.
     const raw = f + ".raw.mp3", cached = fs.existsSync(raw + ".txt") ? fs.readFileSync(raw + ".txt", "utf8") : null;
     if (!fs.existsSync(raw) || cached !== key) {
       // eleven_v3 reads a leading [tag] as performance direction, not as words.
       const vp = voiceProfile(sl, l.char); // the series voice profile: same voice, settings and seed every episode
-      await eleven.tts({ text: l.delivery ? `[${l.delivery}] ${l.text}` : l.text, voice: vp.eleven, model: vp.ttsModel, settings: vp.tts, seed: vp.seed, out: raw });
+      await eleven.tts({ text: l.delivery && (pace.ttsModel || vp.ttsModel) === "eleven_v3" ? `[${l.delivery}] ${l.text}` : l.text, voice: vp.eleven, model: pace.ttsModel || vp.ttsModel, settings: pace.speed ? { ...vp.tts, speed: pace.speed } : vp.tts, seed: vp.seed, out: raw });
       fs.writeFileSync(raw + ".txt", key);
     }
     // Leading/trailing air off, any pause inside the line capped at ~0.2 s (v3 likes long dramatic pauses), then tempo.
     execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", raw, "-af",
       "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.03,areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,areverse," +
-      "silenceremove=stop_periods=-1:stop_duration=0.25:stop_threshold=-42dB:stop_silence=0.18" +
+      `silenceremove=stop_periods=-1:stop_duration=${Math.max(0.25, pace.innerPause + 0.05)}:stop_threshold=-42dB:stop_silence=${pace.innerPause}` +
       (pace.tempo !== 1 ? `,atempo=${pace.tempo}` : ""), f]);
     lines.push({ shot: s, i, l, file: f, len: dur(f) });
   }
 }
 
+// A silent shot's planned length lives in s.hold: s.duration is rewritten from the timeline below, so reading it back
+// shrank the reaction by the lead on every rerun (a past drama's a3 went 2.0 -> 0.6 s over six runs).
+const hold = (s, dflt) => { if (s.hold == null) s.hold = s.duration || dflt; return s.hold; };
 // 2. Timeline. Lines follow each other with a short gap; a laugh starts on the last word and the next line
 //    steps in while it decays; a planned beat is the only long pause.
 let t = pace.lead;
@@ -65,7 +70,7 @@ for (const x of lines) {
   if (x.shot !== prevShot) {
     // Shots without dialogue between the previous line's shot and this one get their own reaction time.
     const idx = sl.shots.indexOf(x.shot), prevIdx = prevShot ? sl.shots.indexOf(prevShot) : -1;
-    for (const s of sl.shots.slice(prevIdx + 1, idx)) { shotStart[s.id] = t; t += s.duration || 1.2; }
+    for (const s of sl.shots.slice(prevIdx + 1, idx)) { shotStart[s.id] = t; t += hold(s, 1.2); }
     shotStart[x.shot.id] = Math.max(0, t - pace.lead);
     prevShot = x.shot;
   }
@@ -81,7 +86,7 @@ for (const x of lines) {
 }
 // Trailing shots with no dialogue (the button reaction).
 const lastIdx = sl.shots.indexOf(prevShot);
-for (const s of sl.shots.slice(lastIdx + 1)) { shotStart[s.id] = t; t += s.duration || 1.5; }
+for (const s of sl.shots.slice(lastIdx + 1)) { shotStart[s.id] = t; t += hold(s, 1.5); }
 const lastLaugh = laughs.at(-1);
 const total = Math.max(t, lastLaugh ? lastLaugh.at + lastLaugh.len : 0);
 
@@ -154,3 +159,22 @@ console.log(path.join(dir, "audio", "radio-cut.mp3"));
 console.log(sl.shots.map((s) => `${s.id} ${s.duration}s`).join(" · "));
 console.log(JSON.stringify(pacing));
 console.log(problems.length ? `PACING FAIL: ${problems.join("; ")}` : "pacing: pass");
+
+// Too fast outside the sitcom: slow the read at the source, one step at a time, and run again (2026-10-20, a past drama:
+// the designed voices read at 204-225 wpm; eleven_v3 ignores speed, multilingual v2 honours it, and atempo below
+// 0.85 sounds like slow motion). Each step costs a few ElevenLabs characters, no Kie credits. sl.pace.auto = false
+// turns it off; the steps already tried live in sl.pace.autoStep.
+const SLOWER = [
+  { ttsModel: "eleven_multilingual_v2", speed: 0.9, tempo: 1.0 },
+  { ttsModel: "eleven_multilingual_v2", speed: 0.8, tempo: 1.0 },
+  { ttsModel: "eleven_multilingual_v2", speed: 0.7, tempo: 0.95 },
+  { ttsModel: "eleven_multilingual_v2", speed: 0.7, tempo: 0.88 },
+];
+const step = sl.pace?.autoStep ?? -1;
+if (!sitcom && sl.pace?.auto !== false && rules.maxWpm && pacing.wpm > rules.maxWpm && step + 1 < SLOWER.length) {
+  const next = { ...(sl.pace || {}), ...SLOWER[step + 1], autoStep: step + 1 };
+  P.updateShotlist(slug, (x) => { x.pace = next; });
+  console.log(`too fast (${pacing.wpm} wpm): voices again at ElevenLabs speed ${next.speed}, tempo ${next.tempo} (step ${step + 2}/${SLOWER.length})`);
+  const r = (await import("node:child_process")).spawnSync(process.execPath, [process.argv[1], slug], { stdio: "inherit" });
+  process.exit(r.status ?? 1);
+}

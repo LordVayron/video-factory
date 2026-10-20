@@ -104,9 +104,28 @@ export function newFamilies(rows) {
 
 // budget: { mode: "cheapest" | "fixed" | "max", usd }. baseline: the model the style was approved with; the
 // "cheapest that keeps quality" pick never drops below its quality or the format's floor.
-export function recommend(options, { format, budget, baseline }) {
+// Measured speaking rate of each model's native voices (2026-10-20: Wan 3.0 Prime read every drama line at
+// 191-204 wpm though the prompt asked for 140-160, and lip-synced speech can't be slowed in the edit).
+const RATES = path.join(ROOT, "engine", "data", "speech-rates.json");
+const readRates = () => { try { return JSON.parse(fs.readFileSync(RATES, "utf8")); } catch { return {}; } };
+export function measuredWpm(key) {
+  const xs = (readRates()[key] || []).map((r) => r.wpm).sort((a, b) => a - b);
+  return xs.length ? xs[Math.floor(xs.length / 2)] : null;
+}
+export function recordSpeechRate(key, wpm, slug) {
+  if (!key || !wpm) return;
+  const all = readRates();
+  all[key] = [...(all[key] || []).filter((r) => r.slug !== slug), { slug, wpm, at: new Date().toISOString().slice(0, 10) }];
+  fs.mkdirSync(path.dirname(RATES), { recursive: true });
+  fs.writeFileSync(RATES, JSON.stringify(all, null, 2) + "\n");
+}
+
+export function recommend(options, { format, budget, baseline, maxWpm = null }) {
   const floor = Math.max(FLOOR[format] ?? 7, QUALITY[baseline]?.q ?? 0);
   const byCost = (a, b) => a.credits - b.credits;
+  // A model measured speaking faster than the format allows is never recommended while another one fits.
+  const paced = maxWpm ? options.filter((o) => !(measuredWpm(o.key) > maxWpm)) : options;
+  if (paced.length) options = paced;
   const good = options.filter((o) => o.q >= floor);
   if (!good.length) return [...options].sort((a, b) => b.q - a.q || a.credits - b.credits)[0] || null;
   if (budget?.mode === "max") return [...options].sort((a, b) => b.q - a.q || a.credits - b.credits)[0];

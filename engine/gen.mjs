@@ -27,7 +27,7 @@
 //   node engine/gen.mjs queue  <slug>                                   run rerolls requested on the board
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
 import * as kie from "./lib/kie.mjs";
 import { MODELS, getModel, usd } from "./lib/models.mjs";
@@ -317,7 +317,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const files = [await speak({ slug: null, c, lang, text, outBase: path.join(c.dir, `voice-${lang}`), label: `${id} voice sample` })];
     const cj = path.join(c.dir, "character.json");
     const data = JSON.parse(fs.readFileSync(cj, "utf8"));
-    data.voice = { ...data.voice, sample: { ...(data.voice?.sample || {}), [lang]: path.basename(files[0]) } };
+    data.voice = { ...data.voice, sample: { ...(data.voice?.sample || {}), [lang]: path.basename(files[0]) }, sampleText: { ...(data.voice?.sampleText || {}), [lang]: text } };
     fs.writeFileSync(cj, JSON.stringify(data, null, 2));
     console.log(files[0], `${mediaDuration(files[0])?.toFixed(1)}s`);
   },
@@ -389,11 +389,41 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
         const scx = P.scene(x, sc.id);
         scx.grids = [...(scx.grids || []), P.rel(slug, files[0])];
         scx.grid = P.rel(slug, files[0]);
+        scx.gridAngles = JSON.stringify(x.angles || {}); // the board step refuses grids drawn before the current angle frames
         sc.shots.forEach((id, k) => { const s = P.shot(x, id); s.boards = [...(s.boards || []), P.rel(slug, panels[k])]; s.board = { file: P.rel(slug, panels[k]), model: "grid", grid: P.rel(slug, files[0]) }; });
       });
       return files;
     }));
     console.log(`\nNext: node engine/animatic.mjs ${slug}, then approve: node engine/phase.mjs approve ${slug} storyboard`);
+  },
+
+  // Coverage angles: one locked close-up frame per person who has close-ups in more than one scene (non-sitcom).
+  // Made before the storyboards; every grid and every scene with that person's single gets it as a reference.
+  //   node engine/gen.mjs angles <slug> [--only <char>] [--redo]
+  async angles() {
+    const slug = pos[0];
+    await recover(slug);
+    const sl = P.loadShotlist(slug);
+    requireStep(sl, "board", "gen angles");
+    const want = flag("--only")?.split(",");
+    const todo = P.anglesNeeded(sl).filter((id) => (want ? want.includes(id) : argv.includes("--redo") || !fs.existsSync(P.angleFile(sl, id) || "")));
+    if (!todo.length) return console.log(`angles: nothing to do (${P.anglesNeeded(sl).join(", ") || "no person has close-ups in more than one scene"})`);
+    const dir = P.abs(slug, "frames");
+    fs.mkdirSync(dir, { recursive: true });
+    report(await pool(todo, async (id) => {
+      const c = P.character(id);
+      const sc = sl.scenes.find((x) => P.sceneShots(sl, x).some((s) => P.singleOf(s) === id));
+      const refs = P.sceneRefs(sl, sc).filter((r) => r.role === "set" || r.id === id);
+      const urls = await Promise.all(refs.map((r) => kie.asUrl(r.file)));
+      const lock = refs.map((r, i) => r.role === "set" ? `The room is reference image ${i + 1}.` : `${r.name} is reference image ${i + 1}.`).join(" ");
+      const outBase = nextName(dir, `angle-${id}`, ".png");
+      fs.writeFileSync(outBase + ".lock", "");
+      const files = await job({ slug, modelKey: "gpt2.5", req: { prompt: `${lock}\n${P.anglePrompt(sl, id)}`, refs: urls, ar: "9:16", size: "2K" }, outBase, label: `${c.name} coverage angle`, ext: ".png" });
+      P.updateShotlist(slug, (x) => { x.angles = { ...(x.angles || {}), [id]: path.relative(ROOT, files[0]).replace(/\\/g, "/") }; });
+      return files;
+    }));
+    console.log(`
+Show the creator each angle frame, then redraw the storyboards: node engine/gen.mjs storyboard ${slug} --scenes ${sl.scenes.map((x) => x.id).join(",")}`);
   },
 
   // Production: each scene in ONE multi-shot generation (Wan 3.0 formula), opening on its first storyboard panel.
@@ -702,6 +732,23 @@ function voiceRefFiles(sl, speakers, slug) {
   const lang = sl.lang || "en";
   // The series voice profile's official sample wins over the bible's, so the video model hears the same voice every episode.
   const found = speakers.map((id) => { const c = P.character(id); const sp = voiceProfile(sl, id).sample; const f = sp && fs.existsSync(sp) ? sp : c.voice?.sample?.[lang] && path.join(c.dir, c.voice.sample[lang]); return f && fs.existsSync(f) ? { char: id, file: f } : null; }).filter(Boolean).slice(0, 3);
+  // A voice reference must never speak the script: Wan repeats what it hears (2026-10-20, a past drama scene B: the patient's
+  // sample said "I know... You will. You're the father." and the take said those lines instead of the doctor's).
+  // The sample is transcribed once (cached next to it) and checked against every line of the project.
+  const norm = (t) => ` ${String(t).toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim()} `;
+  const scriptLines = sl.shots.flatMap((s) => (s.dialogue || []).map((l) => l.text)).filter((t) => t.trim().split(/\s+/).length >= 2);
+  for (const v of found) {
+    const txt = v.file + ".transcript.txt";
+    if (!fs.existsSync(txt) || fs.statSync(txt).mtimeMs < fs.statSync(v.file).mtimeMs) {
+      const py = "import sys; from faster_whisper import WhisperModel; m = WhisperModel('base', device='cpu', compute_type='int8'); print(' '.join(s.text for s in m.transcribe(sys.argv[1], language=sys.argv[2])[0]))";
+      const r = spawnSync("python", ["-c", py, v.file, lang], { encoding: "utf8" });
+      if (r.status !== 0) throw new Error(`VOICE REF STOP: no pude transcribir la muestra de ${v.char} para revisar que no diga el guion`);
+      fs.writeFileSync(txt, r.stdout.trim());
+    }
+    const heard = norm(fs.readFileSync(txt, "utf8"));
+    const said = scriptLines.find((t) => heard.includes(norm(t)));
+    if (said) throw new Error(`VOICE REF STOP: la muestra de voz de ${P.character(v.char).name} dice la línea del guion "${said}"; el modelo la repetiría. Rehaz la muestra con texto neutro: node engine/gen.mjs sample ${v.char} --text "..."`);
+  }
   const each = found.length ? Math.floor((14 / found.length) * 10) / 10 : 0;
   return found.map((v) => {
     const out = P.abs(slug, `audio/voice-ref-${v.char}-${lang}.mp3`);

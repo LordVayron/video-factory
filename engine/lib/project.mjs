@@ -237,7 +237,7 @@ export function takeFilters(sc) {
   };
 }
 // Everyone in the scene: the characters of its shots AND everyone seated in it (sc.seats). A seated character is in
-// frame in wide shots, so the model needs their marks and references (2026-10-19, The Toast: scene A named Grace in
+// frame in wide shots, so the model needs their marks and references (2026-10-19, a past drama: scene A named a character in
 // its blocking without her references; the prompt check stopped it before any spend).
 export const sceneCast = (sl, sc) => [...new Set([...sceneShots(sl, sc).flatMap((s) => s.characters || []), ...Object.keys(sc.seats || {})])];
 
@@ -266,6 +266,36 @@ const POS = (k, cols, rows) => {
 };
 
 // The references a scene uses, in order. Image 1.. = character views, then the set plate.
+// Coverage angles (2026-10-20, a past drama "Not the Father"): every scene opened on a panel from its own storyboard grid, each
+// grid drawn on its own, and the reverse angle was invented by the video model, so the doctor's close-up had a window
+// in scene A, a wall of frames in B and a chair and plant in C. Outside the sitcom, every person with close-ups in
+// more than one scene gets ONE locked angle frame (gen.mjs angles): the exact framing and background of all their
+// close-ups, sent to every storyboard and every scene that has one of their singles.
+export const singleOf = (s) => (s.characters || []).length === 1 && /close|single|\bcu\b/i.test(s.framing || "") && !/wide|two-shot|group/i.test(s.framing || "") ? s.characters[0] : null;
+export function anglesNeeded(sl) {
+  if (sl.format === "sitcom" || !(sl.scenes || []).length) return [];
+  const scenesOf = {};
+  for (const sc of sl.scenes) for (const s of sceneShots(sl, sc)) { const id = singleOf(s); if (id) (scenesOf[id] ||= new Set()).add(sc.id); }
+  return Object.keys(scenesOf).filter((id) => scenesOf[id].size > 1);
+}
+export const angleFile = (sl, id) => sl.angles?.[id] && path.join(ROOT, sl.angles[id]);
+export function anglePrompt(sl, id) {
+  const st = styleOf(sl);
+  const s = sl.shots.find((x) => singleOf(x) === id);
+  const sc = sl.scenes.find((x) => x.shots.includes(s.id));
+  const c = character(id);
+  return [
+    st.look,
+    `ONE frame, the locked camera angle for every close-up of ${c.name} in this film: ${s.framing || "close-up"}, ${s.lens || "50mm lens"}, eye level, camera on a tripod.`,
+    `${c.name}: ${characterLook(c, st.id).look}. Neutral, attentive expression, mouth closed, hands still.`,
+    `The room: ${sc.blocking}`,
+    seatLock(sc),
+    sc.lighting ? `Lighting: ${sc.lighting}.` : "",
+    partnerNote(sc, s, sl),
+    "Everything behind the person is the background of every close-up of them in every scene, so make it simple, readable and specific: one wall, the window if it faces that way, at most one or two objects. Real footage look, natural skin, no text.",
+  ].filter(Boolean).join("\n");
+}
+
 export function sceneRefs(sl, sc) {
   const st = styleOf(sl);
   const out = [];
@@ -273,14 +303,19 @@ export function sceneRefs(sl, sc) {
     const c = character(id);
     const v = characterLook(c, st.id).views;
     // c.refView: the sheet view sent as the face reference (one with a neutral pose: a hand on the chin in the front
-    // view was copied into a shot of The Toast).
+    // view was copied into a shot of a past drama).
     const f = [c.refView && v[c.refView], v.front, v.threeQuarter].filter(Boolean).map((x) => path.join(c.dir, x)).find((x) => fs.existsSync(x))
       || existing(c.dir, c.refs || c.sheets || ["sheet.png"])[0];
     if (f) out.push({ role: "character", id, name: c.name, look: characterLook(c, st.id).look, file: f });
-    // The full-body view too, so the wardrobe is locked when a scene opens on someone else (2026-10-19: Clara's
-    // black gown turned wine, then ivory, in a scene that opened on Victor's close-up and only had her face).
+    // The full-body view too, so the wardrobe is locked when a scene opens on someone else (2026-10-19: a character's
+    // black gown turned wine, then ivory, in a scene that opened on a character's close-up and only had her face).
     const full = v.full && path.join(c.dir, v.full);
     if (full && fs.existsSync(full) && full !== f) out.push({ role: "character", id, name: `${c.name} (full body, exact wardrobe)`, look: characterLook(c, st.id).look, file: full });
+  }
+  const singles = new Set(sceneShots(sl, sc).map(singleOf).filter(Boolean));
+  for (const id of anglesNeeded(sl)) {
+    const f = angleFile(sl, id);
+    if (singles.has(id) && f && fs.existsSync(f)) out.push({ role: "angle", id, name: `${character(id).name}'s close-up angle`, file: f });
   }
   const setId = sc.set || sl.set;
   if (setId) {
@@ -295,7 +330,7 @@ export function boardGridPrompt(sl, sc, refs) {
   const st = styleOf(sl);
   const shots = sceneShots(sl, sc);
   const { cols, rows } = gridLayout(shots.length);
-  const lock = refs.map((r, i) => r.role === "set" ? `the location is reference image ${i + 1} (${r.look})` : `${r.name} is reference image ${i + 1} (${r.look})`).join("; ");
+  const lock = refs.map((r, i) => r.role === "set" ? `the location is reference image ${i + 1} (${r.look})` : r.role === "angle" ? `every close-up of ${character(r.id).name} copies reference image ${i + 1} exactly: same framing size and the same background` : `${r.name} is reference image ${i + 1} (${r.look})`).join("; ");
   return [
     st.look,
     `A film storyboard sheet: a ${cols}x${rows} grid of ${shots.length} consecutive frames from ONE continuous scene, read left to right, top to bottom.`,
@@ -356,7 +391,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
   // Image 1 is the opening storyboard panel; reference images follow from Image 2.
   // With no character reference images (models that take only a first frame: Kling 3.0, Veo), every character in the
   // scene is described in words, marks included, so the look and the marks still reach the model.
-  const bind = refs.map((r, i) => r.role === "set" ? `Location: Image ${i + 2}.` : `${r.name}: Image ${i + 2} (${r.look}).`).join(" ")
+  const bind = refs.map((r, i) => r.role === "set" ? `Location: Image ${i + 2}.` : r.role === "angle" ? `Image ${i + 2} is the locked camera angle for EVERY close-up of ${character(r.id).name}: the same framing size, eye level and the exact same background (wall, window, frames, plants, furniture); never show anything else behind ${character(r.id).name}.` : `${r.name}: Image ${i + 2} (${r.look}).`).join(" ")
     + (refs.some((r) => r.role === "character") ? "" : " " + sceneCast(sl, sc).map((id) => `${character(id).name}: ${characterLook(character(id), styleOf(sl).id).look}.`).join(" "));
   const voices = voiceRefs.map((v, i) => `${character(v).name}'s voice timbre: reference Audio ${i + 1}.`).join(" ");
   let t = 0;
@@ -368,7 +403,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     const lines = (s.dialogue || []).map((l) => `${character(l.char).name}${l.delivery ? ` (${l.delivery})` : ""} says: "${l.text}" Lip sync.`).join(" ");
     // Per-shot light reminder: close-ups are where Wan drifts back to the style's default daylight.
     const light = sc.lighting ? `Same lighting as Shot 1${/night/i.test(sc.lighting) ? "; any window in frame shows dark night outside, never daylight" : ""}.` : "";
-    // Every format but the sitcom gets a structured spec per shot (2026-10-19, The Toast pilot: Ivy toasted an empty
+    // Every format but the sitcom gets a structured spec per shot (2026-10-19, a past drama pilot: a character toasted an empty
     // table and sat down between two shots of the same moment): who is in frame, the exact place, pose and props of
     // everyone in the room at that moment, the action, the dialogue, and what must not happen.
     if (sl.format !== "sitcom") {
@@ -381,6 +416,9 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
         "anyone resting a chin or cheek on a hand, or touching their face, unless the action says so",
         "a character not listed here appearing, or a listed character missing from a wide shot",
         "any change of outfit, hair, jewelry or props", "on-screen text or subtitles",
+        // 2026-10-20, a past drama pilot: on a "fixed camera" close-up Wan pulled back mid-shot and a ceiling and a second
+        // wall frame appeared (Creador: "asegúrate de que haya consistencia en los backgrounds y en los sets").
+        "the camera zooming, pulling back or drifting, or the background changing (a ceiling, extra wall frames, a different window) during the shot or from earlier shots of the same person",
       ];
       const spec = { shot: k + 1, time: head.slice(head.indexOf("[") + 1, head.indexOf("]")), cut: k ? (s.continuous ? "no cut: same framing as the previous shot" : "hard cut") : "opens on Image 1", framing: s.framing || "medium shot", lens: s.lens || "35mm lens", camera: cam, in_frame: inFrame.length ? inFrame : all, everyone_in_the_room: where, action: [s.motion, moveNote(s)].filter(Boolean).join(" "), dialogue: (s.dialogue || []).length ? s.dialogue.map((l) => ({ speaker: character(l.char).name, delivery: l.delivery || "", says_exactly: l.text, lip_sync: true })) : "none", sound: s.sfx || undefined, must_not: mustNot };
       return `Shot ${k + 1} SPEC ${JSON.stringify(spec)} Lines, word for word: ${lines || "No dialogue."}`;
@@ -398,7 +436,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     sc.lighting ? `LIGHTING LOCK, overrides any other light description: ${sc.lighting}. The lighting, time of day and color temperature are identical in every shot of this scene.` : "",
     voices,
     `All dialogue is spoken in ${lang}.`,
-    // Wan rushed every line of The Secret Heiress (191 wpm, 2026-10-19): the pace is part of every scene prompt.
+    // Wan rushed every line of a past drama (191 wpm, 2026-10-19): the pace is part of every scene prompt.
     sl.format === "sitcom" ? "" : "Every line is spoken at a calm, natural pace, about 140-160 words per minute, with a short natural pause between lines and a held beat on every reaction; never rushed, never overlapping.",
     ...body,
     st.motion || "",

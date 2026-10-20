@@ -48,7 +48,7 @@ You need two accounts: [Kie.ai](https://kie.ai) (images, video, music) and [Elev
 | **AI influencer / clone me** | 15–60 s | $1–4 | your own face and voice only, with consent |
 | **Anime, cinematic, podcast clips** | 15–60 s | $1–5 | per-vertical playbooks |
 
-Each format has a **playbook** (a "vertical DNA" file) with what makes it work, how to write it, pacing numbers, and a QC checklist. To make a different format, open a new conversation in the folder and say what you want: *"make a 20-minute sleep meditation"*, *"start a TikTok novela about a secret heiress"*, *"UGC ad for my coffee brand"*.
+Each format has a **playbook** (a "vertical DNA" file) with what makes it work, how to write it, pacing numbers, and a QC checklist. To make a different format, open a new conversation in the folder and say what you want: *"make a 20-minute sleep meditation"*, *"start a TikTok novela about a hidden inheritance"*, *"UGC ad for my coffee brand"*.
 
 ## How it works
 

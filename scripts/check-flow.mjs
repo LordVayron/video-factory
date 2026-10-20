@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as F from "../engine/lib/flow.mjs";
 import * as P from "../engine/lib/project.mjs";
+import * as PR from "../engine/lib/pricing.mjs";
 import { decide } from "./hooks/guard.mjs";
 import { videoOptions, recommend } from "../engine/lib/pricing.mjs";
 
@@ -68,7 +69,7 @@ export default function checkFlow(t, ROOT) {
     } finally { fs.rmSync(cdir, { recursive: true, force: true }); }
   }
 
-  // The Secret Heiress (2026-10-19): a whole episode filmed before anyone saw one scene, on a format the editor
+  // a past drama (2026-10-19): a whole episode filmed before anyone saw one scene, on a format the editor
   // couldn't finish, and a reopened book that re-estimated filmed scenes.
   {
     const sc = { kind: "x", slug: "p", format: "micro-drama", scenes: [{ id: "A" }, { id: "B" }], flow: { v: 5, approved: {} } };
@@ -100,6 +101,38 @@ export default function checkFlow(t, ROOT) {
       const r2 = F.dramaRules(D2).join(" | ");
       t("drama rules block a late hook, an establishing opener, long reactions and shots, vague words, extreme angles, wrong length", /primer diálogo/.test(r2) && /plano de ubicación/.test(r2) && /reacción de/.test(r2) && /plano hablado de/.test(r2) && /palabra vacía/.test(r2) && /ángulo extremo/.test(r2) && /rango 25-90/.test(r2));
       t("a drama's cast needs an approved look test before any storyboard or video", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("falta la prueba de look") && engine("studio.mjs").includes('"approve-look"()'));
+      {
+        // a past drama (2026-10-20): each close-up of the same person had a different background in every scene.
+        const A = { format: "micro-drama", scenes: [{ id: "A", shots: ["x1", "x2"] }, { id: "B", shots: ["x3", "x4"] }], shots: [{ id: "x1", characters: ["a"], framing: "close-up on A" }, { id: "x2", characters: ["b"], framing: "close-up on B" }, { id: "x3", characters: ["a"], framing: "close-up on A" }, { id: "x4", characters: ["a", "b"], framing: "wide two-shot" }] };
+        const need = P.anglesNeeded(A);
+        t("everyone with close-ups in more than one scene needs one locked angle frame (not the sitcom)", need.length === 1 && need[0] === "a" && P.anglesNeeded({ ...A, format: "sitcom" }).length === 0);
+        const flowSrc = fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8"), projSrc = fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8");
+        t("the board step refuses missing angle frames and grids drawn before them", flowSrc.includes("sin plano de ángulo fijo") && flowSrc.includes("hecho sin los planos de ángulo actuales") && engine("gen.mjs").includes("scx.gridAngles ="));
+        t("angle frames reach every storyboard and scene with that person's close-up", projSrc.includes('role: "angle"') && projSrc.includes("locked camera angle for EVERY close-up"));
+        t("the final QC compares every close-up's background across scenes", engine("studio.mjs").includes("backgroundCheck(file, sl, cast)"));
+        t("a passing continuity take becomes the scene's chosen take", engine("continuity.mjs").includes("if (result.pass && (s.clip == null"));
+        t("a voice reference that speaks the script is refused (VOICE REF STOP)", engine("gen.mjs").includes("VOICE REF STOP"));
+        t("the radio cut refuses slow-motion tempo", engine("radio.mjs").includes("pace.tempo < 0.85"));
+        t("a radio cut that reads too fast re-voices itself slower, step by step (ElevenLabs speed, multilingual v2)", engine("radio.mjs").includes("const SLOWER = [") && engine("radio.mjs").includes("autoStep: step + 1"));
+        t("a background drift only in a silent tail is trimmed automatically and the take judged again", engine("continuity.mjs").includes("async function evalWithTailTrim") && engine("continuity.mjs").includes("start < lastWord + 0.8"));
+        // Speaking rate: Wan 3.0 Prime measured at 191-204 wpm is not recommended for a drama while another model fits.
+
+        const opts = [{ key: "wan3-prime", q: 8, credits: 600, usd: 3 }, { key: "sd2-fast", q: 7, credits: 590, usd: 2.95 }];
+        t("a model measured speaking too fast is not recommended for a speaking format", PR.measuredWpm("wan3-prime") > 175 && PR.recommend(opts, { format: "micro-drama", budget: { mode: "fixed", usd: 5 }, maxWpm: 175 }).key === "sd2-fast" && PR.recommend(opts, { format: "micro-drama", budget: { mode: "fixed", usd: 5 } }).key === "wan3-prime");
+        t("every cut records the model's speaking rate, and a fast pilot needs the creator's explicit yes (--ok-fast)", engine("edit.mjs").includes("recordSpeechRate(sl.defaults?.videoModel") && engine("studio.mjs").includes('argv.includes("--ok-fast")'));
+        // The angle cycle on a real filmed drama (its cast and set from the bible), no spend: an angle frame reaches
+        // the scene's refs and prompt. Runs where that project exists (the private studio).
+        const realDrama = path.join(ROOT, "projects", ["drama", 3].join(""), "shotlist.json");
+        if (fs.existsSync(realDrama)) try {
+          const sl3 = JSON.parse(fs.readFileSync(realDrama, "utf8"));
+          const leads = P.anglesNeeded(sl3);
+          const img = (id) => { const d = P.character(id).dir; return path.relative(ROOT, path.join(d, fs.readdirSync(d).find((f) => /\.(png|jpe?g)$/i.test(f)))).replace(/\\/g, "/"); };
+          const withAngles = { ...sl3, angles: Object.fromEntries(leads.map((id) => [id, img(id)])) };
+          const scB = withAngles.scenes.find((x) => x.id === "B"), refsB = P.sceneRefs(withAngles, scB);
+          const promptB = P.scenePrompt(withAngles, scB, refsB);
+          t("a real drama needs angle frames for both leads, and scene B's references and prompt carry them", leads.length === 2 && refsB.filter((r) => r.role === "angle").length === 2 && leads.every((id) => promptB.includes(`locked camera angle for EVERY close-up of ${P.character(id).name}`)) && P.anglePrompt(withAngles, leads[0]).includes("ONE frame"));
+        } catch (e) { t(`angle cycle on a real drama (${e.message.slice(0, 80)})`, false); }
+      }
       t("drama rules feed the board check, so a failing plan never reaches the book", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("bad.push(...dramaRules(sl))"));
       t("outside the sitcom the take's own (lip-synced) voice is kept by default", engine("edit.mjs").includes('sl.voiceUnify === true || (sl.voiceUnify !== false && sl.format === "sitcom")'));
     }

@@ -15,6 +15,7 @@ import * as P from "./lib/project.mjs";
 import { LAUGHS, STINGS, libSound } from "./lib/laughs.mjs";
 import { introVariant } from "./lib/intro.mjs";
 import { cueFile } from "./lib/cues.mjs";
+import { recordSpeechRate } from "./lib/pricing.mjs";
 import * as eleven from "./lib/eleven.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
 import { requireStep, FlowStop, fileSha, takesSig } from "./lib/flow.mjs";
@@ -57,7 +58,7 @@ for (const sc of sl.scenes) {
   if (!draft && !sc.clips[ci].continuity?.pass && !tk.accepted?.said) { console.error(`stop: scene ${sc.id} take ${ci + 1} ${sc.clips[ci].continuity ? "failed" : "has no"} continuity eval (node engine/continuity.mjs ${slug} --scene ${sc.id})`); process.exit(1); }
   const part = path.join(tmp, `${sc.id}.mp4`);
   // sc.cutOut = [[a, b], ...]: seconds of this take to drop (words the model improvised, a shot it invented), picture
-  // and sound together, before alignment (2026-10-19, The Toast: an extra "And I'm ready?" and a repeated line).
+  // and sound together, before alignment (2026-10-19, a past drama: an extra "And I'm ready?" and a repeated line).
   // sc.muteOut = [[a, b], ...]: silence the sound only, keeping the picture (a repeated line over a beat worth keeping).
   const tf = P.takeFilters(sc);
   ff(["-i", sc.clips[ci].file, "-vf", `${tf.vf}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p`,
@@ -105,7 +106,7 @@ for (const x of found) {
 const pieces = [];
 for (const [k, x] of found.entries()) {
   // Pauses inside a line are tightened only in the sitcom; a drama keeps the actor's breath (2026-10-19, The Secret
-  // Heiress: the tight cut ran 200 wpm).
+  // a past drama: the tight cut ran 200 wpm).
   const inner = sl.format !== "sitcom" ? [] : silences.filter(([a, b]) => a > x.start + 0.05 && b < x.end - 0.05 && b - a > 0.5);
   let a = x.start;
   for (const [s, e] of inner) { pieces.push({ a, b: s + 0.05, after: 0.3, x }); a = e - 0.05; }
@@ -119,7 +120,7 @@ for (const [k, x] of found.entries()) {
   // A silence where someone moves on screen (a leap, an exit) is action, not dead air: keep up to 2.5 s of it
   // after the last line of a shot with `moves`.
   // Outside the sitcom the filmed pause between two lines is the drama's tension: keep it up to 1.6 s, trim only
-  // longer dead air (2026-10-19, The Toast: the tight cut removed 5 s and ran 219 wpm).
+  // longer dead air (2026-10-19, a past drama: the tight cut removed 5 s and ran 219 wpm).
   if (sl.format !== "sitcom" && next) planned = Math.max(planned, Math.min(next.start - x.end, 1.6));
   const lastInShot = !next || next.shot !== x.shot;
   if (x.shot.moves && lastInShot && next) planned = Math.max(planned, Math.min(next.start - x.end, 2.5));
@@ -134,7 +135,7 @@ for (const [k, p] of pieces.entries()) {
     // After the last line: room for the button laugh / reaction shot, never more than what was filmed.
     // sl.ending "smash" (the writing bible): cut to black right on the last hard consonant so the short loops.
     // Silent shots after the last line (a held reaction, the shocked face the episode ends on) keep their planned
-    // length: they were cut to 1.2 s and the pilot lost Daniel's reaction (2026-10-19).
+    // length: they were cut to 1.2 s and the pilot lost a character's reaction (2026-10-19).
     const after = sl.shots.slice(sl.shots.indexOf(p.x.shot) + 1).filter((s) => !(s.dialogue || []).length).reduce((n, s) => n + (s.duration || 1.5), 0);
     // With silent shots after the last line, everything filmed up to the end is kept (a take can hold the speaker
     // before cutting to the reaction), at most the planned silence + 3 s.
@@ -166,7 +167,7 @@ ff(["-i", path.relative(dir, cut), "-filter_complex", fg.join(";"), "-map", "[v]
 //     The original line audio is muted under it; room sound, laughs and cues are untouched. Off: sl.voiceUnify = false.
 let voiced = tight;
 // Outside the sitcom the take's own voice is kept by default (it is the one in sync with the lips; a re-voice
-// drifted 1 s, The Toast): sl.voiceUnify = true opts in, and the lip-sync check below still guards it.
+// drifted 1 s, a past drama): sl.voiceUnify = true opts in, and the lip-sync check below still guards it.
 if (sl.voiceUnify === true || (sl.voiceUnify !== false && sl.format === "sitcom")) {
   const vdir = path.join(tmp, "voices");
   fs.mkdirSync(vdir, { recursive: true });
@@ -234,7 +235,7 @@ if (sl.voiceUnify === true || (sl.voiceUnify !== false && sl.format === "sitcom"
     voiced = path.join(tmp, "tight-voiced.mov");
     ff(["-i", path.relative(dir, tight), ...ins, "-filter_complex", g.join(";"), "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "pcm_s16le", path.relative(dir, voiced)]);
     console.log(`voices unified: ${parts.length}/${spoken.length} lines`);
-    // LIP-SYNC CHECK (2026-10-19, The Toast pilot: re-voiced lines landed up to 1.0 s after the lips moved). The
+    // LIP-SYNC CHECK (2026-10-19, a past drama pilot: re-voiced lines landed up to 1.0 s after the lips moved). The
     // original and the re-voiced tracks are both transcribed; if any word starts more than 0.2 s apart, the re-voice
     // is dropped and the take's own voices are kept: a voice that doesn't match the mouth is worse than another timbre.
     const words = (f) => { const o = path.join(tmp, `sync-${path.basename(f)}.json`); const r = spawnSync("python", [path.join(ROOT, "engine", "lib", "align.py"), f, path.join(tmp, "lines.json"), o, sl.lang === "es" ? "es" : "en"], { encoding: "utf8" }); return r.status === 0 ? JSON.parse(fs.readFileSync(o, "utf8")).words : null; };
@@ -266,7 +267,7 @@ fs.writeFileSync(path.join(tmp, "captions.ass"), `[Script Info]\nScriptType: v4.
   captionEvents().map((e) => `Dialogue: 0,${ts(e.a)},${ts(e.b)},Line,,0,0,0,,${e.text}`).join("\n") + "\n");
 // Captions are timed on the EDITED dialogue track itself: it is transcribed again (VAD on) and every caption and
 // chunk break uses its word times, in the timeline the viewer sees. Timing from the raw cut, mapped through the
-// trims, ran captions 0.5-2.4 s off (2026-10-19, The Toast). A line the final pass can't find keeps the cut's time.
+// trims, ran captions 0.5-2.4 s off (2026-10-19, a past drama). A line the final pass can't find keeps the cut's time.
 function finalWords() {
   const out = path.join(tmp, "align-final.json");
   const r = spawnSync("python", [path.join(ROOT, "engine", "lib", "align.py"), voiced, path.join(tmp, "lines.json"), out, sl.lang === "es" ? "es" : "en"], { encoding: "utf8" });
@@ -274,7 +275,7 @@ function finalWords() {
 }
 // A line stays from its first word until just after its last, never over the next line; lines longer than 6 words
 // split into chunks at punctuation, each chunk starting on its own first word.
-// Each line's span in the final timeline. A line the final pass can't match (misheard: "Go on, Ivy" -> "Don't worry,
+// Each line's span in the final timeline. A line the final pass can't match (misheard: "Go on, a character" -> "Don't worry,
 // Natty") starts on the first word heard after the previous line, and keeps its cut length. Memoized (var: hoisted).
 var SPANS, FIN;
 function lineSpans() {
@@ -337,7 +338,7 @@ for (const L of laughs) lay(await libSound(`laugh-${L.kind}`), L.at, L.gainDb);
 // cue.at "end": a sting lands on the punchline, not before the line.
 for (const [k, x] of timed.entries()) if (x.l.cue) { const c = await cueFile(dir, sl, x.l.cue); const sp = lineSpans()[k]; lay(c.file, c.at === "end" ? sp.b + 0.05 : sp.a - c.lead, c.gainDb); }
 if (outro) lay(await libSound(outroName), tightLen - 0.3, -8);
-// 5a. Drama sound design (2026-10-19, The Secret Heiress came out "dry, like a rehearsal"): the project's score
+// 5a. Drama sound design (2026-10-19, a past drama came out "dry, like a rehearsal"): the project's score
 // (sl.music, generated with gen.mjs music) runs under the whole episode at sl.music.gainDb, ducks under every line,
 // swells over the last sl.music.swell seconds into the freeze and fades out; sl.endCue lands a sting on the freeze.
 // Stings on power shifts are line cues (line.cue, lib/cues.mjs, ElevenLabs SFX).
@@ -428,6 +429,10 @@ if (peak > -1) problems.push(`true peak ${peak} dB`);
 const fq = { loudness: loud, truePeak: peak, duration: Math.round((total + introLen) * 10) / 10, intro: Math.round(introLen * 10) / 10, pacing, lines: lines.map((x) => ({ id: x.id, found: x.found, start: x.start })), problems, pass: !problems.length, at: new Date().toISOString() };
 // Only a real cut counts: it is fingerprinted, so the QC and the delivery receipt can prove it is this file.
 if (!draft) { sl.finalQc = fq; sl.cut = { sha: fileSha(path.join(dir, final)), takes: takesSig(sl), at: fq.at }; }
+// The model's measured speaking rate feeds the live price analysis, and the draft's QC is what approve-pilot reads,
+// so a fast pilot is stopped before the rest is filmed (2026-10-20, a past drama: 204 wpm seen only after all scenes).
+if (sl.format !== "sitcom" && pacing.wpm) recordSpeechRate(sl.defaults?.videoModel, pacing.wpm, slug);
+if (draft) fs.writeFileSync(path.join(dir, "out", "draft-qc.json"), JSON.stringify({ model: sl.defaults?.videoModel || null, wpm: pacing.wpm, maxWpm: rules.maxWpm || null, problems, at: fq.at }, null, 2));
 if (!partial) P.saveShotlist(slug, sl);
 const size = fs.statSync(path.join(dir, final)).size;
 console.log(path.join(dir, final));

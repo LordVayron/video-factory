@@ -54,7 +54,7 @@ export function castIds(sl) {
 
 // Fingerprints: what an approval covers. Keys written by filming and evals are left out, so filming
 // does not reopen the plan; changing the script, the shots or the prompts does.
-const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "plate", "cutOut", "muteOut"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
+const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "qcFlag", "plate", "cutOut", "muteOut"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
 const strip = (o) => JSON.parse(JSON.stringify(o ?? null, (k, v) => (RUNTIME.has(k) ? undefined : v)));
 export const FINGERPRINT = {
   // The series bible without its own approval stamp (approving writes `approved` into series.json, 2026-10-19),
@@ -63,7 +63,7 @@ export const FINGERPRINT = {
   concept: (sl) => sha(fs.existsSync(path.join(dir(sl), "concept.md")) ? fs.readFileSync(path.join(dir(sl), "concept.md"), "utf8") : null),
   script: (sl) => sha(kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
   cast: (sl) => sha(castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null])),
-  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res }),
+  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res, ...(sl.angles ? { angles: sl.angles } : {}) }),
   retro: () => "retro",
 };
 
@@ -99,7 +99,7 @@ function castCheck(sl) {
     const d = path.join(P.BIBLE, "characters", id);
     if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
   }
-  // LOOK TEST (2026-10-19, The Toast: the realism problem was only seen after the video money was spent). A drama's
+  // LOOK TEST (2026-10-19, a past drama: the realism problem was only seen after the video money was spent). A drama's
   // cast is complete only when the creator approved, in his words, one still of the leads in the set at the episode's light,
   // before any storyboard or video: studio.mjs approve-look <slug> --file <image> --said "...".
   if (FORMATS[sl.format]?.needsScore && !(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('falta la prueba de look: una foto de los protagonistas en el set con la luz del episodio (gen.mjs still --project), aprobada con studio.mjs approve-look <slug> --file <imagen> --said "..."');
@@ -110,7 +110,7 @@ function radioCheck(sl) {
   return sl.radio?.pass ? ok(`radio cut ${sl.radio.length ?? ""} s`) : no(sl.radio ? `ritmo: ${(sl.radio.problems || []).join("; ")}` : "sin radio cut (radio.mjs)");
 }
 
-// DRAMA RULES (2026-10-19, after The Secret Heiress and The Toast: two rejected episodes; rules from AI micro-drama
+// DRAMA RULES (2026-10-19, after a past drama and a past drama: two rejected episodes; rules from AI micro-drama
 // production research and our own realistic wins, The Glow Up and Two Suitcases). What reliably works with today's
 // video models, enforced before the book so no money goes to a plan that can't come out realistic:
 //  - at most 2 characters in any shot, at most 3 shots per generation, one action per shot;
@@ -145,7 +145,7 @@ export function dramaRules(sl) {
       // Eye-level camera on dialogue: extreme angles are where faces drift.
       if (speaks && EXTREME.test(`${s.framing || ""} ${s.camera || ""}`)) out.push(`${s.id}: ángulo extremo en un plano con diálogo (mantén la cámara a la altura de los ojos)`);
     }
-    // Dialogue filmed one shot per generation re-invents the voice, light and gestures every shot (The Toast with Kling).
+    // Dialogue filmed one shot per generation re-invents the voice, light and gestures every shot (a past drama with Kling).
     if (sl.filmBy === "shot" && !sl.filmByShotOk && shots.filter((s) => (s.dialogue || []).length).length > 1) out.push(`escena ${sc.id}: varios planos con diálogo filmados uno por uno (la voz y la luz cambian entre planos); fílmala como una sola generación multi-plano`);
   }
   // The hook: the first line is heard by 3 s, and the episode never opens on an establishing shot.
@@ -154,8 +154,11 @@ export function dramaRules(sl) {
   if (t > 3) out.push(`el primer diálogo llega a los ${t} s (el conflicto tiene que oírse antes de 3 s)`);
   const first = P.sceneShots(sl, (sl.scenes || [])[0] || { shots: [] })[0];
   if (first && /establishing/i.test(`${first.framing || ""} ${first.image || ""}`)) out.push(`${first.id}: el episodio abre con un plano de ubicación (abre en el conflicto)`);
-  // Length: AI episodes hold up best at 25-90 s (measured on the radio cut).
-  if (sl.radio?.length && (sl.radio.length < 25 || sl.radio.length > 90)) out.push(`episodio de ${sl.radio.length} s en el radio cut (rango 25-90 s)`);
+  // Length (measured on the radio cut): within 20% of the length the creator asked for in the intake, never under 15 s or
+  // over 90 s (AI episodes hold up best short). Without an intake length: 25-90 s.
+  const want = sl.intake?.platform?.seconds;
+  const [lo, hi] = want ? [Math.max(15, want * 0.8), Math.min(90, want * 1.25)] : [25, 90];
+  if (sl.radio?.length && (sl.radio.length < lo || sl.radio.length > hi)) out.push(`episodio de ${sl.radio.length} s en el radio cut (rango ${Math.round(lo)}-${Math.round(hi)} s${want ? `, pedido ${want} s` : ""})`);
   return out;
 }
 const VAGUE = /\b(cinematic|stunning|epic|8k|4k|masterpiece|breathtaking|gorgeous|award[- ]winning|ultra[- ]realistic|hyper[- ]detailed)\b/i;
@@ -165,13 +168,19 @@ function boardCheck(sl) {
   const k = kindOf(sl), bad = [];
   if (k === "scenes") {
     for (const sc of sl.scenes || []) if (!exists(sl, sc.grid)) bad.push(`escena ${sc.id} sin storyboard`);
+    // One locked close-up angle per person with singles in more than one scene, made before the grids
+    // (2026-10-20, a past drama: the doctor's background changed in every scene).
+    const angles = P.anglesNeeded(sl);
+    for (const id of angles) if (!fs.existsSync(P.angleFile(sl, id) || "")) bad.push(`${P.character(id).name} sin plano de ángulo fijo para sus close-ups (gen.mjs angles)`);
+    if (angles.length && angles.every((id) => fs.existsSync(P.angleFile(sl, id) || "")))
+      for (const sc of sl.scenes || []) if (sc.grid && sc.gridAngles !== JSON.stringify(sl.angles || {})) bad.push(`storyboard de la escena ${sc.id} hecho sin los planos de ángulo actuales (gen.mjs storyboard --scenes ${sc.id})`);
     if (!(sl.scenes || []).length) bad.push("sin escenas");
     const pc = planCheck(sl);
     if (pc.problems.length) bad.push(`plan de continuidad: ${pc.problems.join("; ")}`);
     for (const sc of sl.scenes || []) {
       // Marks are checked on the same cast job() checks at filming: the scene's cast plus anyone its prompt names.
       try { const pr = P.scenePrompt(sl, sc, P.sceneRefs(sl, sc)); const prText = typeof pr === "string" ? pr : JSON.stringify(pr); const miss = missingMarks(prText, [...new Set([...P.sceneCast(sl, sc), ...castOf(sl, prText)])]); if (miss.length) bad.push(`prompt de ${sc.id} sin ${miss.join(", ")}`); } catch {}
-      // REFERENCE CHECK (2026-10-19, Clara's gown changed color twice, $2.52): every character in a scene must reach
+      // REFERENCE CHECK (2026-10-19, a character's gown changed color twice, $2.52): every character in a scene must reach
       // the model with a face view AND a full-body view (the wardrobe), or the book can't be built.
       try {
         const refs = P.sceneRefs(sl, sc);
@@ -208,7 +217,7 @@ function boardCheck(sl) {
   return bad.length ? no(bad.join("; ")) : ok("storyboard y prompts revisados");
 }
 
-// FORMAT READINESS (2026-10-19, The Secret Heiress): a format whose editor can't finish it (a drama with no score,
+// FORMAT READINESS (2026-10-19, a past drama): a format whose editor can't finish it (a drama with no score,
 // no stings, no swell) was filmed anyway and came out as a dry, unusable cut. A format with `editMissing` stops here,
 // before the prices and the book, until the editor can do it. No spend on a video the engine can't finish.
 export const editReady = (sl) => !FORMATS[sl.format]?.editMissing;
@@ -362,7 +371,7 @@ export function requireStep(sl, step, what = step) {
   if (r.indexOf(step) >= r.indexOf("film") && sl.budget?.approvedCredits == null) throw new FlowStop(`"${what}": no hay presupuesto aprobado (se fija al aprobar el Production Book)`);
 }
 
-// PILOT GATE (2026-10-19, The Secret Heiress: six scenes were filmed at once on a model never used in production;
+// PILOT GATE (2026-10-19, a past drama: six scenes were filmed at once on a model never used in production;
 // the timing, the sound and a wardrobe bug only showed up after every credit was spent). After the book, only the
 // first scene (scenes formats) or first shot (clips formats) can be filmed. the creator watches it and approves it in his
 // words (studio.mjs approve-pilot) before anything else is filmed. A bad pilot costs one scene, not the episode.

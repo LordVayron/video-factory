@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.4.0, 2026-10-20: micro-dramas that hold together
+
+Everything learned shipping the landing's micro-drama sample, *Not the Father*, is now a gate or a check in code.
+
+- **Coverage angles.** Anyone with close-ups in more than one scene gets one locked angle frame (`gen.mjs angles <slug>`) before the storyboards: the exact framing and background of all their close-ups. The board step refuses missing angles, or grids drawn before them; every storyboard and scene with that person's close-up gets the angle as a reference.
+- **Backgrounds across the whole film.** `studio.mjs qc` compares every close-up's background across scenes and fails a different wall, window or set dressing behind the same person. Inside a take, a fixed-camera shot whose background changes fails continuity, and a drift only in a silent tail is trimmed and judged again automatically.
+- **Speaking rate per model.** Every cut records the video model's measured words per minute (`engine/data/speech-rates.json`). `studio.mjs prices` shows it and won't recommend a model measured over 175 wpm for a speaking format; `approve-pilot` stops on a fast pilot unless the creator accepts the rate (`--ok-fast`).
+- **Radio cut.** A read that is too fast re-voices itself slower at the source (ElevenLabs speed, multilingual v2), step by step; tempo under 0.85 is refused (it sounds like slow motion); silent reactions keep their planned length on reruns; the length range follows the intake.
+- **VOICE REF STOP.** A voice sample that speaks a line of the script is refused: the video model repeats what it hears.
+- **Drama rules** before the book (bright light, two people per shot, no hand-object beats, hook by 3 s, short shots and reactions, eye-level dialogue, 25-90 s), a look-test gate at casting, structured JSON specs per shot, native lip-synced voices by default outside the sitcom.
+- A passing continuity take becomes the scene's chosen take; a QC score no longer reopens an approved book.
+
 ## 2.3.0, 2026-10-19: pilot gate and format readiness
 
 - **Pilot gate:** after the Production Book only the first scene or shot can be filmed; the creator watches it and approves it in their words (`studio.mjs approve-pilot <slug> --said "..."`) before the rest is filmed. A bad pilot costs one scene, not the episode.

@@ -18,7 +18,7 @@ export function planCheck(sl) {
   let state = null;
   for (const sc of sl.scenes || []) {
     if (!sc.seats) { problems.push(`scene ${sc.id}: no "seats" (where each character is at the start of the scene)`); continue; }
-    // POSE PLAN (2026-10-19, The Toast pilot: Ivy stood in one shot and sat in the next): outside the sitcom every
+    // POSE PLAN (2026-10-19, a past drama pilot: a character stood in one shot and sat in the next): outside the sitcom every
     // character's pose is planned (seats.<char>.pose: standing | seated) and only a shot with moves can change it.
     if (sl.format !== "sitcom") for (const [id, p] of Object.entries(sc.seats)) if (!p.pose) problems.push(`scene ${sc.id}: ${character(id).name} has no pose (seats.${id}.pose: standing | seated)`);
     // A scene marked timeJump ("the next morning") starts fresh: nobody has to be shown moving across the cut.

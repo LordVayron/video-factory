@@ -1,0 +1,7 @@
+{
+  "_note": "Measured speaking rate (median words per minute per line) of each video model's native lip-synced voices, written by edit.mjs on every cut outside the sitcom. studio.mjs prices won't recommend a model that speaks faster than the format allows, and approve-pilot stops on a fast pilot.",
+  "wan3-prime": [
+    { "slug": "a past drama", "wpm": 191, "at": "2026-10-19" },
+    { "slug": "a past drama", "wpm": 204, "at": "2026-10-20" }
+  ]
+}

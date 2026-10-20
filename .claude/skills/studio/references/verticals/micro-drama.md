@@ -1,6 +1,6 @@
 # Vertical DNA: micro-drama (vertical "novela" series for TikTok, Reels and Shorts)
 
-Serialized melodrama in short vertical episodes: secret identities, betrayal, revenge, forbidden love. **Conflict on screen in the first seconds, one power shift per scene, and an ending that cuts at maximum unresolved tension.** Rewritten 2026-10-19 from AI micro-drama production research and from two rejected episodes of ours (The Secret Heiress, The Toast). The engine enforces the hard rules (`lib/flow.mjs` dramaRules, the pilot gate, the format check); this file is how to write and plan inside them.
+Serialized melodrama in short vertical episodes: secret identities, betrayal, revenge, forbidden love. **Conflict on screen in the first seconds, one power shift per scene, and an ending that cuts at maximum unresolved tension.** Rewritten 2026-10-19 from AI micro-drama production research and from the studio's own rejected and shipped episodes. The engine enforces the hard rules (`lib/flow.mjs` dramaRules, the pilot gate, the format check); this file is how to write and plan inside them.
 
 ## What the format is
 
@@ -10,7 +10,7 @@ Serialized melodrama in short vertical episodes: secret identities, betrayal, re
 - **Button / cliffhanger:** cut at maximum unresolved tension, 2–4 s before the "comfortable" moment. Four kinds: partial revelation, reversal setup, intrusion, deadline. Rotate identity / emotion / realization hooks across episodes.
 - **Scenes:** 2–4 per episode, one or two locations. Every scene has exactly one power shift (X has power, Y takes it).
 - **Dialogue:** 180–360 words per 90 s at ~3 words/second. Short, quotable, spoken. One line under ~20 words; under two sentences per shot. Cut dialogue that explains what the viewer already knows.
-- **Logic check:** every line must make sense once the twist is known (The Toast: the fiancé said "Grace, I can explain" to the bride who had paid him; it contradicted the ending). Read the script backwards from the twist before approving it.
+- **Logic check:** every line must make sense once the twist is known (a past drama had the groom apologise to the bride who had secretly paid him; it contradicted the ending). Read the script backwards from the twist before approving it.
 
 ## What today's video models can and can't do (enforced)
 
@@ -20,7 +20,7 @@ Serialized melodrama in short vertical episodes: secret identities, betrayal, re
 | One action per shot, eye-level camera, slow push-ins | Compound actions, extreme angles (identity drifts) |
 | Objects already in hand | Hand-object work: placing, picking up, tearing, signing, pouring, tapping a glass |
 | Motion implied by cuts | Running, slapping, falling, door slams, fights |
-| Bright natural light: daylight, window light, bright practical interiors | Night, candlelight, neon, low key: it reads "AI" and "shady" (the creator). Allowed only with `sl.lowLightOk` in the creator's words |
+| Bright natural light: daylight, window light, bright practical interiors | Night, candlelight, neon, low key: it reads "AI" and "shady" (the creator, after a rejected episode). Allowed only with `sl.lowLightOk` in the creator's words |
 | 2–3 shots per generation, 10–15 s | 4+ shots per generation; quality degrades after ~15–30 s |
 | Lines that fit the shot (~3 words/s: 3 s = 4–6 words, 5 s = 8–12) | Long monologues: lip sync breaks |
 
@@ -29,12 +29,15 @@ Serialized melodrama in short vertical episodes: secret identities, betrayal, re
 1. **Script** as scenes of 2–3 shots, each shot: framing, one action, one line in quotes with its tone. Nothing in it the table above calls a failure.
 2. **Cast:** each lead gets a neutral-pose sheet (front, three-quarter, profile, full body) in the episode's light, plus a designed voice. Write a **constraint card** per character (age, hair, wardrobe colour, marks): the same words go into every prompt.
 3. **Set:** one plate per location, **lit bright and natural**, and one **lighting line** pasted verbatim into every scene of that location (e.g. "soft overcast daylight from the tall window on the left, neutral white balance").
+3b. **Coverage angles (engine-enforced, `gen.mjs angles`):** one locked close-up frame per person who has close-ups in more than one scene: the exact framing and background of all their close-ups. Made before the storyboards; every grid and every scene with that person's close-up gets it as a reference, and the final QC compares every close-up's background across scenes. Without it each scene invents its own reverse angle (in a past drama the doctor had a window behind him, then a wall of frames, then a chair).
 4. **Look test first (cents):** one still of the leads in the set at the episode's light. If it doesn't read as a real photo to the creator, nothing else gets made.
 5. **Model:** dialogue scenes on a model with native lip sync and character references in one multi-shot pass (Seedance 2 family with the sheets and the voice samples as references). One shot per generation (Kling, Veo first-frame) only for single-character inserts: every separate generation re-invents the voice and the light.
 6. **Prompt template per scene** (the engine builds it: `P.scenePrompt`, with a JSON spec per shot):
    `[character constraint cards] [location + lighting line] Shot 1 [0–4s]: framing, camera, one action. NAME (tone): "line". Shot 2 [4–8s]: … Audio: room tone, no music. Must not: …`
    Name the light source and its side, a 35 mm or 50 mm lens, eye level, natural skin texture; spend words on verbs and concrete details, never on "cinematic, stunning, 8k".
 7. **Pilot:** the first scene only (the engine allows nothing else until the creator approves it), edited with score and stings, judged on a phone.
+7a. **Speaking rate:** the engine records each model's measured wpm (`engine/data/speech-rates.json`); prices won't recommend a model measured over 175 wpm for a drama, and `approve-pilot` stops on a fast pilot unless the creator accepts the rate (`--ok-fast`). The radio cut slows its own voices step by step; continuity trims a drift in a silent tail by itself.
+7b. **Voice references never speak the script** (VOICE REF STOP): Wan repeats what the sample says. Record samples with neutral text (`gen.mjs sample <id> --text "..."`).
 8. **Edit:** hard cuts only; trim the wobbly first and last fraction of each generation; hold a reaction to its peak, never past it; ambient room tone under every line; a score bed ducked under dialogue, a sting on each power shift landing on the punchline, a swell into the final freeze; captions large, in the safe zone, timed on the final track. Keep the take's own voice (the one in sync with the lips); a re-voice only if the lip-sync check passes.
 
 ## Cost guide (Kie live prices, 2026-10-19)
@@ -63,5 +66,6 @@ Add ~$0.50 for sheets, plate, look test, boards and score. A realistic, cheap ep
 
 ## Lessons that cost money
 
-- **The Secret Heiress (2026-10-19, $10.31, rejected):** six scenes filmed at once on an untested model; wardrobe drifted because scenes only sent face crops; the editor had no score; night foyer. Gates added: pilot, format readiness, full-body references.
-- **The Toast (2026-10-19, $5.98, rejected):** candlelit night (dark, orange, "AI"); 3 characters in shots; hand-object beats (ring, glass); Kling per-shot invented a gesture and a cut; re-voice drifted 1 s from the lips; a line that contradicted the twist. Rules added: dramaRules (light, people per shot, hands, motion, words per second), lip-sync check, native voices by default, logic check.
+- **A melodrama pilot (rejected, ~$10):** six scenes filmed at once on an untested model; wardrobe drifted because scenes only sent face crops; the editor had no score; night foyer. Gates added: pilot, format readiness, full-body references.
+- **A dinner-party drama (rejected, ~$6):** candlelit night (dark, orange, "AI"); 3 characters in shots; hand-object beats (ring, glass); Kling per-shot invented a gesture and a cut; re-voice drifted 1 s from the lips; a line that contradicted the twist. Rules added: dramaRules (light, people per shot, hands, motion, words per second), lip-sync check, native voices by default, logic check.
+- **Not the Father (the landing's micro-drama sample, $4.32 of a $5 cap, published):** bright office, two people, close-ups: it looked real. But each scene opened on its own storyboard and the model invented the reverse angle, so each person's background changed every scene; the voice samples spoke script lines and the model repeated them; Wan 3.0 Prime spoke ~204 wpm; the camera crept wider at the end of two takes. Rules added: coverage angles + cross-scene background check, VOICE REF STOP, measured speaking rate per model (prices and pilot gate), automatic silent-tail trim, radio cut that slows its own voices.

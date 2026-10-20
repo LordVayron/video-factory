@@ -24,8 +24,9 @@ import { ROOT } from "./lib/env.mjs";
 import * as P from "./lib/project.mjs";
 import * as F from "./lib/flow.mjs";
 import { identityCheck } from "./lib/identity.mjs";
+import { backgroundCheck } from "./lib/backgrounds.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
-import { livePrices, videoOptions, recommend, newFamilies, QUALITY } from "./lib/pricing.mjs";
+import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm } from "./lib/pricing.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -176,7 +177,12 @@ const commands = {
   // The pilot gate (lib/flow.mjs): the creator approves the first filmed scene or shot before the rest is filmed.
   "approve-pilot"() {
     const slug = pos[0], said = flag("--said");
-    if (!slug || !said) throw new F.FlowStop('approve-pilot <slug> --said "palabras exactas del creador"');
+    if (!slug || !said) throw new F.FlowStop('approve-pilot <slug> --said "palabras exactas del creador" [--ok-fast]');
+    // The pilot draft must speak at the format's pace, or the creator must accept the measured rate in so many words
+    // (2026-10-20, a past drama: the pilot ran 204 wpm, the rest was filmed on the same model, and the final failed on it).
+    const dq = (() => { try { return JSON.parse(fs.readFileSync(path.join(P.projectDir(slug), "out", "draft-qc.json"), "utf8")); } catch { return null; } })();
+    if (dq?.maxWpm && dq.wpm > dq.maxWpm && !argv.includes("--ok-fast"))
+      throw new F.FlowStop(`el piloto habla a ${dq.wpm} wpm (máximo ${dq.maxWpm}) en ${dq.model}. Dile al creador ese número y las opciones (otro modelo para el piloto, o aceptarlo); solo con su sí explícito al ritmo: --ok-fast`);
     F.approvePilot(slug, said);
     console.log(`piloto aprobado con las palabras del creador; ya se puede filmar el resto (gen.mjs scenes / clip)`);
   },
@@ -218,7 +224,9 @@ const commands = {
     const options = videoOptions(live.rows, { format: sl.format, kind, seconds: secs, clips });
     if (!options.length) throw new F.FlowStop("ningún modelo del motor aparece en los precios en vivo; revisa engine/lib/pricing.mjs");
     const baseline = kind === "longform" ? sl.longform?.videoModel : (() => { try { return P.style(sl.style).models?.video; } catch { return null; } })();
-    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline });
+    // Speaking formats outside the sitcom are held to the edit's 175 wpm: a model measured faster is not recommended.
+    const maxWpm = kind !== "longform" && sl.format !== "sitcom" ? 175 : null;
+    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm });
     const want = flag("--pick");
     const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
     if (!pick) throw new F.FlowStop(`--pick ${want} no está entre las opciones: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
@@ -229,7 +237,8 @@ const commands = {
       else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
     });
     console.log(`Precios en vivo de Kie${live.fetched ? " (recién descargados)" : ` (de hace ${live.ageH.toFixed(1)} h)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
-    for (const o of options) console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)}  ${o.note}`);
+    for (const o of options) { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (rápido)" : ""}  ` : ""}${o.note}`); }
+    if (maxWpm && measuredWpm(pick.key) > maxWpm) console.log(`AVISO: ${pick.label} se midió hablando a ${measuredWpm(pick.key)} wpm (máximo ${maxWpm}); díselo al creador antes del book.`);
     console.log(`\nRecomendado (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Elegido: ${pick.label} ${pick.res}${want ? " (elección del creador)" : ""}.`);
     if (fresh.length) console.log(`Modelos en Kie que el motor aún no usa: ${fresh.join(", ")}. Si alguno promete más calidad o menos costo para este formato, propón probarlo.`);
     console.log("Muestra esta tabla al creador; queda también en el Production Book.");
@@ -262,6 +271,11 @@ const commands = {
       // Faces and marks across every cut, against each character's locked anchor.
       const cast = F.castIds(sl).filter((id) => { try { return P.character(id).species !== "set"; } catch { return false; } });
       if (cast.length) { const r = await identityCheck(file, cast); report.identity = { pass: r.pass, issues: r.issues, notes: r.notes }; issues.push(...r.issues); }
+      // Outside the sitcom: every close-up of a person keeps one background across all scenes (a past drama, 2026-10-20).
+      if (sl.format !== "sitcom" && cast.length && (sl.scenes || []).length > 1) {
+        try { const b = await backgroundCheck(file, sl, cast); report.backgrounds = b; issues.push(...b.issues); }
+        catch (e) { issues.push(`no se pudo revisar los fondos entre escenas: ${e.message.slice(0, 120)}`); }
+      }
     }
     // The 4 fps contact sheet (thumbnails for the whole cut). Identity is checked above at full resolution.
     const sheet = path.join(dir, "out", `${slug}-sheet.jpg`);
