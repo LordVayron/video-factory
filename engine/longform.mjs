@@ -17,6 +17,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import * as P from "./lib/project.mjs";
 import { getModel, usd } from "./lib/models.mjs";
 import { requireStep, FlowStop, fileSha, takesSig } from "./lib/flow.mjs";
+import { INTENTS, isDemo, voicePace, youtubePackage, motionScore, MIN_MOTION } from "./lib/meditation.mjs";
 
 const argv = process.argv.slice(2);
 const [cmd, slug] = argv;
@@ -33,6 +34,9 @@ const TEMPLATE = (title, minutes, lang, ar) => ({
   slug, title, format: "longform", lang, ar, phases: {}, shots: [],
   longform: {
     minutes,
+    intent: "", // sleep | anxiety | higher-self | manifestation | morning | self-love | breathwork | focus (lib/meditation.mjs)
+    premise: "", // the meditation in one sentence; every scene shows a part of it (premiseLink)
+    demo: false, seconds: 25, // demo: a 15-30 s preview (landing, Shorts, trailer) with a short lead-in and fades
     look: "Soft painterly light, calm muted palette, gentle depth, high detail.",
     imageModel: "gpt2.5", imageSize: "2K", videoModel: "sd2-mini", res: "720p", output: "1080p",
     crossfade: 8,
@@ -73,12 +77,14 @@ const frames = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-select_st
 //    cross-faded into the head (output length L - d, and its last frame is exactly its first).
 //  - kenburns: a slow sinusoidal zoom on the still; one full period, so the end meets the start.
 function loopUnit(sc, dir, W, H, draft) {
-  const out = path.join(dir, `unit-${sc.id}-${W}x${H}${draft ? "-draft" : ""}.ts`);
+  // Cached per source clip: a re-made loop must never be built from the old unit (2026-10-20, Midnight Lake).
+  const src = path.basename(sc.motion === "kenburns" ? sc.image || "still" : sc.clip || sc.image || "still").replace(/\.\w+$/, "");
+  const out = path.join(dir, `unit-${sc.id}-${src}-${W}x${H}${draft ? "-draft" : ""}.ts`);
   if (fs.existsSync(out) && !has("--rebuild")) return out;
   const cover = `scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H},setsar=1`;
   const clip = sc.clip && fs.existsSync(P.abs(slug, sc.clip)) ? P.abs(slug, sc.clip) : null;
   if (clip && sc.motion !== "kenburns") {
-    const L = dur(clip), d = Math.min(1.2, L / 4);
+    const L = dur(clip), d = Math.min(2, L / 4); // a free-moving clip needs a longer cross-fade to hide its seam
     ff(["-i", clip, "-filter_complex",
       `[0:v]fps=${FPS},${cover},split[a][b];[a]trim=${d}:${L},setpts=PTS-STARTPTS[main];[b]trim=0:${d},setpts=PTS-STARTPTS[head];` +
       `[main][head]xfade=transition=fade:duration=${d}:offset=${(L - 2 * d).toFixed(3)}[v]`,
@@ -128,19 +134,19 @@ function pieces(n, s, vis) {
   return out;
 }
 
-function renderPicture(units, totalF, x, weights, dir, draft) {
+function renderPicture(units, totalF, x, weights, dir, draft, fades = { in: 3, out: 6 }) {
   const { n, plan } = picturePlan(units, totalF, x, weights);
   const list = [];
   let idx = 0;
   const part = (args) => { const f = path.join(dir, `piece-${String(idx++).padStart(4, "0")}.ts`); ff([...args, ...venc(draft), f]); return f; };
-  const fadeIn = `fade=t=in:d=3`;
+  const fadeIn = `fade=t=in:d=${fades.in}`;
   plan.forEach(({ k, s, vis }, i) => {
     const ps = pieces(n[k], s, vis);
     let t = 0;
     ps.forEach((p, j) => {
       const len = p.full ? n[k] : p.b - p.a;
       const first = i === 0 && j === 0, last = i === plan.length - 1 && j === ps.length - 1;
-      const fx = [first ? fadeIn : null, last ? `fade=t=out:st=${Math.max(0, len / FPS - 6).toFixed(3)}:d=${Math.min(6, len / FPS).toFixed(3)}` : null].filter(Boolean);
+      const fx = [first ? fadeIn : null, last ? `fade=t=out:st=${Math.max(0, len / FPS - fades.out).toFixed(3)}:d=${Math.min(fades.out, len / FPS).toFixed(3)}` : null].filter(Boolean);
       if (p.full && !fx.length) list.push(units[k]);
       else list.push(part(["-i", units[k], "-vf", [p.full ? null : `trim=start_frame=${p.a}:end_frame=${p.b}`, "setpts=PTS-STARTPTS", ...fx].filter(Boolean).join(",")]));
       t += len;
@@ -163,7 +169,8 @@ function voiceTrack(L, dir, maxLen) {
     .filter((s) => s.text?.trim());
   const missing = segs.filter((s) => !fs.existsSync(s.file));
   if (missing.length) throw new Error(`${missing.length} narration segment(s) missing: node engine/gen.mjs narration ${slug}`);
-  const lead = L.leadIn ?? 20;
+  // A demo starts speaking by ~2 s (the first 3 s decide a preview); a full piece lets the music settle first.
+  const lead = L.leadIn ?? (isDemo(L) ? 1.5 : 20);
   if (!segs.length) return { file: null, end: lead, cues: [] };
   // Place every segment (a --sample stops once the timeline passes maxLen).
   let t = lead;
@@ -213,20 +220,35 @@ function build() {
   fs.mkdirSync(dir, { recursive: true });
 
   const vo = voiceTrack(L, dir, sample || 0);
-  const natural = vo.end + (L.tail ?? 30);
-  const total = sample || Math.max(natural, (L.minutes || 0) * 60);
+  const demo = isDemo(L);
+  const natural = vo.end + (L.tail ?? (demo ? 4 : 30));
+  const total = sample || (demo ? Math.max(natural, L.seconds || 0) : Math.max(natural, (L.minutes || 0) * 60));
+  const fades = demo ? { in: 1.5, out: 3, audioIn: 1.5, audioOut: 3 } : { in: 3, out: 6, audioIn: 4, audioOut: 10 };
+  // Dark screen (sleep): the picture fades to black at darkAfter minutes and stays black; the sound carries on.
+  const darkAt = !sample && !demo && L.darkAfter != null ? Math.min(total, L.darkAfter * 60) : null;
   const bed = musicBed(L, dir);
   if (!bed && !vo.file) throw new Error("nothing to hear: generate the music bed (gen.mjs bed) and/or the narration");
 
   // Picture: scenes share the running time in order (or by `weight`), joined with slow cross-fades.
   const scenes = L.scenes || [];
   if (!scenes.length) throw new Error("longform.scenes is empty");
+  // A loop that doesn't move reads as a still picture (2026-10-20, Midnight Lake: motion 0.09 shipped as a draft).
+  for (const sc of scenes) {
+    if (sc.motion === "kenburns" || !sc.clip || sc.staticOk) continue;
+    const m = sc.motionScore ?? motionScore(P.abs(slug, sc.clip));
+    if (m < MIN_MOTION) throw new FlowStop(`LOOP STATIC: la escena ${sc.id} casi no se mueve (${m}, mínimo ${MIN_MOTION}); se ve como una foto. Rehaz el loop (gen.mjs loops ${slug} --redo con el sí del creador) o sc.staticOk con sus palabras`);
+  }
   const units = scenes.map((sc) => loopUnit(sc, dir, W, H, draft));
-  const totalF = Math.round(total * FPS);
+  const totalF = Math.round((darkAt ?? total) * FPS);
   const minUnit = Math.min(...units.map(frames));
   const x = Math.max(FPS, Math.min(Math.round((L.crossfade ?? 8) * FPS), Math.floor(minUnit / 2), Math.floor(totalF / scenes.length / 3)));
   for (const f of fs.readdirSync(dir).filter((f) => f.startsWith("piece-"))) fs.rmSync(path.join(dir, f));
-  const pieceList = renderPicture(units, totalF, x, scenes.map((s) => s.weight || 1), dir, draft);
+  const pieceList = renderPicture(units, totalF, x, scenes.map((s) => s.weight || 1), dir, draft, darkAt != null ? { in: fades.in, out: 30 } : fades);
+  if (darkAt != null && total - darkAt > 0.5) {
+    const black = path.join(dir, "piece-black.ts");
+    ff(["-f", "lavfi", "-i", `color=c=black:s=${W}x${H}:r=${FPS}:d=${(total - darkAt).toFixed(3)}`, ...venc(draft), black]);
+    fs.appendFileSync(pieceList, `\nfile '${black.replace(/\\/g, "/")}'`);
+  }
   const picture = path.join(dir, "picture.ts");
   ff(["-f", "concat", "-safe", "0", "-i", pieceList, "-c", "copy", picture]);
 
@@ -247,7 +269,7 @@ function build() {
   } else {
     achain = `[${vIdx}:a]apad,atrim=0:${total},aformat=channel_layouts=stereo[mix];`;
   }
-  achain += `[mix]afade=t=in:d=4,afade=t=out:st=${(total - 10).toFixed(3)}:d=10,aresample=48000[aout]`;
+  achain += `[mix]afade=t=in:d=${fades.audioIn},afade=t=out:st=${(total - fades.audioOut).toFixed(3)}:d=${fades.audioOut},aresample=48000[aout]`;
   const mixWav = path.join(dir, "mix.wav");
   ff([...ain, "-filter_complex", achain, "-map", "[aout]", "-t", total.toFixed(3), mixWav]);
   // Loudness: measure the mix, then one linear gain plus a true-peak limiter (keeps the dynamics a meditation needs,
@@ -276,9 +298,16 @@ function build() {
   shots.forEach((f) => fs.rmSync(f, { force: true }));
 
   const qc = finalQc(out, audio, total, L, !!bed);
+  // The recorded voice against the intention's pace (2026-10-20: universal meditation engine).
+  const pace = voicePace(vo.cues, L.intent);
+  qc.wpm = pace.wpm;
+  qc.issues.push(...pace.issues);
+  if (demo && (total < 15 || total > 30)) qc.issues.push(`demo de ${total.toFixed(1)} s; un demo va de 15 a 30 s`);
+  qc.pass = !qc.issues.length;
+  if (!sample && !draft) fs.writeFileSync(out.replace(/\.mp4$/, "-youtube.md"), youtubePackage(sl, vo.cues));
   if (!sample && !draft) P.updateShotlist(slug, (x) => { x.finalQc = qc; x.longform.cues = vo.cues; x.cut = { sha: fileSha(out), takes: takesSig(x), at: qc.at }; });
   console.log(`${path.relative(process.cwd(), out)}\n${path.relative(process.cwd(), mp3)}\n${path.relative(process.cwd(), sheet)}`);
-  console.log(`QC ${qc.pass ? "PASS" : "FAIL"}: ${qc.minutes} min, ${qc.lufs} LUFS (target ${L.lufs ?? -16}), true peak ${qc.peak} dB, ${qc.silences.length} dead-air gap(s)${qc.issues.length ? "\n  - " + qc.issues.join("\n  - ") : ""}`);
+  console.log(`QC ${qc.pass ? "PASS" : "FAIL"}: ${qc.minutes} min, ${qc.lufs} LUFS (target ${L.lufs ?? -16}), true peak ${qc.peak} dB, ${qc.silences.length} dead-air gap(s)${qc.wpm ? `, voice ${qc.wpm} wpm` : ""}${qc.issues.length ? "\n  - " + qc.issues.join("\n  - ") : ""}`);
 }
 
 // Duration, loudness, true peak, and dead air (with a music bed there should never be 6 s of near silence).
@@ -336,7 +365,57 @@ function create() {
   console.log(`created projects/${slug}/ (shotlist.json with a long-form template, concept.md).\nEdit longform.scenes, music, voice and script, then: node engine/longform.mjs estimate ${slug}`);
 }
 
-const commands = { new: create, estimate, build };
+// The creator's own material (2026-10-20, Creador: "que yo pueda darte una idea, o la meditación escrita completa, y la
+// imagen; tú te encargas de la música y el resto"). A written meditation is kept word for word: it is only split
+// into breath-sized segments at sentence ends, and the pauses come from its own marks or from the intention.
+//   node engine/longform.mjs script <slug> --file meditation.txt     marks: a blank line = a longer pause; [pause 12] = 12 s
+//   node engine/longform.mjs image <slug> --file picture.png [--scene A]   the creator's picture becomes the loop's still
+function importScript() {
+  const file = flag("--file");
+  if (!slug || !file || !fs.existsSync(file)) throw new Error("usage: script <slug> --file meditation.txt");
+  const sl = P.loadShotlist(slug), L = sl.longform;
+  const I = INTENTS[L?.intent];
+  if (!I) throw new FlowStop(`pon primero longform.intent (${Object.keys(INTENTS).join(", ")}): las pausas salen de la intención`);
+  const raw = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim();
+  const mid = Math.round((I.pause[0] + I.pause[1]) / 2);
+  const segs = [];
+  for (const para of raw.split(/\n\s*\n/)) {
+    // sentences, then join short ones up to ~25 words so each segment is one or two breaths
+    const parts = para.replace(/\s*\n\s*/g, " ").split(/(\[pause\s+\d+(?:\.\d+)?\s*s?\])/i).filter((x) => x.trim());
+    let cur = "";
+    const push = (pause) => { if (cur.trim()) segs.push({ text: cur.trim(), pauseAfter: pause }); cur = ""; };
+    for (const part of parts) {
+      const m = part.match(/^\[pause\s+(\d+(?:\.\d+)?)/i);
+      if (m) { if (cur.trim()) push(Number(m[1])); else if (segs.length) segs.at(-1).pauseAfter = Number(m[1]); continue; }
+      for (const s of part.match(/[^.!?…]+(?:[.!?…]+|$)/g) || []) {
+        if ((cur + " " + s).trim().split(/\s+/).length > 25 && cur.trim()) push(I.pause[0]);
+        cur += " " + s.trim();
+      }
+    }
+    push(mid);
+  }
+  if (segs.length) segs.at(-1).pauseAfter = Math.max(segs.at(-1).pauseAfter, 4);
+  const norm = (t) => t.replace(/\[pause[^\]]*\]/gi, "").replace(/\s+/g, " ").trim();
+  if (norm(segs.map((s) => s.text).join(" ")) !== norm(raw)) throw new Error("the split changed the creator's words; nothing written");
+  P.updateShotlist(slug, (x) => { x.longform.script = segs; x.longform.scriptBy = "creator"; x.longform.scriptSource = norm(raw); });
+  const words = segs.reduce((n, s) => n + s.text.split(/\s+/).length, 0);
+  console.log(`${segs.length} segments, ${words} words, kept word for word (scriptBy: creator). Pauses from ${path.basename(file)} or ${I.label} (${I.pause[0]}-${I.pause[1]} s).`);
+}
+
+function importImage() {
+  const file = flag("--file"), id = flag("--scene", "A");
+  if (!slug || !file || !fs.existsSync(file)) throw new Error("usage: image <slug> --file picture.png [--scene A]");
+  const sl = P.loadShotlist(slug);
+  const sc = (sl.longform?.scenes || []).find((s) => s.id === id);
+  if (!sc) throw new Error(`no scene ${id} in longform.scenes`);
+  const dst = P.abs(slug, `loops/${id}-creator${path.extname(file).toLowerCase() || ".png"}`);
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.copyFileSync(file, dst);
+  P.updateShotlist(slug, (x) => { const s = x.longform.scenes.find((y) => y.id === id); s.image = P.rel(slug, dst); s.imageBy = "creator"; });
+  console.log(`scene ${id}: the creator's image is the loop's still (${P.rel(slug, dst)}); write its motion and premiseLink, then gen.mjs loops animates it`);
+}
+
+const commands = { new: create, estimate, build, script: importScript, image: importImage };
 try {
   if (!commands[cmd]) { console.log(fs.readFileSync(new URL(import.meta.url), "utf8").split("\n").slice(1, 15).map((l) => l.replace(/^\/\/ ?/, "")).join("\n")); process.exit(cmd ? 1 : 0); }
   commands[cmd]();

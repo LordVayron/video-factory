@@ -37,7 +37,7 @@ t("kie.run never resubmits after a timeout", kie.includes("/timed out/i.test(e.m
 
 // Real token shapes only (prefix plus a long body), so this file does not flag itself.
 const lf = fs.readFileSync(path.join(ROOT, "engine", "longform.mjs"), "utf8");
-t("long-form loops ask for first frame = last frame", fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("frame: url, lastFrame: url"));
+t("long-form loops start from the still only (same first and last frame froze the motion); the build hides the seam", !fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("frame: url, lastFrame: url") && fs.readFileSync(path.join(ROOT, "engine", "longform.mjs"), "utf8").includes("cross-fade to hide its seam"));
 t("long-form joins pieces by stream copy", lf.includes('"-f", "concat", "-safe", "0", "-i", pieceList, "-c", "copy"'));
 
 const secret = /(gh[opsu]_[A-Za-z0-9]{30,}|sk-ant-[A-Za-z0-9_-]{30,}|sk_[a-f0-9]{40,}|KIE_API_TOKEN=\s*[A-Za-z0-9]{16,}|ELEVENLABS_API_KEY=\s*[A-Za-z0-9_]{16,})/;

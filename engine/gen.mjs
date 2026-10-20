@@ -35,6 +35,7 @@ import * as P from "./lib/project.mjs";
 import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
 import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
+import { motionScore, MIN_MOTION } from "./lib/meditation.mjs";
 import * as eleven from "./lib/eleven.mjs";
 import { requireStep, requirePilot, assertV5, takeOk, kindOf, FlowStop } from "./lib/flow.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
@@ -643,9 +644,13 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       }
       if (sc.motion === "kenburns") return [still];
       const url = await kie.upload(still);
-      const prompt = `${sc.motion}. Slow, calm, continuous ambient motion only; the camera stays still; nothing enters or leaves the frame; the last frame matches the first frame exactly.`;
-      const [clip] = await job({ slug, modelKey: vidModel, req: { prompt, frame: url, lastFrame: url, ar: sl.ar || "16:9", res, duration: sc.seconds || 8, sound: false }, outBase: nextName(P.abs(slug, "loops"), `${sc.id}-loop`, ".mp4"), label: `${sc.id} loop`, ext: ".mp4" });
-      P.updateShotlist(slug, (x) => { x.longform.scenes.find((s) => s.id === sc.id).clip = P.rel(slug, clip); });
+      // First frame only: asked for the same first and last frame, Kling returned a frozen picture (2026-10-20,
+      // Midnight Lake, motion 0.09). The seam is hidden by longform.mjs, which cross-fades the tail into the head.
+      const prompt = `${sc.motion}. Clearly visible, slow, continuous ambient motion through the whole clip, from the first second to the last; the camera stays still; nothing enters or leaves the frame; no cuts.`;
+      const [clip] = await job({ slug, modelKey: vidModel, req: { prompt, frame: url, ar: sl.ar || "16:9", res, duration: sc.seconds || 8, sound: false }, outBase: nextName(P.abs(slug, "loops"), `${sc.id}-loop`, ".mp4"), label: `${sc.id} loop`, ext: ".mp4" });
+      const motion = motionScore(clip);
+      console.log(motion < MIN_MOTION ? `LOOP STATIC: ${sc.id} moves ${motion} (minimum ${MIN_MOTION}); it reads as a still picture, the build refuses it` : `${sc.id} loop motion ${motion}: pass`);
+      P.updateShotlist(slug, (x) => { const s = x.longform.scenes.find((y) => y.id === sc.id); s.clip = P.rel(slug, clip); s.motionScore = motion; });
       return [still, clip];
     }));
     console.log(`\nNext: node engine/longform.mjs build ${slug} --draft`);
@@ -684,7 +689,10 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     console.log(`→ narration: ${todo.length} segments, ${chars} ElevenLabs characters`);
     const settings = V.settings || { stability: 0.75, similarity_boost: 0.8, style: 0, use_speaker_boost: true, speed: 0.9 };
     report(await pool(todo, async (s) => {
-      await eleven.tts({ text: s.text, voice: V.eleven, model: V.model || "eleven_multilingual_v2", settings, seed: V.seed ?? null, out: s.out });
+      // "..." in a meditation script is a breath inside the line: ElevenLabs v2 ignores it, so it becomes a real
+      // break (2026-10-20, Midnight Lake: the narration ran 167 wpm on a sleep piece that asks for 80-100).
+      const spoken = (V.model || "eleven_multilingual_v2") === "eleven_v3" ? s.text : s.text.replace(/\s*(\.\.\.|…)\s*/g, `... <break time="${V.breath ?? (L.intent === "sleep" ? 1.3 : 0.8)}s" /> `).trim();
+      await eleven.tts({ text: spoken, voice: V.eleven, model: V.model || "eleven_multilingual_v2", settings, seed: V.seed ?? null, out: s.out });
       P.ledger(slug, { ok: true, label: `narration ${s.i + 1}`, model: "elevenlabs-direct", credits: 0, chars: s.text.length, files: [path.relative(ROOT, s.out)] });
       return [s.out];
     }));

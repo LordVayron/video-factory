@@ -5,6 +5,7 @@ import path from "node:path";
 import * as F from "../engine/lib/flow.mjs";
 import * as P from "../engine/lib/project.mjs";
 import * as PR from "../engine/lib/pricing.mjs";
+import * as MED from "../engine/lib/meditation.mjs";
 import { decide } from "./hooks/guard.mjs";
 import { videoOptions, recommend } from "../engine/lib/pricing.mjs";
 
@@ -120,6 +121,23 @@ export default function checkFlow(t, ROOT) {
         const opts = [{ key: "wan3-prime", q: 8, credits: 600, usd: 3 }, { key: "sd2-fast", q: 7, credits: 590, usd: 2.95 }];
         t("a model measured speaking too fast is not recommended for a speaking format", PR.measuredWpm("wan3-prime") > 175 && PR.recommend(opts, { format: "micro-drama", budget: { mode: "fixed", usd: 5 }, maxWpm: 175 }).key === "sd2-fast" && PR.recommend(opts, { format: "micro-drama", budget: { mode: "fixed", usd: 5 } }).key === "wan3-prime");
         t("every cut records the model's speaking rate, and a fast pilot needs the creator's explicit yes (--ok-fast)", engine("edit.mjs").includes("recordSpeechRate(sl.defaults?.videoModel") && engine("studio.mjs").includes('argv.includes("--ok-fast")'));
+        // Guided meditations (2026-10-20): one universal engine; the intention sets pace, pauses, music and safety.
+
+        const med = (o = {}) => ({ format: "meditation", longform: { intent: "sleep", premise: "Rain on a cabin window lets the day wash away.", demo: true, seconds: 25,
+          scenes: [{ id: "A", picture: "a dark cozy room, rain streaks on a window, a warm lamp reflected in the glass, no people, no text", motion: "raindrops slide slowly down the glass, steady drizzle", premiseLink: "the rain that washes the day away" }],
+          music: { prompt: "soft felt piano and warm pads, 62 bpm, instrumental, no vocals, no drums" },
+          script: [{ text: "Listen to the rain...", pauseAfter: 3 }, { text: "Let your shoulders soften... your jaw... your hands.", pauseAfter: 3 }, { text: "There's nowhere you have to be.", pauseAfter: 4 }], ...o } });
+        t("a well-planned sleep demo passes the meditation rules", MED.meditationRules(med()).length === 0);
+        const bad = MED.meditationRules(med({ intent: "sleep", premise: "", scenes: [{ id: "A", picture: "a woman looking at the camera with a title", motion: "fast zoom in" }], music: { prompt: "epic drums with vocals, 120 bpm" }, script: [{ text: "Breathe.", pauseAfter: 1 }, { text: "Now.", pauseAfter: 1 }] })).join(" | ");
+        t("meditation rules block a missing premise, faces or text, fast motion, wrong tempo, drums and vocals, short pauses", /premise/.test(bad) && /premiseLink/.test(bad) && /caras/.test(bad) && /rompe el loop/.test(bad) && /120 bpm/.test(bad) && /instrumental/.test(bad) && /pausa de 1 s/.test(bad));
+        t("the engine is universal: sleep, anxiety, higher self, manifestation, morning, self-love, breathwork, focus", ["sleep", "anxiety", "higher-self", "manifestation", "morning", "self-love", "breathwork", "focus"].every((k) => MED.INTENTS[k]?.wpm));
+        t("a full sleep piece needs its safety line; a dark screen only on pieces that don't return", /línea de seguridad/.test(MED.meditationRules(med({ demo: false, minutes: 1 })).join()) && /pantalla negra/.test(MED.meditationRules(med({ intent: "morning", darkAfter: 20, music: { prompt: "light piano, 80 bpm, instrumental, no vocals" } })).join()));
+        t("the creator's written meditation is locked word for word, and the creator's own image is not linted", /palabra por palabra/.test(MED.meditationRules(med({ scriptBy: "creator", scriptSource: "something else entirely" })).join()) && MED.meditationRules(med({ scriptBy: "creator", scriptSource: "Listen to the rain... Let your shoulders soften... your jaw... your hands. There's nowhere you have to be." })).length === 0 && MED.meditationRules(med({ scenes: [{ id: "A", picture: "a woman with a title", imageBy: "creator", motion: "mist drifts slowly", premiseLink: "the lake" }] })).length === 0);
+        t("a written meditation is imported word for word, split at sentence ends with the intention's pauses", engine("longform.mjs").includes("function importScript()") && engine("longform.mjs").includes("the split changed the creator's words") && engine("longform.mjs").includes("function importImage()"));
+        t("a loop is generated from its first frame only, measured for motion, and a frozen loop stops the build (LOOP STATIC)", !engine("gen.mjs").includes("frame: url, lastFrame: url") && engine("gen.mjs").includes("motionScore(clip)") && engine("longform.mjs").includes("LOOP STATIC") && MED.MIN_MOTION > 0);
+        t("narration turns '...' into real breath breaks, longer for sleep", engine("gen.mjs").includes('<break time="${V.breath ?? (L.intent === "sleep" ? 1.3 : 0.8)}s" />'));
+        t("the recorded narration is checked against the intention's pace", MED.voicePace([{ text: "one two three four five six seven eight nine ten", d: 3 }], "sleep").issues.length === 1 && MED.voicePace([{ text: "one two three four five", d: 3.3 }], "sleep").issues.length === 0);
+        t("long-form builds have a demo mode, a dark screen and a YouTube package, and the script gate runs the meditation rules", engine("longform.mjs").includes("isDemo(L) ? 1.5 : 20") && engine("longform.mjs").includes("piece-black.ts") && engine("longform.mjs").includes("-youtube.md") && fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("meditationRules(sl).length"));
         // The angle cycle on a real filmed drama (its cast and set from the bible), no spend: an angle frame reaches
         // the scene's refs and prompt. Runs where that project exists (the private studio).
         const realDrama = path.join(ROOT, "projects", ["drama", 3].join(""), "shotlist.json");

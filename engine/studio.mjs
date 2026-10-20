@@ -108,6 +108,8 @@ const commands = {
     }
     P.updateShotlist(slug, (sl) => {
       Object.assign(sl, { format, series, cast: chars, intake, flow: { v: 5, created: now(), approved: {}, overrides: [], log: [{ at: now(), event: "intake" }] } });
+      // A meditation of 30 s or less is a demo or preview (short lead-in and fades, voice by ~2 s).
+      if (format === "meditation" && intake.platform.seconds <= 30) Object.assign(sl.longform, { demo: true, seconds: intake.platform.seconds });
     });
     const sl = P.loadShotlist(slug);
     P.writeJSON(path.join(dir, "intake.json"), intake);

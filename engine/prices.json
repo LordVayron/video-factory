@@ -2457,42 +2457,6 @@
   "page": "https://kie.ai/omnihuman-1-5?model=omnihuman-1-5"
  },
  {
-  "model": "bytedance/seedance-1.5-pro, without audio-720p (service ends 2026-11-11)",
-  "type": "video",
-  "credits": 3.5,
-  "usd": 0.0175,
-  "unit": "per second",
-  "official": 0.026,
-  "page": "https://kie.ai/seedance-1-5-pro"
- },
- {
-  "model": "bytedance/seedance-1.5-pro, with audio-1080p (service ends 2026-11-11)",
-  "type": "video",
-  "credits": 15,
-  "usd": 0.075,
-  "unit": "per second",
-  "official": 0.12,
-  "page": "https://kie.ai/seedance-1-5-pro"
- },
- {
-  "model": "bytedance/seedance-1.5-pro, without audio-1080p (service ends 2026-11-11)",
-  "type": "video",
-  "credits": 7.5,
-  "usd": 0.0375,
-  "unit": "per second",
-  "official": 0.06,
-  "page": "https://kie.ai/seedance-1-5-pro"
- },
- {
-  "model": "bytedance/seedance-1.5-pro, with audio-720p (service ends 2026-11-11)",
-  "type": "video",
-  "credits": 7,
-  "usd": 0.035,
-  "unit": "per second",
-  "official": 0.052,
-  "page": "https://kie.ai/seedance-1-5-pro"
- },
- {
   "model": "Kling 3.0, video, with audio-4K",
   "type": "video",
   "credits": 67,
@@ -2500,24 +2464,6 @@
   "unit": "per second",
   "official": 0.42,
   "page": "https://kie.ai/kling-3-0"
- },
- {
-  "model": "bytedance/seedance-1.5-pro, with audio-480p (service ends 2026-11-11)",
-  "type": "video",
-  "credits": 3.5,
-  "usd": 0.0175,
-  "unit": "per second",
-  "official": 0.025,
-  "page": "https://kie.ai/seedance-1-5-pro"
- },
- {
-  "model": "bytedance/seedance-1.5-pro, without audio-480p (service ends 2026-11-11)",
-  "type": "video",
-  "credits": 1.75,
-  "usd": 0.00875,
-  "unit": "per second",
-  "official": 0.013,
-  "page": "https://kie.ai/seedance-1-5-pro"
  },
  {
   "model": "Claude-fable-5, chat, Output",
@@ -4326,24 +4272,6 @@
   "usd": 0.03,
   "unit": "per second",
   "official": 0.04,
-  "page": "https://kie.ai/wan-animate"
- },
- {
-  "model": "wan 2.2 Animate, 2.2 Animate Move, 1.0s-480p",
-  "type": "video",
-  "credits": 6,
-  "usd": 0.03,
-  "unit": "per second",
-  "official": 0.04,
-  "page": "https://kie.ai/wan-animate"
- },
- {
-  "model": "wan 2.2 Animate, 2.2 Animate Move, 1.0s-580p",
-  "type": "video",
-  "credits": 9.5,
-  "usd": 0.0475,
-  "unit": "per second",
-  "official": 0.06,
   "page": "https://kie.ai/wan-animate"
  },
  {

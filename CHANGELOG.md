@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.5.0, 2026-10-20: universal guided meditations
+
+Guided meditation videos for YouTube: a voice-over, a soundtrack and a looping image that shows the meditation's premise. Shipped as the landing's *Midnight Lake* preview.
+
+- **One engine, any intention.** `engine/lib/meditation.mjs` defines sleep, anxiety, higher self, manifestation, morning, self-love, breathwork and focus. Each intention sets the voice pace, pauses, voice share, music tempo, picture, ending and safety line. The script gate refuses a meditation without an intention and a premise, or a scene that doesn't show the premise. It also refuses faces or text in the picture, fast motion, off-tempo music, music with drums or vocals, and pauses that are too short.
+- **Bring your own material.** `longform.mjs script <slug> --file meditation.txt` keeps a written meditation word for word: it is split into breaths, and a blank line or `[pause 12]` sets the pauses. `longform.mjs image <slug> --file picture.png` animates your own picture. The music, voice, mix and loop are made for you.
+- **Voice pace that fits.** "..." in the script becomes a real breath break (longer for sleep), and the build measures the recorded voice against the intention.
+- **Loops that move.** Loops start from the still only, because asking for the same first and last frame froze the motion. Every loop's motion is measured, and a frozen one stops the build (**LOOP STATIC**).
+- **Demo mode** (15–30 s previews: voice by 1.5 s, short fades). **Dark screen** after N minutes for pieces that fade out. A **YouTube package** (`-youtube.md`) with a literal title, chapters and the AI note.
+- Build outputs no longer reopen an approved book; `studio.mjs new` turns a meditation of 30 s or less into a demo.
+- Landing: a wide CRT player for 16:9 tapes.
+
 ## 2.4.0, 2026-10-20: micro-dramas that hold together
 
 Everything learned shipping the landing's micro-drama sample, *Not the Father*, is now a gate or a check in code.

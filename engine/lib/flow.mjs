@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import * as P from "./project.mjs";
+import { meditationRules, intentOf } from "./meditation.mjs";
 import { missingMarks, castOf } from "./identity.mjs";
 import { planCheck } from "./state.mjs";
 
@@ -54,7 +55,7 @@ export function castIds(sl) {
 
 // Fingerprints: what an approval covers. Keys written by filming and evals are left out, so filming
 // does not reopen the plan; changing the script, the shots or the prompts does.
-const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "qcFlag", "plate", "cutOut", "muteOut"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
+const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "qcFlag", "plate", "cutOut", "muteOut", "cues", "motionScore"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
 const strip = (o) => JSON.parse(JSON.stringify(o ?? null, (k, v) => (RUNTIME.has(k) ? undefined : v)));
 export const FINGERPRINT = {
   // The series bible without its own approval stamp (approving writes `approved` into series.json, 2026-10-19),
@@ -310,7 +311,9 @@ export const STEPS = {
   intake: { name: "Intake", who: "auto", check: intakeCheck, next: "studio.mjs new (las 7 preguntas)" },
   series: { name: "Biblia de la serie", who: "creator", check: (sl) => (fs.existsSync(path.join(P.PROJECTS, "..", "series", sl.series || "-", "series.json")) ? ok() : no("sin series.json")), next: "studio.mjs series new, luego approve series" },
   concept: { name: "Concepto", who: "creator", check: (sl) => (fs.existsSync(path.join(dir(sl), "concept.md")) ? ok() : no("sin concept.md")), next: "escribe concept.md, luego approve concept" },
-  script: { name: "Guion", who: "creator", check: (sl) => (kindOf(sl) === "longform" ? ((sl.longform?.script || []).length || sl.longform?.voiceFree ? ok() : no("sin guion")) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), next: "escribe el guion en la shotlist, luego approve script" },
+  // Meditations: the intention's rules (pace, pauses, voice share, music tempo, picture, safety) block the script
+  // gate (2026-10-20: one universal engine for guided meditations, the intention only changes the numbers).
+  script: { name: "Guion", who: "creator", check: (sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("sin guion") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), next: "escribe el guion en la shotlist, luego approve script" },
   cast: { name: "Casting y sets", who: "creator", check: castCheck, next: "cast.mjs sheet / approve-character, luego approve cast" },
   radio: { name: "Radio cut", who: "auto", check: radioCheck, next: "radio.mjs" },
   board: { name: "Storyboard y prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (escenas) o gen.mjs frame (clips)" },

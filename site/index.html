@@ -304,6 +304,9 @@
   .tv-set { position: relative; width: min(440px, 88vw, calc((100vh - 190px) * .5625 + 52px)); padding: 26px 26px 64px; border-radius: 22px;
     background: linear-gradient(160deg, #3a332c, #1d1915 60%, #141110); box-shadow: inset 0 2px 0 rgba(255,255,255,.08), inset 0 -10px 30px rgba(0,0,0,.6), 0 40px 90px rgba(0,0,0,.8); animation: tvon .5s cubic-bezier(.2,.8,.2,1); }
   @keyframes tvon { from { transform: scale(.92) translateY(20px); opacity: 0 } }
+  /* Landscape tapes (16:9, e.g. a YouTube meditation) play on a wide set */
+  dialog.tv.wide .tv-set { width: min(980px, 94vw, calc((100vh - 190px) * 1.7778 + 52px)); }
+  dialog.tv.wide .screen { aspect-ratio: 16 / 9; }
   .screen { position: relative; border-radius: 16px / 22px; overflow: hidden; background: #000; box-shadow: inset 0 0 0 4px #0a0908, 0 0 0 3px #4a4138; aspect-ratio: 9 / 16; }
   .screen video { width: 100%; height: 100%; object-fit: cover; }
   /* While a sample plays, the screen shows the real file: no scanlines, vignette, colour filter or OSD on top. */
@@ -436,7 +439,7 @@
 <section class="sheet shelf" id="shelf" aria-label="Sample tapes">
   <div class="sec-title">
     <h2>One factory. Every genre.</h2>
-    <p>A 90s sitcom, an AI influencer, ads, dramas and hour-long meditations, all from the same studio. Press play on the first four tapes: every frame, voice and cut was made by the factory.</p>
+    <p>A 90s sitcom, an AI influencer, ads, dramas and hour-long meditations, all from the same studio. Press play on the first five tapes: every frame, voice and cut was made by the factory.</p>
   </div>
   <div class="slider reveal" id="slider" aria-roledescription="carousel" aria-label="Sample formats">
     <div class="slides">
@@ -460,15 +463,15 @@
         <div><p class="k">Format · Micro-drama · Now playing</p><h3>Not the Father</h3><p>A doctor tells a married woman her husband isn't the father. She already knows. She asks him to lie, and he refuses, until she tells him why. The hook lands in the first second and the twist in the last line, with every line lip-synced in the actors' own generated voices.</p>
           <dl><dt>Length</dt><dd>21 seconds, 9:16</dd><dt>Model</dt><dd>Wan 3.0 Prime, picked from live prices</dd><dt>Checked</dt><dd>Identity, continuity and dialogue on every take</dd></dl></div>
       </article>
-      <article class="slide" data-video="" aria-roledescription="slide" aria-label="5 of 6">
+      <article class="slide" data-video="media/midnight-lake.mp4" aria-roledescription="slide" aria-label="5 of 6">
+        <button class="art play-art" type="button" data-play data-src="media/midnight-lake.mp4" data-ar="16:9" data-poster="media/midnight-lake-poster.jpg" data-caption="Midnight Lake · Guided sleep meditation (preview)" aria-label="Play Midnight Lake, a 25-second preview of a guided sleep meditation"><img src="img/web/cover-meditation.jpg" width="1100" height="936" alt="VHS box and tape of Midnight Lake, a 30-minute sleep meditation: a full moon over a misty lake and a lit cabin."><span class="play-chip"><i></i>Play the preview</span></button>
+        <div><p class="k">Format · Guided meditation · Now playing</p><h3>Midnight Lake</h3><p>A guided meditation for YouTube in three layers: a calm voice that guides with real pauses, a soft soundtrack underneath, and a looping picture of the meditation's own world. This is a 25-second preview of a sleep piece; the same engine makes meditations for anxiety, mornings, self-love or meeting your higher self, from an idea, your written script or your own image.</p>
+          <dl><dt>Length</dt><dd>Previews of 15–30 s; full pieces of 10 minutes to 3 hours, 16:9</dd><dt>Checked</dt><dd>Voice pace for the intention, a loop that really moves, loudness</dd><dt>Ships</dt><dd>1080p video, MP3, and a YouTube title and description</dd></dl></div>
+      </article>
+      <article class="slide" data-video="" aria-roledescription="slide" aria-label="6 of 6">
         <div class="art"><img src="img/web/cover-influencer.jpg" width="1100" height="936" alt="VHS box and tape of Clone Me: a woman points at the camera next to a glowing hologram copy of herself."><span class="soon">Sample coming soon</span></div>
         <div><p class="k">Format · AI influencer</p><h3>Clone Me</h3><p>Your face and your voice, talking to camera without you filming. Built from your own photos and voice samples, with your consent, for daily posts that sound like you.</p>
           <dl><dt>Length</dt><dd>15–60 seconds</dd><dt>Typical cost</dt><dd>$1–4*</dd><dt>Only you</dt><dd>It refuses anyone else's likeness</dd></dl></div>
-      </article>
-      <article class="slide" data-video="" aria-roledescription="slide" aria-label="6 of 6">
-        <div class="art"><img src="img/web/cover-meditation.jpg" width="1100" height="936" alt="VHS box and tape of Midnight Lake, a 30-minute sleep meditation: a full moon over a misty lake and a lit cabin."><span class="soon">Sample coming soon</span></div>
-        <div><p class="k">Format · Meditation &amp; sleep</p><h3>Midnight Lake</h3><p>A long-form meditation with seamless looping scenes, a calm voice that leaves real pauses and a music bed underneath. It ships as a 1080p video for YouTube and an MP3 for podcast apps.</p>
-          <dl><dt>Length</dt><dd>10 minutes to 3 hours, 16:9</dd><dt>Typical cost</dt><dd>About $2 for 30 minutes*</dd><dt>Render</dt><dd>30 minutes of 1080p in about 5 minutes</dd></dl></div>
       </article>
     </div>
     <div class="slider-ui">
@@ -720,6 +723,7 @@
     const d = e?.currentTarget?.dataset || {};
     const src = d.src || "media/ep00-the-founding.mp4";
     if (ep.currentSrc.indexOf(src) < 0 && ep.getAttribute("data-src") !== src) { ep.setAttribute("data-src", src); ep.poster = d.poster || "media/ep00-poster.jpg"; ep.querySelector("source").src = src; ep.load(); }
+    tv.classList.toggle("wide", d.ar === "16:9");
     cap.textContent = d.caption || "Petty Capitalists · Ep. 00 · The Founding";
     tv.setAttribute("aria-label", cap.textContent);
     shelf?.dispatchEvent(new Event("mouseenter"));
