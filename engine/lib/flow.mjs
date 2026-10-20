@@ -106,6 +106,36 @@ function radioCheck(sl) {
   return sl.radio?.pass ? ok(`radio cut ${sl.radio.length ?? ""} s`) : no(sl.radio ? `ritmo: ${(sl.radio.problems || []).join("; ")}` : "sin radio cut (radio.mjs)");
 }
 
+// DRAMA RULES (2026-10-19, after The Secret Heiress and The Toast: two rejected episodes; rules from AI micro-drama
+// production research and our own realistic wins, The Glow Up and Two Suitcases). What reliably works with today's
+// video models, enforced before the book so no money goes to a plan that can't come out realistic:
+//  - at most 2 characters in any shot, at most 3 shots per generation, one action per shot;
+//  - lines fit their shot at ~3 words a second (lip sync breaks on long lines);
+//  - no fine hand-object work or fast motion on screen (show the object already held; imply motion with cuts);
+//  - bright, natural light (daylight, window light, bright practicals): night, candles, neon and low key read as
+//    "AI" and "shady"; sl.lowLightOk (the creator's call) allows it.
+const HANDS = /\b(slides?|sliding|places?|placing|picks? up|picking up|pours?|pouring|taps? (?:her|his|the) glass|hands? (?:her|him|it|over)|snatch|tears?|tearing|rips?|ripping|signs?|signing|writes?|writing|types?|typing|ties?|buttons?)\b/i;
+const FAST = /\b(runs?|running|sprints?|jumps?|leaps?|slams?|fights?|punch|slaps?|throws?|falls?|chases?)\b(?! (?:the|a|an|this|that|his|her|their) (?:con|show|game|plan|company|business|risk|numbers))/i;
+const DARK = /\b(night|candle|candlelit|neon|moonlit|dark room|low[- ]key|shadows?)\b/i;
+export function dramaRules(sl) {
+  if (sl.format === "sitcom") return [];
+  const out = [];
+  for (const sc of sl.scenes || []) {
+    const shots = P.sceneShots(sl, sc);
+    if (shots.length > 3) out.push(`escena ${sc.id}: ${shots.length} planos en una generación (máximo 3)`);
+    if (!sl.lowLightOk && DARK.test(`${sc.lighting || ""} ${sc.summary || ""}`)) out.push(`escena ${sc.id}: luz baja o de noche (se ve "IA"); usa luz natural brillante, o sl.lowLightOk con la palabra del creador`);
+    for (const s of shots) {
+      const inFrame = (s.inFrame || s.characters || []).length;
+      if (inFrame > 2) out.push(`${s.id}: ${inFrame} personajes en cuadro (máximo 2; usa plano/contraplano)`);
+      const words = (s.dialogue || []).reduce((n, l) => n + l.text.split(/\s+/).length, 0);
+      if (words > Math.max(4, Math.floor(P.shotSecs(s) * 3))) out.push(`${s.id}: ${words} palabras en ${P.shotSecs(s)} s (máximo ~3 por segundo)`);
+      if (HANDS.test(s.motion || "")) out.push(`${s.id}: acción con manos y objetos ("${(s.motion.match(HANDS) || [])[0]}"), falla seguido: muestra el objeto ya en la mano y corta`);
+      if (FAST.test(s.motion || "")) out.push(`${s.id}: movimiento rápido ("${(s.motion.match(FAST) || [])[0]}"), falla seguido: sugiérelo con cortes`);
+    }
+  }
+  return out;
+}
+
 function boardCheck(sl) {
   const k = kindOf(sl), bad = [];
   if (k === "scenes") {
@@ -128,6 +158,7 @@ function boardCheck(sl) {
       } catch (e) { bad.push(`escena ${sc.id}: referencias: ${e.message}`); }
     }
     if (!fs.existsSync(path.join(dir(sl), "out", "animatic.mp4"))) bad.push("sin animatic (animatic.mjs)");
+    bad.push(...dramaRules(sl));
   } else if (k === "clips") {
     if (!(sl.shots || []).length) bad.push("sin shots");
     for (const s of sl.shots || []) {

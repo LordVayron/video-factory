@@ -165,7 +165,9 @@ ff(["-i", path.relative(dir, cut), "-filter_complex", fg.join(";"), "-map", "[v]
 //     re-voiced with ElevenLabs speech-to-speech in the character's official voice: same timing, so lip sync holds.
 //     The original line audio is muted under it; room sound, laughs and cues are untouched. Off: sl.voiceUnify = false.
 let voiced = tight;
-if (sl.voiceUnify !== false) {
+// Outside the sitcom the take's own voice is kept by default (it is the one in sync with the lips; a re-voice
+// drifted 1 s, The Toast): sl.voiceUnify = true opts in, and the lip-sync check below still guards it.
+if (sl.voiceUnify === true || (sl.voiceUnify !== false && sl.format === "sitcom")) {
   const vdir = path.join(tmp, "voices");
   fs.mkdirSync(vdir, { recursive: true });
   const mapT = (t) => { let acc = 0; for (const [a, b] of segs) { if (t <= a) return acc; if (t <= b) return acc + (t - a); acc += b - a; } return acc; };

@@ -92,6 +92,13 @@ export default function checkFlow(t, ROOT) {
     t("character sheets are drawn in a neutral reference pose", engine("cast.mjs").includes("Neutral reference pose in every panel"));
     t("a character can send a chosen sheet view as its reference (refView)", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("c.refView && v[c.refView]"));
     t("seated characters belong to the scene's cast", fs.readFileSync(path.join(ROOT, "engine", "lib", "project.mjs"), "utf8").includes("...Object.keys(sc.seats || {})"));
+    {
+      const D = { format: "micro-drama", scenes: [{ id: "A", shots: ["d1"], lighting: "night, candle light" }], shots: [{ id: "d1", characters: ["a", "b", "c"], duration: 2, motion: "She picks up the ring", dialogue: [{ char: "a", text: "one two three four five six seven eight nine ten" }] }] };
+      const r = F.dramaRules(D).join(" | ");
+      t("drama rules block dim light, 3 people in a shot, hand-object work and too many words", /luz baja/.test(r) && /3 personajes/.test(r) && /manos y objetos/.test(r) && /palabras en/.test(r));
+      t("drama rules feed the board check, so a failing plan never reaches the book", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("bad.push(...dramaRules(sl))"));
+      t("outside the sitcom the take's own (lip-synced) voice is kept by default", engine("edit.mjs").includes('sl.voiceUnify === true || (sl.voiceUnify !== false && sl.format === "sitcom")'));
+    }
     t("edit.mjs keeps a drama's pauses and drops sitcom laugh rules for other formats", engine("edit.mjs").includes('sl.format !== "sitcom" ? [] :') && engine("edit.mjs").includes("rules.maxFirstLaugh != null"));
   }
 
