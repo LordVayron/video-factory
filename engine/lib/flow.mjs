@@ -54,7 +54,7 @@ export function castIds(sl) {
 
 // Fingerprints: what an approval covers. Keys written by filming and evals are left out, so filming
 // does not reopen the plan; changing the script, the shots or the prompts does.
-const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "plate"]);
+const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "plate", "cutOut", "muteOut"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
 const strip = (o) => JSON.parse(JSON.stringify(o ?? null, (k, v) => (RUNTIME.has(k) ? undefined : v)));
 export const FINGERPRINT = {
   // The series bible without its own approval stamp (approving writes `approved` into series.json, 2026-10-19),
@@ -312,7 +312,9 @@ export function requireStep(sl, step, what = step) {
 // words (studio.mjs approve-pilot) before anything else is filmed. A bad pilot costs one scene, not the episode.
 export const pilotId = (sl) => (kindOf(sl) === "scenes" ? sl.scenes?.[0]?.id : kindOf(sl) === "clips" ? sl.shots?.[0]?.id : null);
 export function requirePilot(sl, ids) {
-  if (kindOf(sl) === "longform" || sl.flow?.approved?.pilot) return;
+  // The pilot is approved for one video model: switching models (Wan to Kling) re-arms the gate.
+  const ok = sl.flow?.approved?.pilot && (sl.flow.approved.pilot.model ?? null) === (sl.defaults?.videoModel ?? null);
+  if (kindOf(sl) === "longform" || ok) return;
   const p = pilotId(sl), rest = ids.filter((i) => i !== p);
   if (rest.length) throw new FlowStop(`PILOT STOP: film the pilot first (${p}), show it to the creator and record his yes: studio.mjs approve-pilot ${sl.slug} --said "..." . Only then ${rest.join(", ")}.`);
 }
@@ -323,7 +325,7 @@ export function approvePilot(slug, said) {
     const id = pilotId(sl), item = (sl.scenes || []).find((x) => x.id === id) || (sl.shots || []).find((x) => x.id === id);
     if (!item?.clips?.length) throw new FlowStop(`el piloto ${id} todavía no está filmado`);
     sl.flow.approved ||= {};
-    sl.flow.approved.pilot = { said: said.trim(), at: new Date().toISOString(), item: id, take: (item.clip ?? item.clips.length - 1) + 1 };
+    sl.flow.approved.pilot = { said: said.trim(), at: new Date().toISOString(), item: id, take: (item.clip ?? item.clips.length - 1) + 1, model: sl.defaults?.videoModel ?? null };
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `approve pilot ${id}`, said: said.trim() }];
   });
 }

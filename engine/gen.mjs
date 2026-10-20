@@ -77,7 +77,17 @@ function mediaDuration(file) {
 // The task id is written to <outBase>.lock right after submit, so if the process
 // dies mid-wait, "recover" (run automatically by frames/video/queue) collects the
 // finished result instead of paying for it again.
-async function job({ slug, modelKey, req, outBase, label, ext, register }) {
+// A job the engine refuses before anything reaches Kie (BUDGET / PROMPT / DIALOGUE STOP) leaves no lock behind:
+// an empty lock means "a task may be in flight" to recover() (two stale locks after a budget stop, 2026-10-19).
+async function job(args) {
+  try { return await jobRun(args); } catch (e) {
+    const lock = `${args.outBase}.lock`;
+    if (/STOP/.test(e.message) && fs.existsSync(lock) && fs.statSync(lock).size === 0) fs.unlinkSync(lock);
+    throw e;
+  }
+}
+
+async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   const m = getModel(modelKey);
   const input = m.build(req);
   const credits = m.cost(req);
@@ -102,6 +112,8 @@ async function job({ slug, modelKey, req, outBase, label, ext, register }) {
         throw new Error(`BUDGET STOP: "${label}" costs ${credits.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
       }
     }
+    // PROMPT TOO LONG: a model with a prompt limit (Kling 3.0: 2,500 characters) is never sent a longer prompt.
+    if (m.maxPrompt && typeof req.prompt === "string" && req.prompt.length > m.maxPrompt) throw new FlowStop(`PROMPT STOP: "${label}" is ${req.prompt.length} characters; ${m.label} takes ${m.maxPrompt}.`);
     // DIALOGUE STOP (2026-10-19, The Glow Up: the clip prompt carried no lines and Seedance improvised a paid take).
     // Every speaking video job declares its script lines (req.lines) and its prompt must carry each one word for word.
     if (m.kind === "video" && m.speaks && req.sound !== false) {
@@ -394,7 +406,10 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const want = flag("--scenes")?.split(",");
     const todo = (sl.scenes || []).filter((sc) => (want ? want.includes(sc.id) : !sc.clips?.length));
     requirePilot(sl, todo.map((sc) => sc.id));
-    report(await pool(todo, (sc) => renderScene(slug, sl, sc, flag("--model", sc.videoModel || pk.video), flag("--res", pk.res))));
+    // sl.filmBy "shot": a scene is filmed one shot per generation (models without multi-shot scenes: Kling 3.0, Veo),
+    // each from its own storyboard panel, then joined into one scene take, so the evals and the edit are unchanged.
+    const render = sl.filmBy === "shot" ? renderSceneByShots : renderScene;
+    report(await pool(todo, (sc) => render(slug, sl, sc, flag("--model", sc.videoModel || pk.video), flag("--res", pk.res))));
   },
 
   async voice() {
@@ -694,6 +709,32 @@ function voiceRefFiles(sl, speakers, slug) {
     execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", v.file, "-t", String(Math.max(2, each)), out]);
     return { ...v, file: out };
   });
+}
+
+const shotGenSecs = P.shotGenSecs;
+
+async function renderSceneByShots(slug, sl, sc, modelKey, res) {
+  const shots = P.sceneShots(sl, sc), dir = P.abs(slug, "clips");
+  fs.mkdirSync(path.join(dir, "shots"), { recursive: true });
+  const files = [];
+  for (const s of shots) {
+    const panel = s.board?.file;
+    if (!panel) throw new Error(`${s.id}: no storyboard panel; run storyboard first`);
+    // The shot's own structured spec, built exactly like a scene prompt of one shot (place, pose, props, must-nots).
+    const prompt = P.shotPrompt(sl, sc, s, getModel(modelKey).maxPrompt || 4000);
+    const duration = shotGenSecs(s, modelKey);
+    const outBase = nextName(path.join(dir, "shots"), `${s.id}-${modelKey}`, ".mp4");
+    const [f] = await job({ slug, modelKey, req: { prompt, lines: s.dialogue || [], cast: P.sceneCast(sl, sc), frame: await kie.upload(P.abs(slug, panel)), res, ar: sl.ar, duration, sound: true }, outBase, label: `${s.id} ${modelKey} ${res} ${duration}s`, ext: ".mp4" });
+    files.push(f);
+  }
+  // Join the shots into one scene take (same size, fps and audio), registered like a multi-shot take.
+  const out = nextName(dir, `${sc.id}-${modelKey}`, ".mp4") + ".mp4";
+  const [W, H] = sl.ar === "16:9" ? [1280, 720] : [720, 1280];
+  const graph = files.map((_, i) => `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p[v${i}];[${i}:a]aresample=48000,aformat=channel_layouts=stereo[a${i}]`).join(";") + ";" + files.map((_, i) => `[v${i}][a${i}]`).join("") + `concat=n=${files.length}:v=1:a=1[v][a]`;
+  execFileSync("ffmpeg", ["-v", "error", "-y", ...files.flatMap((f) => ["-i", f]), "-filter_complex", graph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-c:a", "aac", "-b:a", "192k", out]);
+  const plate = path.basename(P.sceneRefs(sl, sc).find((r) => r.role === "set")?.file || "");
+  P.updateShotlist(slug, (x) => { const t = (x.scenes || []).find((y) => y.id === sc.id); t.clips = [...(t.clips || []), { file: P.rel(slug, out), model: modelKey, res, scene: true, byShot: true, shots: files.map((f) => P.rel(slug, f)), plate }]; });
+  return [out];
 }
 
 async function renderScene(slug, sl, sc, modelKey, res) {

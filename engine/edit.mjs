@@ -30,8 +30,11 @@ const sl = P.loadShotlist(slug);
 requireStep(sl, draft ? "film" : "edit", draft ? "edit --draft" : "edit");
 // --draft cuts only the scenes filmed so far: the pilot preview, with its score and stings, for the creator to judge
 // before the rest is filmed (pilot gate). A partial draft never writes the shotlist.
-const partial = draft && (sl.scenes || []).some((sc) => !sc.clips?.length);
-if (partial) { sl.scenes = sl.scenes.filter((sc) => sc.clips?.length); const keep = new Set(sl.scenes.flatMap((sc) => sc.shots)); sl.shots = sl.shots.filter((s) => keep.has(s.id)); }
+// A scene counts as filmed only with a take on the project's current video model (after a model switch, the old
+// model's takes of the other scenes are not part of the new pilot).
+const current = (sc) => (sc.clips || []).some((c) => !sl.defaults?.videoModel || c.model === sl.defaults.videoModel);
+const partial = draft && (sl.scenes || []).some((sc) => !current(sc));
+if (partial) { sl.scenes = sl.scenes.filter(current); for (const sc of sl.scenes) sc.clips = sc.clips.filter((c) => !sl.defaults?.videoModel || c.model === sl.defaults.videoModel); const keep = new Set(sl.scenes.flatMap((sc) => sc.shots)); sl.shots = sl.shots.filter((s) => keep.has(s.id)); }
 const W = sl.ar === "16:9" ? 1280 : 720, H = sl.ar === "16:9" ? 720 : 1280;
 const tmp = path.join(dir, "out", "_edit");
 fs.mkdirSync(tmp, { recursive: true });
@@ -53,8 +56,12 @@ for (const sc of sl.scenes) {
   // accepted that exact take in his words (studio.mjs accept-take, printed in the book).
   if (!draft && !sc.clips[ci].continuity?.pass && !tk.accepted?.said) { console.error(`stop: scene ${sc.id} take ${ci + 1} ${sc.clips[ci].continuity ? "failed" : "has no"} continuity eval (node engine/continuity.mjs ${slug} --scene ${sc.id})`); process.exit(1); }
   const part = path.join(tmp, `${sc.id}.mp4`);
-  ff(["-i", sc.clips[ci].file, "-vf", `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p`,
-    "-af", "aresample=48000,aformat=channel_layouts=stereo", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-c:a", "pcm_s16le", path.relative(dir, part).replace(/\.mp4$/, ".mov")]);
+  // sc.cutOut = [[a, b], ...]: seconds of this take to drop (words the model improvised, a shot it invented), picture
+  // and sound together, before alignment (2026-10-19, The Toast: an extra "And I'm ready?" and a repeated line).
+  // sc.muteOut = [[a, b], ...]: silence the sound only, keeping the picture (a repeated line over a beat worth keeping).
+  const tf = P.takeFilters(sc);
+  ff(["-i", sc.clips[ci].file, "-vf", `${tf.vf}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p`,
+    "-af", `${tf.af}aresample=48000,aformat=channel_layouts=stereo`, "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-c:a", "pcm_s16le", path.relative(dir, part).replace(/\.mp4$/, ".mov")]);
   parts.push(part.replace(/\.mp4$/, ".mov"));
 }
 // Cross-scene consistency: every approved take must be filmed against the same set plate (a past episode mixed two
@@ -111,6 +118,9 @@ for (const [k, x] of found.entries()) {
   let planned = silentTime + between.length * 1.8 + (x.l.laugh ? (LAUGHS[x.l.laugh] || LAUGHS.laugh).react + (LAUGHS[x.l.laugh] || LAUGHS.laugh).stepIn : pace.gap) + (next?.l.beat || 0);
   // A silence where someone moves on screen (a leap, an exit) is action, not dead air: keep up to 2.5 s of it
   // after the last line of a shot with `moves`.
+  // Outside the sitcom the filmed pause between two lines is the drama's tension: keep it up to 1.6 s, trim only
+  // longer dead air (2026-10-19, The Toast: the tight cut removed 5 s and ran 219 wpm).
+  if (sl.format !== "sitcom" && next) planned = Math.max(planned, Math.min(next.start - x.end, 1.6));
   const lastInShot = !next || next.shot !== x.shot;
   if (x.shot.moves && lastInShot && next) planned = Math.max(planned, Math.min(next.start - x.end, 2.5));
   pieces.push({ a, b: x.end, after: next ? planned : null, x });
@@ -123,7 +133,12 @@ for (const [k, p] of pieces.entries()) {
   if (!next) {
     // After the last line: room for the button laugh / reaction shot, never more than what was filmed.
     // sl.ending "smash" (the writing bible): cut to black right on the last hard consonant so the short loops.
-    const tail = sl.ending === "smash" ? 0.16 : Math.min(cutLen - p.b, p.x.l.laugh ? 1.8 : 1.2);
+    // Silent shots after the last line (a held reaction, the shocked face the episode ends on) keep their planned
+    // length: they were cut to 1.2 s and the pilot lost Daniel's reaction (2026-10-19).
+    const after = sl.shots.slice(sl.shots.indexOf(p.x.shot) + 1).filter((s) => !(s.dialogue || []).length).reduce((n, s) => n + (s.duration || 1.5), 0);
+    // With silent shots after the last line, everything filmed up to the end is kept (a take can hold the speaker
+    // before cutting to the reaction), at most the planned silence + 3 s.
+    const tail = sl.ending === "smash" ? 0.16 : after ? Math.min(cutLen - p.b, after + 3) : Math.min(cutLen - p.b, p.x.l.laugh ? 1.8 : 1.2);
     keep.push([p.a, p.b + Math.max(0, tail)]);
     break;
   }
@@ -217,6 +232,19 @@ if (sl.voiceUnify !== false) {
     voiced = path.join(tmp, "tight-voiced.mov");
     ff(["-i", path.relative(dir, tight), ...ins, "-filter_complex", g.join(";"), "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "pcm_s16le", path.relative(dir, voiced)]);
     console.log(`voices unified: ${parts.length}/${spoken.length} lines`);
+    // LIP-SYNC CHECK (2026-10-19, The Toast pilot: re-voiced lines landed up to 1.0 s after the lips moved). The
+    // original and the re-voiced tracks are both transcribed; if any word starts more than 0.2 s apart, the re-voice
+    // is dropped and the take's own voices are kept: a voice that doesn't match the mouth is worse than another timbre.
+    const words = (f) => { const o = path.join(tmp, `sync-${path.basename(f)}.json`); const r = spawnSync("python", [path.join(ROOT, "engine", "lib", "align.py"), f, path.join(tmp, "lines.json"), o, sl.lang === "es" ? "es" : "en"], { encoding: "utf8" }); return r.status === 0 ? JSON.parse(fs.readFileSync(o, "utf8")).words : null; };
+    const wa = words(tight), wb = words(voiced);
+    if (wa && wb) {
+      const norm = (w) => w.w.toLowerCase().replace(/[^a-z0-9']/g, "");
+      let drift = 0, j = 0;
+      // A word missing from one track is skipped without consuming the rest (an unmatched "and" once hid a 1 s drift).
+      for (const w of wa) { const k = wb.findIndex((x, i) => i >= j && norm(x) === norm(w)); if (k >= 0) { drift = Math.max(drift, Math.abs(wb[k].start - w.start)); j = k + 1; } }
+      if (drift > 0.2) { console.log(`LIP-SYNC: re-voiced words drift up to ${drift.toFixed(2)} s from the lips; keeping the take's own voices`); voiced = tight; }
+      else console.log(`lip-sync: re-voiced words within ${drift.toFixed(2)} s of the lips`);
+    }
   }
 }
 
@@ -234,26 +262,49 @@ const ts = (x) => `0:${String(Math.floor(x / 60)).padStart(2, "0")}:${(x % 60).t
 const cap = sl.captions || {};
 fs.writeFileSync(path.join(tmp, "captions.ass"), `[Script Info]\nScriptType: v4.00+\nPlayResX: ${W}\nPlayResY: ${H}\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Line,${cap.font || "Arial"},${cap.size || Math.round(W * 0.05)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,${Math.round(W * 0.006)},0,2,${Math.round(W * 0.08)},${Math.round(W * 0.08)},${Math.round(H * (cap.marginV ?? 0.16))},1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n` +
   captionEvents().map((e) => `Dialogue: 0,${ts(e.a)},${ts(e.b)},Line,,0,0,0,,${e.text}`).join("\n") + "\n");
-// Captions: a line stays from its first word until just after its last, never over the next line; lines
-// longer than 6 words split into chunks at punctuation, timed by the aligned words.
+// Captions are timed on the EDITED dialogue track itself: it is transcribed again (VAD on) and every caption and
+// chunk break uses its word times, in the timeline the viewer sees. Timing from the raw cut, mapped through the
+// trims, ran captions 0.5-2.4 s off (2026-10-19, The Toast). A line the final pass can't find keeps the cut's time.
+function finalWords() {
+  const out = path.join(tmp, "align-final.json");
+  const r = spawnSync("python", [path.join(ROOT, "engine", "lib", "align.py"), voiced, path.join(tmp, "lines.json"), out, sl.lang === "es" ? "es" : "en"], { encoding: "utf8" });
+  return r.status === 0 ? JSON.parse(fs.readFileSync(out, "utf8")) : null;
+}
+// A line stays from its first word until just after its last, never over the next line; lines longer than 6 words
+// split into chunks at punctuation, each chunk starting on its own first word.
+// Each line's span in the final timeline. A line the final pass can't match (misheard: "Go on, Ivy" -> "Don't worry,
+// Natty") starts on the first word heard after the previous line, and keeps its cut length. Memoized (var: hoisted).
+var SPANS, FIN;
+function lineSpans() {
+  if (SPANS) return SPANS;
+  FIN = finalWords();
+  SPANS = [];
+  timed.forEach((x) => {
+    const f = FIN?.lines?.find((l) => l.id === x.id);
+    if (f && f.found >= 0.6 && f.start != null) return SPANS.push({ a: f.start, b: f.end });
+    const prevB = SPANS.at(-1)?.b ?? 0, next = (FIN?.words || []).find((w) => w.start > prevB + 0.1);
+    SPANS.push(next ? { a: next.start, b: next.start + (x.b - x.a) } : { a: x.a, b: x.b });
+  });
+  return SPANS;
+}
 function captionEvents() {
+  const spans = lineSpans(), fin = FIN;
   const ev = [];
   timed.forEach((x, k) => {
-    const nextA = timed[k + 1]?.a ?? total;
-    const stop = Math.min(nextA - 0.03, x.b + 0.35);
-    const ws = align.words.filter((w) => w.start >= x.start - 0.3 && w.end <= x.end + 0.3);
+    const { a: la, b: lb } = spans[k];
+    const nextA = spans[k + 1]?.a ?? total;
+    const stop = Math.min(nextA - 0.03, lb + 0.35);
     const tokens = x.text.split(/\s+/);
-    if (tokens.length <= 6 || ws.length < tokens.length * 0.6) { ev.push({ a: x.a, b: stop, text: x.text }); return; }
+    const ws = (fin?.words || []).filter((w) => w.start >= la - 0.05 && w.end <= lb + 0.05);
+    if (tokens.length <= 6 || ws.length < tokens.length * 0.7) { ev.push({ a: la, b: stop, text: x.text }); return; }
     const chunks = [];
     let cur = [];
     tokens.forEach((tok, i) => { cur.push(tok); if (cur.length >= 6 || (/[.,:;!?]$/.test(tok) && cur.length >= 2) || i === tokens.length - 1) { chunks.push(cur); cur = []; } });
     let wi = 0;
     chunks.forEach((c, ci) => {
-      const first = ws[Math.min(wi, ws.length - 1)];
+      const a = ci === 0 ? la : ws[Math.min(wi, ws.length - 1)].start - 0.03;
       wi += c.length;
-      const a = ci === 0 ? x.a : Math.max(x.a, map(first.start));
-      const nextFirst = ws[Math.min(wi, ws.length - 1)];
-      const b = ci === chunks.length - 1 ? stop : Math.max(a + 0.4, map(nextFirst.start) - 0.02);
+      const b = ci === chunks.length - 1 ? stop : Math.max(a + 0.4, ws[Math.min(wi, ws.length - 1)].start - 0.05);
       ev.push({ a, b, text: c.join(" ") });
     });
   });
@@ -265,6 +316,8 @@ const FINISH = {
   broadcast: `scale=${W / 2}:${H / 2}:flags=area,gblur=sigma=0.6,chromashift=cbh=1:crh=0,eq=contrast=0.93:saturation=0.86:gamma=1.03,curves=all='0/0.05 0.5/0.52 1/0.97',colorbalance=rh=0.03:bh=-0.03:rs=0.01,split[g0][g1];[g1]gblur=sigma=14[g2];[g0][g2]blend=all_mode=screen:all_opacity=0.10,noise=alls=7:allf=t,scale=${W}:${H}:flags=bicubic,unsharp=5:5:0.25,crop=iw-32:ih-24:16:12,scale=${W}:${H}:flags=bicubic`,
   film: "eq=contrast=0.97:saturation=0.92,curves=all='0/0.02 0.85/0.83 1/0.96',noise=alls=4:allf=t,unsharp=3:3:0.2",
   phone: "eq=contrast=1.04:saturation=1.05,unsharp=5:5:0.5,noise=alls=5:allf=t",
+  // natural: lifts the shadows and neutralizes the orange candle cast, toward daylight-balanced realism (2026-10-19, Creador: "the palette looks terrible... shady").
+  natural: "curves=all='0/0.05 0.35/0.42 0.7/0.76 1/1',colorbalance=rs=-0.06:gs=-0.01:bs=0.05:rm=-0.05:gm=0:bm=0.04:rh=-0.02:bh=0.02,eq=saturation=0.9:contrast=0.97,unsharp=3:3:0.25",
 };
 const finish = FINISH[sl.finish ?? st.finish];
 const inputs = ["-i", path.relative(dir, voiced)];
@@ -278,7 +331,9 @@ const lay = (file, at, gainDb) => {
   layers.push(`[o${k}]`);
 };
 for (const L of laughs) lay(await libSound(`laugh-${L.kind}`), L.at, L.gainDb);
-for (const x of timed) if (x.l.cue) { const c = await cueFile(dir, sl, x.l.cue); lay(c.file, x.a - c.lead, c.gainDb); }
+// Cues use the same final-timeline line spans as the captions (a hit timed from the raw cut landed 4.5 s early).
+// cue.at "end": a sting lands on the punchline, not before the line.
+for (const [k, x] of timed.entries()) if (x.l.cue) { const c = await cueFile(dir, sl, x.l.cue); const sp = lineSpans()[k]; lay(c.file, c.at === "end" ? sp.b + 0.05 : sp.a - c.lead, c.gainDb); }
 if (outro) lay(await libSound(outroName), tightLen - 0.3, -8);
 // 5a. Drama sound design (2026-10-19, The Secret Heiress came out "dry, like a rehearsal"): the project's score
 // (sl.music, generated with gen.mjs music) runs under the whole episode at sl.music.gainDb, ducks under every line,
@@ -336,6 +391,10 @@ const loud = Number((lo.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\
 const peak = Number((lo.match(/Peak:\s+(-?[\d.]+) dBFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
 const nWords = timed.reduce((n, x) => n + x.text.split(/\s+/).length, 0);
 const speech = timed.reduce((n, x) => n + (x.b - x.a), 0);
+// Delivery speed: the median of each line's own rate (one line holding a pause, or a muted repeat, no longer swings
+// the whole episode between 119 and 219 wpm). The sitcom keeps its total-over-speech measure.
+const lineRates = timed.filter((x) => x.b - x.a >= 0.6).map((x) => x.text.split(/\s+/).length / ((x.b - x.a) / 60)).sort((p, q) => p - q);
+const medianWpm = lineRates.length ? Math.round(lineRates[Math.floor(lineRates.length / 2)]) : 0;
 let maxGap = 0, dead = 0, cursor = timed[0]?.a ?? 0;
 const busy = [...timed.map((x) => [x.a, x.b]), ...laughs.map((L) => [L.at, L.at + L.len])].sort((p, q) => p[0] - q[0]);
 // A planned beat is a writing choice, not dead air; only the unplanned part of a silence counts.
@@ -346,9 +405,9 @@ for (const [a, b] of busy) { if (a > cursor) { const g = a - cursor; const endLi
 // Laugh rules are the sitcom's; any other format is held to a natural 130-165 wpm (same split as radio.mjs).
 const rules = sl.paceRules || (sl.format === "sitcom"
   ? { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 }
-  : { minWpm: 130, maxWpm: 175, maxGap: 0.9, maxDeadPct: 15 });
+  : { minWpm: 130, maxWpm: 175, maxGap: 1.7, maxDeadPct: 18 }); // the edit keeps filmed pauses up to 1.6 s outside the sitcom
 const pacing = {
-  length: Math.round(total * 10) / 10, wpm: Math.round(nWords / (speech / 60)), maxUnplannedGap: Math.round(maxGap * 100) / 100,
+  length: Math.round(total * 10) / 10, wpm: sl.format === "sitcom" ? Math.round(nWords / (speech / 60)) : medianWpm, maxUnplannedGap: Math.round(maxGap * 100) / 100,
   deadAirPct: Math.round((dead / tightLen) * 1000) / 10, laughs: laughs.length, firstLaugh: laughs[0] ? Math.round(laughs[0].at * 10) / 10 : null,
   secondsPerLaugh: laughs.length ? Math.round((tightLen / laughs.length) * 10) / 10 : null, trimmed: Math.round((cutLen - tightLen) * 10) / 10,
 };

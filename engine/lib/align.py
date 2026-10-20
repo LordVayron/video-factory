@@ -17,7 +17,9 @@ lang = sys.argv[4] if len(sys.argv) > 4 else "en"
 norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower().replace("gonna", "going"))
 
 model = WhisperModel("small", device="cpu", compute_type="int8")
-segs, _ = model.transcribe(media, language=lang, word_timestamps=True)
+# VAD: without it the first word of a line after a silence or a sound effect is stamped at the start of the
+# segment (a caption showed 2.4 s early, 2026-10-19).
+segs, _ = model.transcribe(media, language=lang, word_timestamps=True, vad_filter=True, vad_parameters={"min_silence_duration_ms": 300})
 words = [{"w": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)} for s in segs for w in s.words]
 
 lines = json.load(open(lines_path, encoding="utf8"))

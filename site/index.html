@@ -232,6 +232,43 @@
   .rated p { font-size: 14px; line-height: 1.55; color: #cfc7b8; }
   .rated code { font-family: "Courier New", monospace; color: var(--cream); }
 
+  /* cost comparison: a VHS rental box / one-sheet poster */
+  .vs { background: radial-gradient(80% 50% at 50% 0%, #251a30, var(--sheet) 72%); }
+  .vs .sec-title h2 { font-size: clamp(34px, 4.8vw, 66px); }
+  .vs .sec-title .trailer { font-family: var(--display); font-size: clamp(15px, 1.5vw, 19px); line-height: 1.4; color: var(--cream); max-width: 560px; }
+  .vs .sec-title .trailer em { font-style: normal; color: var(--pink); }
+  .vs-table { max-width: 1000px; margin: 38px auto 0; padding: 0 var(--gutter); }
+  .vs-frame { position: relative; border: 3px solid var(--cream); outline: 1px solid rgba(233,224,207,.4); outline-offset: 6px; background: #14121c; box-shadow: 0 30px 70px rgba(0,0,0,.55); }
+  .vs-marquee { display: flex; justify-content: space-between; gap: 12px; background: var(--cream); color: var(--ink); font-weight: 900; font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; padding: 8px 16px; }
+  .vs-sticker { position: absolute; top: -13px; left: 33%; z-index: 5; rotate: -4deg; background: var(--cream); color: var(--ink); font-weight: 900; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; padding: 6px 12px; border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--pink); }
+  .vs-grid { position: relative; }
+  .vs-row { display: grid; grid-template-columns: 1.25fr 1.1fr 1fr 1fr; border-top: 1px dashed rgba(233,224,207,.22); }
+  .vs-row > * { padding: 15px 18px; font-size: 14.5px; line-height: 1.35; display: flex; flex-direction: column; justify-content: center; }
+  .vs-row > .rl { font-weight: 800; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cream-dim); font-stretch: 90%; }
+  .vs-row > .us { background: rgba(227,72,155,.12); border-left: 2px solid var(--pink); border-right: 2px solid var(--pink); color: var(--cream); font-weight: 700; }
+  .vs-row > .them { color: #cfc7b8; }
+  .vs-row small { display: block; margin-top: 3px; font-size: 11.5px; font-weight: 500; color: var(--cream-dim); }
+  .vs-head { border-top: 0; }
+  .vs-head > * { padding-top: 22px; padding-bottom: 18px; }
+  .vs-head .us { background: var(--pink); color: var(--ink); border-color: var(--pink); }
+  .vs-head .us b { font-family: var(--display); font-weight: 400; font-size: 23px; text-transform: uppercase; line-height: 1; color: var(--ink); }
+  .vs-head .us .tag { color: rgba(18,17,25,.72); }
+  .vs-head .them b { font-family: var(--display); font-weight: 400; font-size: 17px; text-transform: uppercase; color: var(--cream); line-height: 1.05; }
+  .vs-head .tag { font-size: 9.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-dim); margin-top: 5px; }
+  .vs-head .rl { font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: .12em; color: var(--pink); line-height: 1.3; }
+  .vs-key { background: rgba(233,224,207,.05); border-top: 2px solid rgba(233,224,207,.55); border-bottom: 2px solid rgba(233,224,207,.55); }
+  .vs-key > .rl { color: var(--cream); }
+  .vs-key > .us { font-size: 30px; font-family: var(--display); font-weight: 400; color: var(--pink); }
+  .vs-key > .them { font-family: var(--display); font-size: 21px; color: var(--cream); }
+  .vs-mult > .us { font-family: var(--display); font-weight: 400; font-size: 30px; color: var(--pink); }
+  .vs-mult > .them { font-family: var(--display); font-weight: 400; font-size: 30px; color: transparent; -webkit-text-stroke: 1.3px var(--cream); }
+  .vs-barcode { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-top: 3px solid var(--cream); background: var(--cream); color: var(--ink); }
+  .vs-barcode .bars { height: 28px; flex: 0 0 150px; background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px, var(--ink) 8px 11px, transparent 11px 12px, var(--ink) 12px 13px, transparent 13px 15px); }
+  .vs-barcode span { font-weight: 800; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; text-align: right; }
+  .vs-note { max-width: 1000px; margin: 22px auto 0; padding: 0 var(--gutter); font-size: 11.5px; line-height: 1.55; color: var(--cream-dim); }
+  .vs-note b { color: var(--cream); }
+  .vs-note a { color: var(--cream-dim); }
+
   /* 8. faq */
   .faq { max-width: 860px; margin: 30px auto 0; padding: 0 var(--gutter); }
   .faq details { border-bottom: 1px solid rgba(233,224,207,.16); }
@@ -325,6 +362,21 @@
     .tapes { min-height: 520px; }
     .fmt { grid-template-columns: 1fr auto; } .fmt span { display: none; }
     .cmd { grid-template-columns: auto 1fr; } .cmd button { grid-column: 1 / -1; padding: 12px; }
+    .vs-frame { outline-offset: 4px; }
+    .vs-marquee span:last-child { display: none; }
+    .vs-sticker { top: -11px; left: auto; right: 12px; font-size: 9px; }
+    .vs-row { grid-template-columns: 1.15fr 1fr 1fr; }
+    .vs-row > .rl { grid-column: 1 / -1; padding: 12px 14px 0; }
+    .vs-row > :not(.rl) { padding: 6px 12px 14px; font-size: 13px; }
+    .vs-row > :not(.rl)::before { content: attr(data-l); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--cream-dim); margin-bottom: 3px; }
+    .vs-key > .us, .vs-mult > .us, .vs-mult > .them { font-size: 22px; }
+    .vs-key > .them { font-size: 17px; }
+    .vs-head { grid-template-columns: 1.15fr 1fr 1fr; }
+    .vs-head > .rl { display: none; }
+    .vs-head > * { padding: 16px 12px 12px; }
+    .vs-head > :not(.rl)::before { content: none; }
+    .vs-head .us b { font-size: 17px; } .vs-head .them b { font-size: 14px; }
+    .vs-barcode .bars { flex-basis: 90px; } .vs-barcode span { font-size: 9px; }
   }
 </style>
 </head>
@@ -333,7 +385,7 @@
 <header class="nav">
   <div class="wrap">
     <a class="brand" href="#top" aria-label="Video Factory, back to top"><span class="rbadge"><b>R</b></span><strong>Video Factory</strong></a>
-    <nav aria-label="Sections"><a href="#shelf">Watch</a><a href="#how">How it works</a><a href="#formats">Formats</a><a href="#faq">FAQ</a></nav>
+    <nav aria-label="Sections"><a href="#shelf">Watch</a><a href="#how">How it works</a><a href="#formats">Formats</a><a href="#cost">Cost</a><a href="#faq">FAQ</a></nav>
     <a class="btn cream" href="https://github.com/LordVayron/video-factory" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
@@ -518,6 +570,87 @@
     <article><h3><i>R</i>Your keys stay home</h3><p>Keys live in a local <code>.env</code> file. They are never printed, committed or sent anywhere but the two providers.</p></article>
   </div></div>
   <p class="sheet-foot">Open source and MIT licensed. <b>Read every line of it on GitHub.</b></p>
+</section>
+
+<!-- cost comparison -->
+<section class="sheet vs" id="cost" aria-label="Cost comparison">
+  <p class="sheet-head">The honest math</p>
+  <div class="sec-title">
+    <p class="k">A Video Factory production</p>
+    <h2>Us vs. Higgsfield</h2>
+    <p class="trailer">Video Factory is <em>free</em>. You only pay for the AI credits, and they're a lot <em>cheaper</em>.</p>
+  </div>
+  <div class="vs-table reveal">
+    <div class="vs-frame">
+    <div class="vs-marquee"><span>★ Now showing ★</span><span>Same 90-second episode · three ways to pay</span></div>
+    <span class="vs-sticker">Best value</span>
+    <div class="vs-grid" role="table" aria-label="Cost per 90-second episode">
+      <div class="vs-row vs-head" role="row">
+        <div class="rl" role="columnheader">The<br>contenders</div>
+        <div class="us" role="columnheader"><b>Video Factory</b><span class="tag">Kie.ai credits</span></div>
+        <div class="them" role="columnheader"><b>Higgsfield API</b><span class="tag">Prepaid balance</span></div>
+        <div class="them" role="columnheader"><b>Higgsfield Starter</b><span class="tag">Subscription</span></div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Monthly fee</div>
+        <div class="us" data-l="Video Factory" role="cell">$0<small>pay per use</small></div>
+        <div class="them" data-l="API" role="cell">$0<small>$5 minimum top-up</small></div>
+        <div class="them" data-l="Starter" role="cell">$19<small>270 credits a month</small></div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Credits included</div>
+        <div class="us" data-l="Video Factory" role="cell">n/a</div>
+        <div class="them" data-l="API" role="cell">n/a</div>
+        <div class="them" data-l="Starter" role="cell">270</div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Cost per credit</div>
+        <div class="us" data-l="Video Factory" role="cell">$0.005</div>
+        <div class="them" data-l="API" role="cell">n/a</div>
+        <div class="them" data-l="Starter" role="cell">≈ $0.070</div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Cost per second of video</div>
+        <div class="us" data-l="Video Factory" role="cell">≈ $0.055</div>
+        <div class="them" data-l="API" role="cell">≈ $0.084</div>
+        <div class="them" data-l="Starter" role="cell">≈ $0.14</div>
+      </div>
+      <div class="vs-row vs-key" role="row">
+        <div class="rl" role="rowheader">One 90 s episode, rerolls included</div>
+        <div class="us" data-l="Video Factory" role="cell">≈ $5</div>
+        <div class="them" data-l="API" role="cell">$10 – $15</div>
+        <div class="them" data-l="Starter" role="cell">≈ $25</div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Episodes per month</div>
+        <div class="us" data-l="Video Factory" role="cell">Unlimited, as your balance allows</div>
+        <div class="them" data-l="API" role="cell">As many as you pay for</div>
+        <div class="them" data-l="Starter" role="cell">About 1</div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Monthly cost at 8 episodes</div>
+        <div class="us" data-l="Video Factory" role="cell">≈ $40</div>
+        <div class="them" data-l="API" role="cell">≈ $80 – $120</div>
+        <div class="them" data-l="Starter" role="cell">Doesn't cover it</div>
+      </div>
+      <div class="vs-row" role="row">
+        <div class="rl" role="rowheader">Seedance 2 included</div>
+        <div class="us" data-l="Video Factory" role="cell">Yes</div>
+        <div class="them" data-l="API" role="cell">Per model</div>
+        <div class="them" data-l="Starter" role="cell">No (Fast and Mini only)</div>
+      </div>
+      <div class="vs-row vs-key vs-mult" role="row">
+        <div class="rl" role="rowheader">Times pricier than us</div>
+        <div class="us" data-l="Video Factory" role="cell">1×</div>
+        <div class="them" data-l="API" role="cell">2 – 3×</div>
+        <div class="them" data-l="Starter" role="cell">≈ 5×</div>
+      </div>
+    </div>
+    <div class="vs-barcode"><i class="bars" aria-hidden="true"></i><span>Rated cheap for all audiences · Prices are estimates</span></div>
+    </div>
+  </div>
+  <p class="vs-note"><b>How we got these numbers.</b> Ours is the average of our real production ledgers (11 episodes, $1.2 to $10 each, ElevenLabs voices billed separately). Higgsfield figures are estimates from its published per-second rate and third-party pricing guides (<a href="https://higgsfield.ai/blog/ai-video-api-pricing-vs-subscriptions" target="_blank" rel="noopener">Higgsfield</a>, <a href="https://creatify.ai/blog/higgsfield-pricing-(2026)-plans-and-what-you-ll-actually-pay" target="_blank" rel="noopener">Creatify</a>), assuming 2 credits per second and one reroll per scene. Prices change; check each provider before you budget.</p>
+  <p class="sheet-foot">Higgsfield's Ultra plan ($99 a month, 3,000 credits) gets to about <b>$12 an episode</b>. Still more than double.</p>
 </section>
 
 <!-- 8. faq -->

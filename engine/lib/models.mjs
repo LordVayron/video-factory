@@ -82,7 +82,7 @@ export const MODELS = {
 
   kling3: {
     key: "kling3", kind: "video", tier: "standard", label: "Kling 3.0 (start+end frame, elements)",
-    model: "kling-3.0/video", resolutions: ["720p", "1080p"], speaks: true, refs: 0,
+    model: "kling-3.0/video", resolutions: ["720p", "1080p"], speaks: true, refs: 0, maxPrompt: 2500,
     build: (r) => ({
       prompt: r.prompt,
       image_urls: [r.frame, r.lastFrame].filter(Boolean),

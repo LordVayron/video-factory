@@ -70,7 +70,16 @@ const frame = (file, t) => execFileSync("ffmpeg", ["-v", "error", "-ss", t.toFix
 
 async function evalTake(sc, ci) {
   const clip = sc.clips[ci];
-  const file = path.join(dir, clip.file);
+  let file = path.join(dir, clip.file);
+  // sc.cutOut: the ranges the edit drops are dropped here too, so the take is judged as it will be cut
+  // (2026-10-19, The Toast: an improvised tail that the edit removes failed the whole take).
+  if (sc.cutOut?.length || sc.muteOut?.length) {
+    const tf = P.takeFilters(sc);
+    const trimmed = path.join(dir, "out", `_eval-${sc.id}-${ci + 1}.mp4`);
+    fs.mkdirSync(path.dirname(trimmed), { recursive: true });
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", file, "-vf", `${tf.vf}null`, "-af", `${tf.af}anull`, "-c:v", "libx264", "-crf", "16", "-preset", "fast", trimmed]);
+    file = trimmed;
+  }
   const shots = P.sceneShots(sl, sc);
   const segs = shotsOf(file);
   // Map filmed segments to planned shots: same count → in order; otherwise by planned time.
@@ -120,7 +129,9 @@ async function evalTake(sc, ci) {
       // A planned pose wins (standing beside a chair is standing); any chair or seat accepts the judge's chair words.
       // (2026-10-19, The Toast: a dinner table read as "other" and failed a correct take.)
       const wantOn = /stand/i.test(want.pose || "") ? ["standing"] : /(cushion|on the) (of the )?(plaid )?(couch|sofa)|couch cushion/i.test(want.place) ? ["couch"] : /floor|rug/i.test(want.place) ? ["floor"] : /chair|seat|stool|bench/i.test(want.place) || /seat|sit/i.test(want.pose || "") ? ["armchair", "chair", "other"] : null;
-      if (wantOn && c.on && !wantOn.includes(c.on)) facts.push({ frame: f.frame, type: "location", detail: `${P.character(id).name} is on the ${c.on}, planned on ${want.place}` });
+      // A close-up can't show whether someone stands or sits: place is judged only on wider framings.
+      const tight = /close|insert|single|cu\b/i.test(fr.shot.framing || "") && !/medium|wide/i.test(fr.shot.framing || "");
+      if (wantOn && c.on && !tight && !wantOn.includes(c.on)) facts.push({ frame: f.frame, type: "location", detail: `${P.character(id).name} is on the ${c.on}, planned on ${want.place}` });
       if (c.visible === "full" && ["left", "right"].includes(c.seat) && ["left", "right"].includes(want.side) && c.seat !== want.side && (fr.shot.characters || []).length > 1)
         facts.push({ frame: f.frame, type: "side", detail: `${P.character(id).name} is on the ${c.seat} seat, planned ${want.side}` });
     }

@@ -205,6 +205,37 @@ export function scene(sl, id) {
 }
 export const findItem = (sl, id) => (sl.scenes || []).find((x) => x.id === id) || shot(sl, id);
 export const sceneShots = (sl, sc) => sc.shots.map((id) => shot(sl, id));
+// The prompt for one shot of a scene filmed shot by shot (first-frame models with a prompt limit: Kling 3.0 takes
+// 2,500 characters, 2026-10-19). Compact but complete: the first frame, every character's look with its marks, the
+// scene light, the shot's structured spec (place, pose, props, action, dialogue word for word, must-nots), the pace.
+export function shotPrompt(sl, sc, s, max = 2500) {
+  const st = styleOf(sl), cast = sceneCast(sl, sc);
+  const full = scenePrompt(sl, { ...sc, shots: [s.id] }, []);
+  const spec = (full.match(/Shot 1 SPEC (\{.*\}) Lines, word for word:/) || [])[1] || "";
+  const parts = [
+    "Image 1 is the first frame: start exactly on it and keep its composition, faces, wardrobe, set and light.",
+    `Characters: ${cast.map((id) => `${character(id).name}: ${characterLook(character(id), st.id).look}.`).join(" ")}`,
+    `Shot: ${spec}`,
+    "Spoken at a calm, natural pace with natural pauses. No subtitles, no on-screen text, no music.",
+    sc.lighting ? `Light: ${sc.lighting}.` : "",
+    `Look: ${String(st.look || "").split(". ")[0]}.`,
+  ];
+  let out = "";
+  for (const p of parts.filter(Boolean)) if ((out + " " + p).trim().length <= max) out = (out + " " + p).trim();
+  return out;
+}
+
+// The edit's fixes on a filmed take, as ffmpeg filter prefixes shared by edit.mjs and continuity.mjs (so a take is
+// judged exactly as it is cut): sc.cutOut drops picture and sound, sc.muteOut silences sound only. Times are in the
+// original take; the mute runs before the cut.
+export function takeFilters(sc) {
+  const rng = (r) => (r || []).map(([a, b]) => `between(t,${a},${b})`).join("+");
+  const outs = rng(sc.cutOut), mutes = rng(sc.muteOut);
+  return {
+    vf: outs ? `select='not(${outs})',setpts=N/FRAME_RATE/TB,` : "",
+    af: `${mutes ? `volume=0:enable='${mutes}',` : ""}${outs ? `aselect='not(${outs})',asetpts=N/SR/TB,` : ""}`,
+  };
+}
 // Everyone in the scene: the characters of its shots AND everyone seated in it (sc.seats). A seated character is in
 // frame in wide shots, so the model needs their marks and references (2026-10-19, The Toast: scene A named Grace in
 // its blocking without her references; the prompt check stopped it before any spend).
@@ -213,6 +244,9 @@ export const sceneCast = (sl, sc) => [...new Set([...sceneShots(sl, sc).flatMap(
 // Grid layout for n vertical panels and the nearest image aspect ratio the image models support.
 // A shot's length in the video prompt: the radio cut's duration in half seconds, 1–8 s.
 export const shotSecs = (s) => Math.max(1, Math.min(8, Math.round((s.duration || 3) * 2) / 2));
+// A shot's generation length when a scene is filmed shot by shot (sl.filmBy "shot"): whole seconds, never below
+// the model's minimum (Veo 4 s, Kling 3 s).
+export const shotGenSecs = (s, modelKey) => Math.max(String(modelKey || "").startsWith("veo") ? 4 : 3, Math.ceil(shotSecs(s)));
 // A scene's generation length: whole seconds, at least 4 (Seedance) and at most 15.
 export const sceneSecs = (shots) => Math.max(4, Math.min(15, Math.ceil(shots.reduce((n, s) => n + shotSecs(s), 0))));
 
@@ -320,7 +354,10 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
   const lang = sl.lang === "es" ? "Mexican Spanish" : "English";
   const shots = sceneShots(sl, sc);
   // Image 1 is the opening storyboard panel; reference images follow from Image 2.
-  const bind = refs.map((r, i) => r.role === "set" ? `Location: Image ${i + 2}.` : `${r.name}: Image ${i + 2} (${r.look}).`).join(" ");
+  // With no character reference images (models that take only a first frame: Kling 3.0, Veo), every character in the
+  // scene is described in words, marks included, so the look and the marks still reach the model.
+  const bind = refs.map((r, i) => r.role === "set" ? `Location: Image ${i + 2}.` : `${r.name}: Image ${i + 2} (${r.look}).`).join(" ")
+    + (refs.some((r) => r.role === "character") ? "" : " " + sceneCast(sl, sc).map((id) => `${character(id).name}: ${characterLook(character(id), styleOf(sl).id).look}.`).join(" "));
   const voices = voiceRefs.map((v, i) => `${character(v).name}'s voice timbre: reference Audio ${i + 1}.`).join(" ");
   let t = 0;
   const body = shots.map((s, k) => {

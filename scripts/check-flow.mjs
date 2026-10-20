@@ -10,6 +10,8 @@ import { videoOptions, recommend } from "../engine/lib/pricing.mjs";
 export default function checkFlow(t, ROOT) {
   const engine = (f) => fs.readFileSync(path.join(ROOT, "engine", f), "utf8");
   const stops = (fn) => { try { fn(); return false; } catch (e) { return e instanceof F.FlowStop; } };
+  // A stray control character inside a regex silently broke two engine rules on 2026-10-19.
+  t("no control characters in engine or script sources", !["engine", path.join("engine", "lib"), "scripts"].some((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(mjs|py)$/.test(f)).some((f) => /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(fs.readFileSync(path.join(ROOT, d, f), "utf8")))));
   t("no --force anywhere in the engine", !["gen.mjs", "edit.mjs", "cut.mjs", "studio.mjs", "longform.mjs", "book.mjs"].some((f) => engine(f).includes('"--force"')));
   t("no command still uses the retired requirePhases gate", !fs.readdirSync(path.join(ROOT, "engine")).filter((f) => f.endsWith(".mjs")).some((f) => /requirePhases\(sl/.test(engine(f))));
   for (const [f, step] of [["gen.mjs", 'requireStep(sl, "film", "gen clip")'], ["gen.mjs", 'requireStep(sl, "board", "gen storyboard")'], ["edit.mjs", "requireStep(sl, draft"], ["cut.mjs", "requireStep(sl, draft"], ["radio.mjs", 'requireStep(sl, "radio"'], ["animatic.mjs", 'requireStep(sl, "board"'], ["longform.mjs", 'requireStep(sl, "edit"'], ["book.mjs", "F.requireStep(sl"]])
@@ -59,6 +61,9 @@ export default function checkFlow(t, ROOT) {
       const dsl = { format: "micro-drama", lang: "en", style: "hyperreal", title: "t", scenes: [{ id: "A", shots: ["s1", "s2"], summary: "x", seats: { [cid]: { place: "beside the table", side: "right", pose: "standing", holding: "a glass" } } }], shots: [{ id: "s1", characters: [cid], framing: "wide shot of the table", duration: 2, dialogue: [line] }, { id: "s2", characters: [cid], framing: "close-up", duration: 2, dialogue: [] }] };
       let dp = "";
       try { dp = P.scenePrompt(dsl, dsl.scenes[0], []); } catch (e) { dp = `ERROR ${e.message}`; }
+      let sp = ""; try { sp = P.shotPrompt(dsl, dsl.scenes[0], dsl.shots[0], 2500); } catch (e) { sp = `ERROR ${e.message}`; }
+      t("a shot prompt for first-frame models fits the model's limit and keeps the line and the spec", sp.length <= 2500 && sp.includes(line.text) && /must_not/.test(sp));
+      t("job() refuses a prompt longer than the model takes", engine("gen.mjs").includes("m.maxPrompt && typeof req.prompt") && fs.readFileSync(path.join(ROOT, "engine", "lib", "models.mjs"), "utf8").includes("maxPrompt: 2500"));
       t("a drama scene prompt builds, with each shot's spec, pose and must-not list", /Shot 1 SPEC/.test(dp) && /STANDING/.test(dp) && /sitting down/.test(dp) && dp.includes(line.text));
     } finally { fs.rmSync(cdir, { recursive: true, force: true }); }
   }

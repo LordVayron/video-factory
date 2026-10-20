@@ -118,14 +118,16 @@ if (kind === "scenes") {
   // Every image a scene sends to the video model is shown next to its prompt (opening frame, each character's face
   // and full-body views, the set plate), so wardrobe and look are checked on the images, not on the text.
   const refThumb = (file, name, label) => { const n = thumb(file, name); return n ? `<figure><img src="${n}" alt="${esc(label)}" loading="lazy"><figcaption>${esc(label)}</figcaption></figure>` : ""; };
-  promptsHtml = (sl.scenes || []).map((sc) => {
+  // Filmed shot by shot (sl.filmBy "shot"): each shot's own first frame and the exact text spec the model receives.
+  if (sl.filmBy === "shot") promptsHtml = (sl.scenes || []).flatMap((sc) => P.sceneShots(sl, sc).map((s) => `<details><summary>Scene ${esc(sc.id)} · Shot ${esc(s.id)} · ${P.shotGenSecs(s, pick.video)} s · first frame + text</summary><div class="media">${refThumb(abs(s.board?.file), `ref-${s.id}-first.jpg`, `First frame · ${s.board?.from || "storyboard panel"}`)}</div><pre>${esc(P.shotPrompt(sl, sc, s, getModel(pick.video).maxPrompt || 4000))}</pre></details>`)).join("");
+  else promptsHtml = (sl.scenes || []).map((sc) => {
     const voices = [...new Set(P.sceneShots(sl, sc).flatMap((s) => (s.dialogue || []).map((l) => l.char)))];
     const refs = P.sceneRefs(sl, sc);
     const first = P.sceneShots(sl, sc)[0]?.board?.file || P.sceneShots(sl, sc)[0]?.boards?.[0];
     const imgs = [refThumb(abs(first), `ref-${sc.id}-open.jpg`, "Image 1 · opening frame"), ...refs.map((r, i) => refThumb(r.file, `ref-${r.id}-${path.basename(r.file, path.extname(r.file))}.jpg`, `Image ${i + 2} · ${r.name}`))].join("");
     return `<details><summary>Scene ${esc(sc.id)} · ${P.sceneSecs(P.sceneShots(sl, sc))} s · ${refs.length + 1} images</summary><div class="media">${imgs}</div><pre>${esc(P.scenePrompt(sl, sc, refs, { voiceRefs: voices }))}</pre></details>`;
   }).join("");
-  estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : sl.filmBy === "shot" ? P.sceneShots(sl, sc).reduce((n, s) => n + vm.cost({ res: pick.res, duration: P.shotGenSecs(s, pick.video), sound: true }), 0) : vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "clips") {
   promptsHtml = (sl.shots || []).map((s) => `<details><summary>Shot ${esc(s.id)} · ${esc(getModel(s.model || pick.video).label)} · ${s.duration} s</summary><pre>${esc(P.clipPrompt(sl, s))}</pre></details>`).join("");

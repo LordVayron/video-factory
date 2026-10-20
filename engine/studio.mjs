@@ -149,6 +149,20 @@ const commands = {
   },
 
   // A take that failed an eval (for example a jump inside the shot) is used only if the creator accepts that exact take, in his words.
+  // The intake's fixed budget is a hard cap (gen.mjs job, book, phase budget). Only the creator's words raise it.
+  cap() {
+    const slug = pos[0], usd = Number(flag("--usd")), said = flag("--said");
+    if (!slug || !usd || !said) throw new F.FlowStop('cap <slug> --usd <nuevo tope> --said "palabras exactas del creador"');
+    P.updateShotlist(slug, (sl) => {
+      F.assertV5(sl);
+      const old = sl.intake?.budget?.usd;
+      if (sl.intake?.budget?.mode !== "fixed") throw new F.FlowStop("este proyecto no tiene tope fijo en el intake");
+      sl.intake.budget.usd = usd;
+      sl.flow.log.push({ at: now(), event: `cap $${old} -> $${usd}`, said });
+    });
+    console.log(`tope del proyecto: $${usd} (palabras del creador registradas)`);
+  },
+
   // The pilot gate (lib/flow.mjs): the creator approves the first filmed scene or shot before the rest is filmed.
   "approve-pilot"() {
     const slug = pos[0], said = flag("--said");
@@ -184,8 +198,10 @@ const commands = {
     const slug = pos[0];
     let sl = P.loadShotlist(slug);
     F.requireStep(sl, "models", "studio prices");
-    const kind = F.kindOf(sl);
-    const secs = kind === "scenes" ? (sl.scenes || []).reduce((n, sc) => n + P.sceneSecs(P.sceneShots(sl, sc)), 0)
+    // A scene filmed shot by shot (sl.filmBy "shot") is priced like clips: every shot is its own generation.
+    const byShot = F.kindOf(sl) === "scenes" && sl.filmBy === "shot";
+    const kind = byShot ? "clips" : F.kindOf(sl);
+    const secs = byShot ? (sl.shots || []).reduce((n, s) => n + P.shotGenSecs(s), 0) : kind === "scenes" ? (sl.scenes || []).reduce((n, sc) => n + P.sceneSecs(P.sceneShots(sl, sc)), 0)
       : kind === "clips" ? (sl.shots || []).reduce((n, s) => n + (s.duration || 8), 0) : (sl.longform?.scenes || []).filter((s) => s.motion !== "kenburns").reduce((n, s) => n + (s.seconds || 8), 0);
     const clips = kind === "clips" ? (sl.shots || []).length : kind === "longform" ? (sl.longform?.scenes || []).length : (sl.scenes || []).length;
     const live = await livePrices();
