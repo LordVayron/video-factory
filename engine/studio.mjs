@@ -149,6 +149,16 @@ const commands = {
   },
 
   // A take that failed an eval (for example a jump inside the shot) is used only if the creator accepts that exact take, in his words.
+  // The look test (lib/flow.mjs modelsCheck): one still of the leads in the set, approved in the creator's words, before any
+  // video price or book of a drama.
+  "approve-look"() {
+    const slug = pos[0], file = flag("--file"), said = flag("--said");
+    if (!slug || !file || !said) throw new F.FlowStop('approve-look <slug> --file <imagen del proyecto> --said "palabras exactas del creador"');
+    if (!fs.existsSync(P.abs(slug, file))) throw new F.FlowStop(`no existe ${file} en el proyecto`);
+    P.updateShotlist(slug, (sl) => { F.assertV5(sl); sl.lookTest = { file, said, at: now() }; sl.flow.log.push({ at: now(), event: `approve-look ${file}`, said }); });
+    console.log("prueba de look aprobada con las palabras del creador");
+  },
+
   // The intake's fixed budget is a hard cap (gen.mjs job, book, phase budget). Only the creator's words raise it.
   cap() {
     const slug = pos[0], usd = Number(flag("--usd")), said = flag("--said");

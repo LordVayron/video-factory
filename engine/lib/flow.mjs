@@ -99,6 +99,10 @@ function castCheck(sl) {
     const d = path.join(P.BIBLE, "characters", id);
     if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
   }
+  // LOOK TEST (2026-10-19, The Toast: the realism problem was only seen after the video money was spent). A drama's
+  // cast is complete only when the creator approved, in his words, one still of the leads in the set at the episode's light,
+  // before any storyboard or video: studio.mjs approve-look <slug> --file <image> --said "...".
+  if (FORMATS[sl.format]?.needsScore && !(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('falta la prueba de look: una foto de los protagonistas en el set con la luz del episodio (gen.mjs still --project), aprobada con studio.mjs approve-look <slug> --file <imagen> --said "..."');
   return bad.length ? no(bad.join("; ")) : ok(ids.join(", "));
 }
 
@@ -131,10 +135,31 @@ export function dramaRules(sl) {
       if (words > Math.max(4, Math.floor(P.shotSecs(s) * 3))) out.push(`${s.id}: ${words} palabras en ${P.shotSecs(s)} s (máximo ~3 por segundo)`);
       if (HANDS.test(s.motion || "")) out.push(`${s.id}: acción con manos y objetos ("${(s.motion.match(HANDS) || [])[0]}"), falla seguido: muestra el objeto ya en la mano y corta`);
       if (FAST.test(s.motion || "")) out.push(`${s.id}: movimiento rápido ("${(s.motion.match(FAST) || [])[0]}"), falla seguido: sugiérelo con cortes`);
+      // Cut rhythm: a spoken shot runs at most 6 s, a silent reaction at most 2.5 s (held to its peak, not past it).
+      const speaks = (s.dialogue || []).length > 0;
+      if (speaks && P.shotSecs(s) > 6) out.push(`${s.id}: plano hablado de ${P.shotSecs(s)} s (máximo 6; divídelo en plano/contraplano)`);
+      if (!speaks && P.shotSecs(s) > 2.5) out.push(`${s.id}: reacción de ${P.shotSecs(s)} s (máximo 2.5; corta en el pico)`);
+      // Empty mood words give the model nothing to film and push the glossy "AI" look.
+      const vague = `${s.image || ""} ${s.motion || ""}`.match(VAGUE);
+      if (vague) out.push(`${s.id}: palabra vacía "${vague[0]}" en la descripción (usa verbos y detalles concretos)`);
+      // Eye-level camera on dialogue: extreme angles are where faces drift.
+      if (speaks && EXTREME.test(`${s.framing || ""} ${s.camera || ""}`)) out.push(`${s.id}: ángulo extremo en un plano con diálogo (mantén la cámara a la altura de los ojos)`);
     }
+    // Dialogue filmed one shot per generation re-invents the voice, light and gestures every shot (The Toast with Kling).
+    if (sl.filmBy === "shot" && !sl.filmByShotOk && shots.filter((s) => (s.dialogue || []).length).length > 1) out.push(`escena ${sc.id}: varios planos con diálogo filmados uno por uno (la voz y la luz cambian entre planos); fílmala como una sola generación multi-plano`);
   }
+  // The hook: the first line is heard by 3 s, and the episode never opens on an establishing shot.
+  let t = 0;
+  for (const s of (sl.scenes || []).flatMap((sc) => P.sceneShots(sl, sc))) { if ((s.dialogue || []).length) break; t += P.shotSecs(s); }
+  if (t > 3) out.push(`el primer diálogo llega a los ${t} s (el conflicto tiene que oírse antes de 3 s)`);
+  const first = P.sceneShots(sl, (sl.scenes || [])[0] || { shots: [] })[0];
+  if (first && /establishing/i.test(`${first.framing || ""} ${first.image || ""}`)) out.push(`${first.id}: el episodio abre con un plano de ubicación (abre en el conflicto)`);
+  // Length: AI episodes hold up best at 25-90 s (measured on the radio cut).
+  if (sl.radio?.length && (sl.radio.length < 25 || sl.radio.length > 90)) out.push(`episodio de ${sl.radio.length} s en el radio cut (rango 25-90 s)`);
   return out;
 }
+const VAGUE = /\b(cinematic|stunning|epic|8k|4k|masterpiece|breathtaking|gorgeous|award[- ]winning|ultra[- ]realistic|hyper[- ]detailed)\b/i;
+const EXTREME = /\b(low[- ]angle|high[- ]angle|overhead|bird'?s[- ]eye|worm'?s[- ]eye|dutch)\b/i;
 
 function boardCheck(sl) {
   const k = kindOf(sl), bad = [];

@@ -96,6 +96,10 @@ export default function checkFlow(t, ROOT) {
       const D = { format: "micro-drama", scenes: [{ id: "A", shots: ["d1"], lighting: "night, candle light" }], shots: [{ id: "d1", characters: ["a", "b", "c"], duration: 2, motion: "She picks up the ring", dialogue: [{ char: "a", text: "one two three four five six seven eight nine ten" }] }] };
       const r = F.dramaRules(D).join(" | ");
       t("drama rules block dim light, 3 people in a shot, hand-object work and too many words", /luz baja/.test(r) && /3 personajes/.test(r) && /manos y objetos/.test(r) && /palabras en/.test(r));
+      const D2 = { format: "micro-drama", radio: { length: 120 }, scenes: [{ id: "A", shots: ["e1", "e2", "e3"], lighting: "soft daylight" }], shots: [{ id: "e1", characters: ["a"], framing: "wide establishing shot", duration: 4, image: "cinematic stunning room", dialogue: [] }, { id: "e2", characters: ["a"], framing: "close-up", duration: 4, motion: "She stares", dialogue: [] }, { id: "e3", characters: ["a"], framing: "low angle close-up", duration: 8, dialogue: [{ char: "a", text: "one two three" }] }] };
+      const r2 = F.dramaRules(D2).join(" | ");
+      t("drama rules block a late hook, an establishing opener, long reactions and shots, vague words, extreme angles, wrong length", /primer diálogo/.test(r2) && /plano de ubicación/.test(r2) && /reacción de/.test(r2) && /plano hablado de/.test(r2) && /palabra vacía/.test(r2) && /ángulo extremo/.test(r2) && /rango 25-90/.test(r2));
+      t("a drama's cast needs an approved look test before any storyboard or video", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("falta la prueba de look") && engine("studio.mjs").includes('"approve-look"()'));
       t("drama rules feed the board check, so a failing plan never reaches the book", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("bad.push(...dramaRules(sl))"));
       t("outside the sitcom the take's own (lip-synced) voice is kept by default", engine("edit.mjs").includes('sl.voiceUnify === true || (sl.voiceUnify !== false && sl.format === "sitcom")'));
     }
