@@ -1,4 +1,4 @@
-// Provider routing (2026-10-22). APIMart is the main provider and Kie the second one. Every paid job goes to the
+// Provider routing. APIMart is the main provider and Kie the second one. Every paid job goes to the
 // cheapest provider that can run it (models.mjs offers(), APIMart winning ties); if APIMart refuses the submit
 // (no balance, a parameter it doesn't take, a busy server), nothing was billed and the job goes to Kie instead.
 // A job that was accepted is never resubmitted elsewhere: it may still bill.

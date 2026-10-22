@@ -17,7 +17,7 @@ export const PHASES = [
 ];
 
 // Phases each paid command needs approved first.
-// The look test is no longer a gate: each style commits to its best model (2026-10-09).
+// The look test is no longer a gate: each style commits to its best model.
 export const GATES = {
   storyboard: ["concept", "style", "cast", "sets"],
   frames: ["storyboard"],

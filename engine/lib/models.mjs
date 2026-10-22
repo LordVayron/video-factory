@@ -1,6 +1,6 @@
 // Model registry. One generic request shape in, a model-specific Kie input out,
 // plus a cost estimate in credits (1 credit = $0.005).
-// Prices come from Kie's live price feed (node engine/gen.mjs prices) — checked 2026-10-08.
+// Prices come from Kie's live price feed (node engine/gen.mjs prices).
 //
 // Generic request (any field may be absent):
 //   prompt, ar ("9:16"), res ("480p"|"720p"|"1080p"), duration (s),
@@ -244,7 +244,7 @@ export function getModel(key) {
 export const usd = (credits) => `$${(credits * 0.005).toFixed(3)}`;
 
 // ------------------------------------------------------------------ APIMart
-// APIMart (2026-10-22). Each engine model that APIMart also sells gets its request
+// APIMart. Each engine model that APIMart also sells gets its request
 // shape there and its live price (engine/prices-apimart.json, refreshed with the Kie feed by lib/pricing.mjs).
 // cost() then answers for the cheapest provider that can run the request, so the Production Book, the budget lock
 // and the filming all use the same price; lib/providers.mjs routes the job to that provider.

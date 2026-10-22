@@ -12,7 +12,7 @@ import { videoOptions, recommend } from "../engine/lib/pricing.mjs";
 export default function checkFlow(t, ROOT) {
   const engine = (f) => fs.readFileSync(path.join(ROOT, "engine", f), "utf8");
   const stops = (fn) => { try { fn(); return false; } catch (e) { return e instanceof F.FlowStop; } };
-  // A stray control character inside a regex silently broke two engine rules on 2026-10-19.
+  // A stray control character inside a regex silently breaks an engine rule.
   t("no control characters in engine or script sources", !["engine", path.join("engine", "lib"), "scripts"].some((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(mjs|py)$/.test(f)).some((f) => /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(fs.readFileSync(path.join(ROOT, d, f), "utf8")))));
   t("no --force anywhere in the engine", !["gen.mjs", "edit.mjs", "cut.mjs", "studio.mjs", "longform.mjs", "book.mjs"].some((f) => engine(f).includes('"--force"')));
   t("no command still uses the retired requirePhases gate", !fs.readdirSync(path.join(ROOT, "engine")).filter((f) => f.endsWith(".mjs")).some((f) => /requirePhases\(sl/.test(engine(f))));
@@ -40,8 +40,7 @@ export default function checkFlow(t, ROOT) {
     t("a take the creator accepted in his words is usable", F.takeOk({ evals: { identity: { pass: false } }, accepted: { said: "sí" } }));
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
 
-  // The script reaches the video model word for word (2026-10-19, The Glow Up: gen clip sent only the visual
-  // prompt and Seedance improvised a paid take).
+  // The script reaches the video model word for word (a visual-only prompt lets the model improvise a paid take).
   t("job() stops a speaking video job whose prompt leaves out a line (DIALOGUE STOP)", engine("gen.mjs").includes("DIALOGUE STOP") && engine("gen.mjs").includes("P.linesMissing(req.prompt, req.lines)"));
   t("gen clip sends the clip prompt with the script and declares its lines", engine("gen.mjs").includes("prompt: P.clipPrompt(sl, s), lines: s.dialogue || []"));
   t("scene and shot video jobs declare their script lines", engine("gen.mjs").includes("lines: shots.flatMap((s) => s.dialogue || [])") && engine("gen.mjs").includes("lines: s.dialogue || [], frame, lastFrame"));
@@ -70,8 +69,7 @@ export default function checkFlow(t, ROOT) {
     } finally { fs.rmSync(cdir, { recursive: true, force: true }); }
   }
 
-  // a past drama (2026-10-19): a whole episode filmed before anyone saw one scene, on a format the editor
-  // couldn't finish, and a reopened book that re-estimated filmed scenes.
+  // Pilot gate, format readiness and a reopened book that must not re-estimate filmed scenes.
   {
     const sc = { kind: "x", slug: "p", format: "micro-drama", scenes: [{ id: "A" }, { id: "B" }], flow: { v: 5, approved: {} } };
     t("pilot gate: only the first scene can be filmed before the creator approves the pilot", stops(() => F.requirePilot(sc, ["A", "B"])) && !stops(() => F.requirePilot(sc, ["A"])));
@@ -103,7 +101,7 @@ export default function checkFlow(t, ROOT) {
       t("drama rules block a late hook, an establishing opener, long reactions and shots, vague words, extreme angles, wrong length", /primer diálogo/.test(r2) && /plano de ubicación/.test(r2) && /reacción de/.test(r2) && /plano hablado de/.test(r2) && /palabra vacía/.test(r2) && /ángulo extremo/.test(r2) && /rango 25-90/.test(r2));
       t("a drama's cast needs an approved look test before any storyboard or video", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("falta la prueba de look") && engine("studio.mjs").includes('"approve-look"()'));
       {
-        // a past drama (2026-10-20): each close-up of the same person had a different background in every scene.
+        // Each close-up of the same person must keep one background across scenes.
         const A = { format: "micro-drama", scenes: [{ id: "A", shots: ["x1", "x2"] }, { id: "B", shots: ["x3", "x4"] }], shots: [{ id: "x1", characters: ["a"], framing: "close-up on A" }, { id: "x2", characters: ["b"], framing: "close-up on B" }, { id: "x3", characters: ["a"], framing: "close-up on A" }, { id: "x4", characters: ["a", "b"], framing: "wide two-shot" }] };
         const need = P.anglesNeeded(A);
         t("everyone with close-ups in more than one scene needs one locked angle frame (not the sitcom)", need.length === 1 && need[0] === "a" && P.anglesNeeded({ ...A, format: "sitcom" }).length === 0);
@@ -121,7 +119,7 @@ export default function checkFlow(t, ROOT) {
         const opts = [{ key: "wan3-prime", q: 8, credits: 600, usd: 3 }, { key: "sd2-fast", q: 7, credits: 590, usd: 2.95 }];
         t("a model measured speaking too fast is not recommended for a speaking format", PR.measuredWpm("wan3-prime") > 175 && PR.recommend(opts, { format: "micro-drama", budget: { mode: "fixed", usd: 5 }, maxWpm: 175 }).key === "sd2-fast" && PR.recommend(opts, { format: "micro-drama", budget: { mode: "fixed", usd: 5 } }).key === "wan3-prime");
         t("every cut records the model's speaking rate, and a fast pilot needs the creator's explicit yes (--ok-fast)", engine("edit.mjs").includes("recordSpeechRate(sl.defaults?.videoModel") && engine("studio.mjs").includes('argv.includes("--ok-fast")'));
-        // Guided meditations (2026-10-20): one universal engine; the intention sets pace, pauses, music and safety.
+        // Guided meditations: one universal engine; the intention sets pace, pauses, music and safety.
 
         const med = (o = {}) => ({ format: "meditation", longform: { intent: "sleep", premise: "Rain on a cabin window lets the day wash away.", demo: true, seconds: 25,
           scenes: [{ id: "A", picture: "a dark cozy room, rain streaks on a window, a warm lamp reflected in the glass, no people, no text", motion: "raindrops slide slowly down the glass, steady drizzle", premiseLink: "the rain that washes the day away" }],

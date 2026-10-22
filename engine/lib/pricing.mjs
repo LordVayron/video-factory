@@ -3,7 +3,7 @@
 // and recommends the best quality that fits the intake's budget mode. The pick is stored in sl.defaults, so the
 // book's estimate and the filming use the same model. Families Kie lists that the engine doesn't run yet are
 // reported, so a better or cheaper new model is never missed.
-// 2026-10-19. No model is excluded by rule; quality and price decide.
+// No model is excluded by rule; quality and price decide.
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./env.mjs";
@@ -50,13 +50,13 @@ const CAN = {
   clips: ["veo", "veo-fast", "veo-lite", "kling3", "sd2-mini", "sd2-fast", "sd2", "sd2.5", "grok"],
   longform: ["sd2-mini", "sd2-fast", "sd2", "sd2.5", "kling3", "veo", "veo-fast", "veo-lite"],
 };
-// The lowest quality each format accepts. Photoreal talking humans need the top tier: in the 2026-10-19 A/B only
+// The lowest quality each format accepts. Photoreal talking humans need the top tier: in A/B tests only
 // Veo 3.1 Quality read as real.
 const FLOOR = { influencer: 10, ugc: 8, cinematic: 8, fantasy: 7, podcast: 7, "micro-drama": 7, anime: 6, sitcom: 6, other: 7, meditation: 5, launch: 7 };
 // Resolution each format delivers at (sitcom can film at 480p: the broadcast finish downsamples).
 const RES = { sitcom: ["480p", "720p"], meditation: ["720p"] };
 
-// APIMart's live prices (2026-10-22): one public request per model the engine maps there. Written next to Kie's feed;
+// APIMart's live prices: one public request per model the engine maps there. Written next to Kie's feed;
 // models.mjs prices every job from it, so the cheapest provider is chosen per model.
 export async function apimartPrices({ maxAgeH = 6 } = {}) {
   let cached = null;
@@ -147,7 +147,7 @@ export function newFamilies(rows) {
 
 // budget: { mode: "cheapest" | "fixed" | "max", usd }. baseline: the model the style was approved with; the
 // "cheapest that keeps quality" pick never drops below its quality or the format's floor.
-// Measured speaking rate of each model's native voices (2026-10-20: Wan 3.0 Prime read every drama line at
+// Measured speaking rate of each model's native voices (Wan 3.0 Prime read every drama line at
 // 191-204 wpm though the prompt asked for 140-160, and lip-synced speech can't be slowed in the edit).
 const RATES = path.join(ROOT, "engine", "data", "speech-rates.json");
 const readRates = () => { try { return JSON.parse(fs.readFileSync(RATES, "utf8")); } catch { return {}; } };

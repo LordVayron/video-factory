@@ -26,7 +26,7 @@ const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
 requireStep(sl, "radio", "radio");
 const pace = { gap: 0.25, tempo: 1.0, lead: 0.12, tail: 0.6, innerPause: 0.18, ...(sl.pace || {}) };
-// atempo below 0.85 smears the voice into slow motion (the creator heard it on a past drama at 0.7); slow the read with real pauses instead.
+// atempo below 0.85 smears the voice into slow motion (clearly audible at 0.7); slow the read with real pauses instead.
 if (pace.tempo < 0.85 || pace.tempo > 1.2) throw new Error(`pace.tempo ${pace.tempo} fuera de 0.85-1.2: suena en cámara lenta o acelerado. Usa pace.innerPause, beats o gap para alargar.`);
 const ff = (args) => execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...args], { cwd: dir, stdio: ["ignore", "inherit", "inherit"] });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
@@ -58,7 +58,7 @@ for (const s of sl.shots) {
 }
 
 // A silent shot's planned length lives in s.hold: s.duration is rewritten from the timeline below, so reading it back
-// shrank the reaction by the lead on every rerun (a past drama's a3 went 2.0 -> 0.6 s over six runs).
+// would shrink the reaction by the lead on every rerun.
 const hold = (s, dflt) => { if (s.hold == null) s.hold = s.duration || dflt; return s.hold; };
 // 2. Timeline. Lines follow each other with a short gap; a laugh starts on the last word and the next line
 //    steps in while it decays; a planned beat is the only long pause.
@@ -139,8 +139,7 @@ const pacing = {
   firstLaugh: laughs[0] ? Math.round(laughs[0].at * 10) / 10 : null,
   secondsPerLaugh: laughs.length ? Math.round((total / laughs.length) * 10) / 10 : null,
 };
-// Laugh rules are the sitcom's; a drama has none and speaks at a natural 140-165 wpm (2026-10-19:
-// "que no hable tan rápido"). sl.paceRules overrides either set.
+// Laugh rules are the sitcom's; a drama has none and speaks at a natural 140-165 wpm. sl.paceRules overrides either set.
 const sitcom = sl.format === "sitcom";
 const rules = sl.paceRules || (sitcom
   ? { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 }
@@ -160,8 +159,8 @@ console.log(sl.shots.map((s) => `${s.id} ${s.duration}s`).join(" · "));
 console.log(JSON.stringify(pacing));
 console.log(problems.length ? `PACING FAIL: ${problems.join("; ")}` : "pacing: pass");
 
-// Too fast outside the sitcom: slow the read at the source, one step at a time, and run again (2026-10-20, a past drama:
-// the designed voices read at 204-225 wpm; eleven_v3 ignores speed, multilingual v2 honours it, and atempo below
+// Too fast outside the sitcom: slow the read at the source, one step at a time, and run again (designed
+// voices can read at 200+ wpm; eleven_v3 ignores speed, multilingual v2 honours it, and atempo below
 // 0.85 sounds like slow motion). Each step costs a few ElevenLabs characters, no Kie credits. sl.pace.auto = false
 // turns it off; the steps already tried live in sl.pace.autoStep.
 const SLOWER = [

@@ -60,7 +60,7 @@ const commands = {
     const setLook = setId ? P.set(setId).look : st.kind === "realistic" ? "a plain, softly lit everyday room" : "a plain light background";
     const lk = P.characterLook(c, styleId);
     const who = `${c.name}, ${lk.look}`;
-    // Sheets are references for every shot: a neutral pose, so no gesture leaks into a scene (a chin on a hand did, a past drama).
+    // Sheets are references for every shot: a neutral pose, so no gesture leaks into a scene (a chin on a hand would).
     const neutral = "Neutral reference pose in every panel: upright, arms relaxed, hands away from the face, holding nothing, no props, calm neutral expression. ";
     const prompt = neutral + st.characterSheet.prompt.replaceAll("{who}", who).replaceAll("{set}", setLook).replaceAll("{look}", st.look)
       + (st.imageRules ? ` ${st.imageRules}` : "") + (st.negative ? ` Avoid: ${st.negative}.` : "") + (flag("--note") ? ` ${flag("--note")}` : "");

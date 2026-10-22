@@ -1,4 +1,4 @@
-// Offline checks of the reference engine (2026-10-22): format guesses, the breakdown contract, approval in the
+// Offline checks of the reference engine: format guesses, the breakdown contract, approval in the
 // creator's words, the bank, originality, and the studio gates. No video, no paid call: profiles are synthetic and a
 // throwaway approved reference lives in refs/ only while the checks run.
 import fs from "node:fs";

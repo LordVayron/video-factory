@@ -1,4 +1,4 @@
-// Product launch films (2026-10-21): the creative director's plan, checked in code before any spend.
+// Product launch films: the creative director's plan, checked in code before any spend.
 // Claude writes these files with the creator, in projects/<slug>/launch/; the rules below decide whether a gate can be
 // approved (lib/flow.mjs). Nothing in this file spends.
 //   brief.json        product facts with their sources, the interview, assumptions, the message map
@@ -20,9 +20,9 @@ export const fileOf = (slug, k) => path.join(dirOf(slug), FILES[k]);
 export const read = (slug, k) => P.readJSON(fileOf(slug, k), null);
 
 // Release 1: what the editor finishes today. Anything else is refused at the intake, never offered half-working.
-// 30 s, plus up to 5 s so the brand ending can breathe (2026-10-21: the ending felt rushed).
+// 30 s, plus up to 5 s so the brand ending can breathe (the ending felt rushed).
 // Styles: any bible style with a "launch" block (how real footage is graded into its world) or a custom style made
-// from the creator's own references (launch.mjs style-from-refs). 2026-10-22: launch films opened past storybook.
+// from the creator's own references (launch.mjs style-from-refs). launch films opened past storybook.
 export function launchStyles() {
   const dir = path.join(P.BIBLE, "styles");
   return fs.readdirSync(dir).filter((id) => { try { const s = JSON.parse(fs.readFileSync(path.join(dir, id, "style.json"), "utf8")); return !!s.launch; } catch { return false; } }).sort();
@@ -109,13 +109,13 @@ export const PlannedShot = z.object({
   // Real footage played inside the shot's screens (drawn solid bright green), in reading order: the proof.
   // treatment "storybook" (default in illustrated styles) grades it into the film's world; "none" keeps it raw.
   inserts: z.array(z.object({ file: z.string(), from: z.number().min(0).default(0), label: z.string().optional(), treatment: z.enum(["storybook", "style", "none"]).optional(), onAt: z.number().min(0).optional() })).default([]),
-  // How this shot follows the previous one (2026-10-21, Town vs a launch film: every Town cut is motivated by an action,
-  // an object, or the same place seen closer or wider; ours jumped between five places).
+  // How this shot follows the previous one: a good cut is motivated by an action, an object, or the same place seen
+  // closer or wider, never an unmotivated jump to another place.
   connect: z.object({ type: z.enum(CONNECT), how: str }).optional(),
   assets: z.array(z.string()).default([]),
   prompt: z.string().default(""), negative: z.string().optional(), motion: z.string().optional(), compositing: z.string().optional(),
-  // CHOREOGRAPHY (2026-10-21, a launch film v2: the model invented papers falling from nowhere, people popping into a
-  // screen, tapes sinking into the ground). `end` is the shot's last moment, drawn as the last frame the video model
+  // CHOREOGRAPHY (left alone, a video model invents things falling from nowhere, people popping in, objects
+  // sinking). `end` is the shot's last moment, drawn as the last frame the video model
   // must land on; `still` lists what must not move, appear or disappear.
   end: z.string().optional(), still: z.array(z.string()).default([]),
   risks: z.array(z.string()).default([]),
@@ -123,7 +123,7 @@ export const PlannedShot = z.object({
 export const ShotPlan = z.object({
   conceptId: z.string(), durationSeconds: z.number(), fps: z.number(), shots: z.array(PlannedShot).min(1),
   musicPrompt: z.string().optional(),
-  // The creator can waive the thread closing the film, in his words (2026-10-21, a launch film v6: the hand idling over the factory made no sense).
+  // The creator can waive the thread closing the film, in their words (when an idle thread in the last shot makes no sense).
   threadCloseWaived: z.object({ said: z.string().trim().min(2), reason: z.string().trim().min(2) }).optional(),
   // A narrated film is cut to its narration: one take, every line placed where it falls in that take.
   narrationStart: z.number().min(0).default(0.2),
@@ -137,13 +137,13 @@ export const StyleBible = z.object({
   characters: z.array(z.object({ id: z.string(), role: str, scale: z.string().optional(), props: z.array(z.string()).default([]) })).default([]),
   environments: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), name: str, layout: str, props: z.array(z.string()).default([]), ref: z.string().optional() })).min(1),
   brand: z.object({ name: z.string().trim().min(1), logo: z.string().optional(), safeMargin: z.number().min(0.03).max(0.15).default(0.06), uiLabels: z.array(z.string()).default([]) }),
-  // One world and one thread (Town: one town, and the user's giant hand in most shots, leading every cut).
+  // One world and one thread (one place, and one recurring character or object leading every cut).
   world: z.string().optional(),
   thread: z.string().optional(),
   // The look every shot is graded to in the edit (mean brightness 0-255, mean saturation); omitted: the film's median.
   grade: z.object({ brightness: z.number().min(60).max(235), saturation: z.number().min(4).max(60) }).optional(),
-  // World continuity: how a recurring thing always behaves (a launch film v2: the conveyor ran out of the factory in one
-  // shot and into it in the next). Every shot that shows the subject restates the rule in its prompt or motion.
+  // World continuity: how a recurring thing always behaves (otherwise it can move one way in one shot and the
+  // opposite way in the next). Every shot that shows the subject restates the rule in its prompt or motion.
   continuity: z.array(z.object({ subject: z.string(), rule: z.string() })).default([]),
 });
 const SCORE_KEYS = ["icpPain", "comprehension", "narrative", "continuity", "proof", "motion", "brand", "cta", "sound", "format"];
@@ -198,7 +198,7 @@ export function conceptRules(raw, brief) {
     if (overlap(a.visualMetaphor, b.visualMetaphor) > 0.5 || overlap(a.creativeThesis, b.creativeThesis) > 0.6) out.push(`los conceptos ${a.id} y ${b.id} se parecen demasiado (misma metáfora o tesis); tienen que ser ángulos distintos, no paráfrasis`);
   }
   if (!ids.includes(c.selected)) out.push(`el concepto elegido "${c.selected}" no existe`);
-  // A concept launches the product (2026-10-21: a rental store, a night crew and a pop-up book told stories and were
+  // A concept launches the product (a rental store, a night crew and a pop-up book told stories and were
   // rejected as "not launch videos"): its thesis or its metaphor's mapping names the product or its category.
   const pn = brief?.product?.name?.toLowerCase(), cat = (brief?.product?.category || "").toLowerCase().split(/\W+/).filter((w) => w.length > 3);
   if (pn) for (const x of c.concepts) { const t = `${x.creativeThesis} ${x.metaphorMapsTo}`.toLowerCase(); if (!t.includes(pn) && !cat.some((w) => t.includes(w))) out.push(`${x.id}: la tesis y la metáfora no nombran el producto ("${brief.product.name}") ni su categoría; un concepto lanza el producto, no solo cuenta una historia`); }
@@ -242,8 +242,8 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const voWords = plan.shots.reduce((n, s) => n + wc(s.vo), 0);
   if (cfg && !cfg.voiceover && voWords) out.push("el plan tiene voz en off y la película se pidió sin voz");
   if (cfg?.voiceover && !voWords) out.push("la película se pidió con voz en off y el plan no tiene ninguna línea");
-  // NARRATION SPINE (2026-10-21, Town: 83 words, 2.8 words per second of film, voice over 98 % of it, no gap over
-  // 1 s; a launch film had 48 words in one-line fragments and felt disconnected). A narrated film is carried by one
+  // NARRATION SPINE (a strong reference runs about 2.8 words per second of film, voice over nearly all of it, no gap
+  // over 1 s; one-line fragments feel disconnected). A narrated film is carried by one
   // continuous narration: every shot but the brand ending speaks, and the density sits near the reference's.
   if (cfg?.voiceover) {
     const cinematic = concepts?.concepts?.find((c) => c.id === plan.conceptId)?.storyMode === "cinematic";
@@ -263,8 +263,8 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
     const a = envs(prev), b = envs(s);
     if (s.connect.type === "same-place" && a.size && b.size && ![...b].some((e) => a.has(e))) out.push(`${s.id}: dice "same-place" pero cambia de escenario; une los lugares con action, object, push-in, pull-out o pov`);
   }
-  // slideup / slidedown read as one camera tilt between two heights of the same place (2026-10-21, a launch film v5: the
-  // board and the laptop below it); circles, wipes and sideways slides stay out of this style.
+  // slideup / slidedown read as one camera tilt between two heights of the same place (a board and the desk below
+  // it); circles, wipes and sideways slides stay out of this style.
   for (const s of plan.shots) if (s.transitionIn && !["cut", "fade", "ripple", "slideup", "slidedown"].includes(s.transitionIn)) out.push(`${s.id}: transición "${s.transitionIn}"; en este estilo se corta por acción, con un fundido corto (≤ 0.35 s) o con un paneo vertical entre dos alturas del mismo lugar (slideup/slidedown), no con círculos ni barridos`);
   for (const s of plan.shots) if (["slideup", "slidedown"].includes(s.transitionIn) && s.connect?.type !== "same-place") out.push(`${s.id}: ${s.transitionIn} es un paneo vertical: solo entre dos alturas del mismo lugar (connect same-place)`);
   // zoomInto: the camera flies into a screen at the end of a shot and the next shot is what the screen showed.
@@ -309,7 +309,7 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
       if (/\b(from above|from the top of the frame|from the sky)\b/i.test(m) && !/\b(hand|held|holding)\b/i.test(m)) out.push(`${s.id}: algo cae "desde arriba" sin causa visible; di qué lo mueve`);
       if (/\b(falls?|drops?|rolls?|slides?|flutters?|tumbles?|pours?|tips?)\b/i.test(m) && !/\b(into|onto|on|in|inside|lands?)\b/i.test(s.end || "")) out.push(`${s.id}: algo cae o rueda y el final no dice dónde termina (into/onto ...)`);
     }
-    // EVERYTHING MOVES (2026-10-21): no still with a zoom, no flat card. Every shot is an animated generation;
+    // EVERYTHING MOVES: no still with a zoom, no flat card. Every shot is an animated generation;
     // exact text and the logo are composited over moving picture.
     if (s.source !== "generate") out.push(`${s.id}: es "${s.source}"; en un launch film todas las tomas van animadas (source generate), nunca una imagen fija con zoom ni una tarjeta plana`);
     if (s.inserts.length && !/\b(locked|static camera|camera (?:does not|doesn't|never) move|tripod)\b/i.test(`${s.camera} ${s.motion || ""}`)) out.push(`${s.id}: lleva footage real dentro de pantallas; la cámara tiene que quedar fija (camera "locked") para que los clips no se salgan de las pantallas`);
@@ -353,7 +353,7 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const at = (r) => roles.lastIndexOf(r);
   if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("el resultado (outcome) llega después de la marca; la marca cierra");
   if (cfg?.music && !plan.musicPrompt?.trim()) out.push("la película lleva música y el plan no tiene musicPrompt");
-  // Every rule the first launch film taught is checked here, for any video model (2026-10-22).
+  // Every launch film rule is checked here, for any video model.
   // ONE CONTINUOUS STORY: two shots in the same place are one set. "exact" starts on the previous shot's drawn last
   // frame (gen.mjs frame copies it, free); "same-set" is drawn from the previous shot's frame, same framing.
   const envOf = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));
@@ -419,7 +419,7 @@ export function styleRules(raw, { slug, cast = [] } = {}) {
 // the edit cuts each one to its exact frame count.
 const genSecs = (d) => Math.min(8, Math.max(4, Math.ceil(d + 0.5)));
 // cast: [{ name, look }] of the bible characters in the shot. Their locked look goes into the prompt with their sheet
-// as the reference, and nobody else may appear (2026-10-21, a launch film: frames drew strangers, villagers and a dog).
+// as the reference, and nobody else may appear (otherwise frames add strangers).
 export function framePrompt(st, look, s, cast = []) {
   const pal = st.palette.join(", ");
   const who = cast.length ? `Characters, exactly as in the reference sheet${cast.length > 1 ? "s" : ""} (same faces, hair, clothes and colors): ${cast.map((c) => `${c.name}: ${c.look}`).join("; ")}. No other people and no animals anywhere in the frame.` : "No people and no animals anywhere in the frame.";

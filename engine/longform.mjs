@@ -77,7 +77,7 @@ const frames = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-select_st
 //    cross-faded into the head (output length L - d, and its last frame is exactly its first).
 //  - kenburns: a slow sinusoidal zoom on the still; one full period, so the end meets the start.
 function loopUnit(sc, dir, W, H, draft) {
-  // Cached per source clip: a re-made loop must never be built from the old unit (2026-10-20, Midnight Lake).
+  // Cached per source clip: a re-made loop must never be built from the old unit.
   const src = path.basename(sc.motion === "kenburns" ? sc.image || "still" : sc.clip || sc.image || "still").replace(/\.\w+$/, "");
   const out = path.join(dir, `unit-${sc.id}-${src}-${W}x${H}${draft ? "-draft" : ""}.ts`);
   if (fs.existsSync(out) && !has("--rebuild")) return out;
@@ -232,7 +232,7 @@ function build() {
   // Picture: scenes share the running time in order (or by `weight`), joined with slow cross-fades.
   const scenes = L.scenes || [];
   if (!scenes.length) throw new Error("longform.scenes is empty");
-  // A loop that doesn't move reads as a still picture (2026-10-20, Midnight Lake: motion 0.09 shipped as a draft).
+  // A loop that doesn't move reads as a still picture.
   for (const sc of scenes) {
     if (sc.motion === "kenburns" || !sc.clip || sc.staticOk) continue;
     const m = sc.motionScore ?? motionScore(P.abs(slug, sc.clip));
@@ -298,7 +298,7 @@ function build() {
   shots.forEach((f) => fs.rmSync(f, { force: true }));
 
   const qc = finalQc(out, audio, total, L, !!bed);
-  // The recorded voice against the intention's pace (2026-10-20: universal meditation engine).
+  // The recorded voice against the intention's pace (universal meditation engine).
   const pace = voicePace(vo.cues, L.intent);
   qc.wpm = pace.wpm;
   qc.issues.push(...pace.issues);
@@ -365,7 +365,7 @@ function create() {
   console.log(`created projects/${slug}/ (shotlist.json with a long-form template, concept.md).\nEdit longform.scenes, music, voice and script, then: node engine/longform.mjs estimate ${slug}`);
 }
 
-// The creator's own material (2026-10-20). A written meditation is kept word for word: it is only split
+// The creator's own material. A written meditation is kept word for word: it is only split
 // into breath-sized segments at sentence ends, and the pauses come from its own marks or from the intention.
 //   node engine/longform.mjs script <slug> --file meditation.txt     marks: a blank line = a longer pause; [pause 12] = 12 s
 //   node engine/longform.mjs image <slug> --file picture.png [--scene A]   the creator's picture becomes the loop's still

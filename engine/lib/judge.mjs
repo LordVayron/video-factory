@@ -1,5 +1,5 @@
 // Vision judge (Claude). Shared by continuity.mjs and lib/identity.mjs.
-// APIMart first (2026-10-22, the main provider; OpenAI-style chat), Kie's Claude endpoint second.
+// APIMart first (the main provider; OpenAI-style chat), Kie's Claude endpoint second.
 import { env, hasApimart, hasKie } from "./env.mjs";
 
 export const JUDGE = "claude-sonnet-5-5";

@@ -1,10 +1,8 @@
 // Jump check: a generated shot that should be ONE continuous camera move must have no cut or snap inside it.
-// Added 2026-10-19: a Veo 3.1 Quality first+last-frame shot jumped at 4.375 s and nothing caught it.
 // ffmpeg scdet scores every frame against the previous one. A real move scores under ~6; the jumps scored 9+.
-// A jump in the last 0.7 s (shot-b-2 snapped at 7.375 of 8 s) is an "end snap" (the model snapping onto its last frame): trim one frame before it.
+// A jump in the last 0.7 s is an "end snap" (the model snapping onto its last frame): trim one frame before it.
 // Any other jump is an "internal jump" (major): it reads as a jump cut and needs the creator's call or a reroll.
-// Tuned on a real influencer test: shot-b-2 (end snap 7.375 s, 9.0), shot-b-3 (jump 4.375 s, 9.1; end snap 7.917 s, 10.5),
-// veo-quality (nothing over 4). Free: no judge call.
+// Tuned on real takes: end snaps and internal jumps scored 9 to 10.5, clean moves stayed under 4. Free: no judge call.
 import { execFileSync, spawnSync } from "node:child_process";
 
 const probe = (f, entries) => execFileSync("ffprobe", ["-v", "error", "-select_streams", "v", "-show_entries", entries, "-of", "csv=p=0", f]).toString().trim();

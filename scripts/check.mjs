@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Offline smoke checks: every engine file parses, every JSON in the repo parses, and the
-// regressions fixed in the 2026-10-17 audit stay fixed. No network, no spend.
+// fixed regressions stay fixed. No network, no spend.
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -49,7 +49,7 @@ t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", 
 (await import("./check-refs.mjs")).default(t, ROOT);
 await (await import("./check-providers.mjs")).default(t, ROOT);
 
-// What goes into a repo says what changed, never the owner's instructions (2026-10-22): no quotes of the owner in
+// What goes into a repo says what changed, never the owner's instructions: no quotes of the owner in
 // code comments or logs, and the guard refuses commit messages, tags and release notes that carry them.
 {
   const { unquote } = await import("./unquote.mjs");
@@ -57,6 +57,15 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
   const logs = ["docs/improvements-log.md", "HANDOFF.md", "CHANGELOG.md"].filter((f) => fs.existsSync(path.join(ROOT, f)));
   const quoted = [...srcs, ...logs].filter((f) => { const s = fs.readFileSync(path.join(ROOT, f), "utf8"); return unquote(s) !== s; });
   t(`no quotes of the owner's instructions in code comments or logs (${quoted.join(", ") || "none"})`, !quoted.length);
+  // Comments say why a rule exists, not when or on which production it was learned (that lives in git and the changelog).
+  // Production names come from the private publish script (its PRIVATE list), so they never appear in this file; a
+  // public install only checks dates.
+  const pubScript = path.join(ROOT, "scripts", "publish-public.mjs");
+  const names = fs.existsSync(pubScript) ? /const PRIVATE = \/(.+)\/i;/.exec(fs.readFileSync(pubScript, "utf8"))?.[1] : null;
+  const STORY = new RegExp(String.raw`\b20\d\d-\d\d-\d\d\b` + (names ? `|${names}` : ""), "i");
+  const storied = srcs.filter((f) => !f.endsWith("check.mjs")).flatMap((f) => fs.readFileSync(path.join(ROOT, f), "utf8").split("\n").map((l, i) => [f, i + 1, l]))
+    .filter(([f, , l]) => { const k = l.indexOf(f.endsWith(".py") ? "# " : "// "); return k > -1 && STORY.test(l.slice(k)); }).map(([f, i]) => `${f}:${i}`);
+  t(`code comments explain why, without dates or production stories (${storied.slice(0, 5).join(", ") || "none"})`, !storied.length);
   const { decide } = await import("./hooks/guard.mjs");
   const commit = (m) => !!decide({ tool_name: "Bash", tool_input: { command: `git commit -m "${m}"` } });
   const { FACTORY } = await import("./hooks/guard.mjs");

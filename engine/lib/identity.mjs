@@ -1,7 +1,7 @@
 // Identity check: a character's face and distinctive marks (freckles, moles, scars, glasses, earrings...) must match
 // the reference in every frame where the face can be seen, across shots and across the cut.
-// Added 2026-10-19: a character lost her freckles in one shot and nothing caught it. The old check judged 360 px frames
-// (freckles are invisible at that size), only within one scene (never across the cut), and only knew wardrobe.
+// Marks are judged on high-res face crops (freckles are invisible at 360 px), across the cut as well as within a
+// scene.
 // Two passes: 1) small frames → where each face is; 2) high-res face crops + the reference → what marks are there.
 // The judge reports what it sees; the rules below decide pass or fail.
 import fs from "node:fs";
@@ -65,7 +65,7 @@ function pair(a, b) {
 
 // The anchor is the approved look of the face in THIS video: the first clear frontal frame (or opts.anchor).
 // Video models smooth skin, so a still reference is too strict a yardstick; the error to catch is the face
-// CHANGING across the video (for example: freckles in shot A, none in shot B). The reference still decides whether
+// CHANGING across the video (a mark present in one shot and gone in the next). The reference still decides whether
 // the anchor itself has the marks and whether it is the same person.
 export async function identityCheck(file, ids, { step = 0.5, lockAnchor = false } = {}) {
   const issues = [], notes = [], report = {};
@@ -98,7 +98,7 @@ export async function identityCheck(file, ids, { step = 0.5, lockAnchor = false 
     });
     if (crops.length < 2) { notes.push(`identity ${c.name}: face seen clearly in ${crops.length} frame(s), not enough to check`); continue; }
     // A locked anchor (bible/characters/<id>/face-anchor.jpg, cut from an approved take) wins: a take that is wrong
-    // from its first frame (shot B alone looked consistent, just without freckles) is then still caught.
+    // from its first frame (a take can be consistent with itself and still lack a mark) is then still caught.
     const locked = c.faceAnchor && path.join(P.BIBLE, "characters", id, c.faceAnchor);
     const anchor = locked && fs.existsSync(locked) ? { t: -1, locked: true, data: fs.readFileSync(locked).toString("base64") } : crops.find((x) => x.view === "frontal") || crops[0];
     const rest = crops.filter((x) => x !== anchor);
@@ -119,13 +119,13 @@ export async function identityCheck(file, ids, { step = 0.5, lockAnchor = false 
     for (const m of marks) {
       // The marks must be there from the start: an anchor without a mark the reference shows is already wrong.
       if (ref && j.reference?.[m] === "present" && j.anchor?.[m] === "absent") issues.push(`identity ${c.name}: ${m} missing on the anchor face`);
-      // "weaker" counts as missing: a mark that fades between shots is the same continuity error (a real failure).
+      // "weaker" counts as missing: a mark that fades between shots is the same continuity error.
       const kept = rows.filter((r) => r.marks?.[m] === "same").map(at);
       const lost = rows.filter((r) => ["weaker", "absent"].includes(r.marks?.[m])).map(at);
       const keptAll = (anchor.locked ? kept : [anchor.t, ...kept]).sort((a, b) => a - b);
       report[c.name].marks[m] = { kept: spans(keptAll), lost: spans(lost) };
-      // Fail on a sustained change: lost for 1 s or more in a row, or in 40 % of the frames compared. In the failure behind this, the freckles
-      // were gone for 7 s; a frame or two at a head turn is judge noise and goes to the notes.
+      // Fail on a sustained change: lost for 1 s or more in a row, or in 40 % of the frames compared. A frame or two
+      // at a head turn is judge noise and goes to the notes.
       const sustained = (ts) => longestRun(ts) >= 1 || ts.length >= 0.4 * Math.max(1, rows.length);
       if (lost.length >= 2 && sustained(lost)) issues.push(`identity ${c.name}: ${m} faded or gone at ${spans(lost)}${keptAll.length ? ` (as the anchor at ${spans(keptAll)})` : ""}`);
       else if (lost.length) notes.push(`identity ${c.name}: ${m} doubtful at ${spans(lost)}`);

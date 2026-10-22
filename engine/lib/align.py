@@ -18,14 +18,14 @@ norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower().replace("gonna", "going"))
 
 model = WhisperModel("small", device="cpu", compute_type="int8")
 # VAD: without it the first word of a line after a silence or a sound effect is stamped at the start of the
-# segment (a caption showed 2.4 s early, 2026-10-19).
+# segment (a caption showed 2.4 s early).
 segs, _ = model.transcribe(media, language=lang, word_timestamps=True, vad_filter=True, vad_parameters={"min_silence_duration_ms": 300})
 words = [{"w": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)} for s in segs for w in s.words]
 
 lines = json.load(open(lines_path, encoding="utf8"))
 
 # Whisper writes numbers as digits ("400") while scripts spell them ("four hundred"): a correct take failed its
-# dialogue check (2026-10-19). A heard number the script doesn't write in digits is spelled out, same timestamps.
+# dialogue check. A heard number the script doesn't write in digits is spelled out, same timestamps.
 ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
 def spell(n):

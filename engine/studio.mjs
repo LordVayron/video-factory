@@ -87,7 +87,7 @@ const commands = {
       if (fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`la serie ${seriesId} ya existe; usa --series episode:${seriesId}`);
       commands.series(["new", seriesId]);
       // The template is a sitcom's; a new series takes its format's style and DNA (a micro-drama inherited
-      // "retro-sitcom" and its scene prompts asked for a 1990s multi-camera look, 2026-10-19).
+      // "retro-sitcom" and its scene prompts asked for a 1990s multi-camera look).
       P.writeJSON(seriesFile(seriesId), { ...P.readJSON(seriesFile(seriesId)), style: flag("--style") || STYLE[format], vertical: format });
     }
     const [bmode, busd] = flag("--budget").split(":");
@@ -164,7 +164,7 @@ const commands = {
     console.log(`personaje aprobado: ${id}`);
   },
 
-  // A take that failed an eval (for example a jump inside the shot) is used only if the creator accepts that exact take, in his words.
+  // A take that failed an eval is used only if the creator accepts that exact take, in their words.
   // The look test (lib/flow.mjs modelsCheck): one still of the leads in the set, approved in the creator's words, before any
   // video price or book of a drama.
   "approve-look"() {
@@ -177,7 +177,7 @@ const commands = {
 
   // The intake's fixed budget is a hard cap (gen.mjs job, book, phase budget). Only the creator's words raise it.
   // Which approved references this production follows (or none), in the creator's words. Claude offers them from the
-  // bank with buttons; the creator never types this.
+  // bank with buttons; The creator never types this.
   refs() {
     const slug = pos[0], said = flag("--said"), use = flag("--use"), none = process.argv.includes("--none");
     if (!slug || !said || (!use && !none)) throw new F.FlowStop('refs <slug> --use id,id --said "..." | --none --said "..."');
@@ -201,12 +201,12 @@ const commands = {
     console.log(`tope del proyecto: $${usd} (palabras del creador registradas)`);
   },
 
-  // The pilot gate (lib/flow.mjs): the creator approves the first filmed scene or shot before the rest is filmed.
+  // The pilot gate (lib/flow.mjs): The creator approves the first filmed scene or shot before the rest is filmed.
   "approve-pilot"() {
     const slug = pos[0], said = flag("--said");
     if (!slug || !said) throw new F.FlowStop('approve-pilot <slug> --said "palabras exactas del creador" [--ok-fast]');
     // The pilot draft must speak at the format's pace, or the creator must accept the measured rate in so many words
-    // (2026-10-20, a past drama: the pilot ran 204 wpm, the rest was filmed on the same model, and the final failed on it).
+    // (a fast pilot means the rest, filmed on the same model, will be fast too).
     const dq = (() => { try { return JSON.parse(fs.readFileSync(path.join(P.projectDir(slug), "out", "draft-qc.json"), "utf8")); } catch { return null; } })();
     if (dq?.maxWpm && dq.wpm > dq.maxWpm && !argv.includes("--ok-fast"))
       throw new F.FlowStop(`el piloto habla a ${dq.wpm} wpm (máximo ${dq.maxWpm}) en ${dq.model}. Dile al creador ese número y las opciones (otro modelo para el piloto, o aceptarlo); solo con su sí explícito al ritmo: --ok-fast`);
@@ -280,8 +280,7 @@ const commands = {
     let sl = P.loadShotlist(slug);
     F.requireStep(sl, "qc", "studio qc");
     const file = F.finalFile(sl), dir = P.projectDir(slug), issues = [], report = {};
-    // --no-judge --said "...": the creator's call when the vision judge is down (2026-10-21, a launch film v6: "You can't
-    // waste more time with the vision judge"). Identity and text read-back are skipped and say so in the receipt;
+    // --no-judge --said "...": the creator's call when the vision judge is down. Identity and text read-back are skipped and say so in the receipt;
     // every other check runs, and Claude has watched the whole final frame by frame.
     const noJudge = process.argv.includes("--no-judge");
     if (noJudge && !flag("--said")) throw new F.FlowStop('qc --no-judge necesita --said "palabras exactas del creador"');
@@ -307,7 +306,7 @@ const commands = {
       // Faces and marks across every cut, against each character's locked anchor.
       const cast = F.castIds(sl).filter((id) => { try { return P.character(id).species !== "set"; } catch { return false; } });
       if (cast.length && !noJudge) { const r = await identityCheck(file, cast); report.identity = { pass: r.pass, issues: r.issues, notes: r.notes }; issues.push(...r.issues); }
-      // Outside the sitcom: every close-up of a person keeps one background across all scenes (a past drama, 2026-10-20).
+      // Outside the sitcom: every close-up of a person keeps one background across all scenes.
       if (sl.format !== "sitcom" && cast.length && (sl.scenes || []).length > 1) {
         try { const b = await backgroundCheck(file, sl, cast); report.backgrounds = b; issues.push(...b.issues); }
         catch (e) { issues.push(`no se pudo revisar los fondos entre escenas: ${e.message.slice(0, 120)}`); }
