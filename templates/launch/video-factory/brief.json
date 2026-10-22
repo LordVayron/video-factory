@@ -1,7 +1,7 @@
 {
   "_how": "Sample launch brief for Video Factory itself (PRD §6 example). A real project starts from the creator's landing page or text, then the interview fills what the page doesn't say. The interview below is empty on purpose: the creator answers it when this film is made for real.",
   "sources": [
-    { "kind": "file", "ref": "Product_Launch_Films_PRD.md §6, example concept for Video Factory (the creator, 2026-10-21)" },
+    { "kind": "file", "ref": "Product_Launch_Films_PRD.md §6, example concept for Video Factory (2026-10-21)" },
     { "kind": "file", "ref": "the engine's README (what it does today)" }
   ],
   "interview": [],

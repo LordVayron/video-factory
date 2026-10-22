@@ -319,7 +319,7 @@ const FINISH = {
   broadcast: `scale=${W / 2}:${H / 2}:flags=area,gblur=sigma=0.6,chromashift=cbh=1:crh=0,eq=contrast=0.93:saturation=0.86:gamma=1.03,curves=all='0/0.05 0.5/0.52 1/0.97',colorbalance=rh=0.03:bh=-0.03:rs=0.01,split[g0][g1];[g1]gblur=sigma=14[g2];[g0][g2]blend=all_mode=screen:all_opacity=0.10,noise=alls=7:allf=t,scale=${W}:${H}:flags=bicubic,unsharp=5:5:0.25,crop=iw-32:ih-24:16:12,scale=${W}:${H}:flags=bicubic`,
   film: "eq=contrast=0.97:saturation=0.92,curves=all='0/0.02 0.85/0.83 1/0.96',noise=alls=4:allf=t,unsharp=3:3:0.2",
   phone: "eq=contrast=1.04:saturation=1.05,unsharp=5:5:0.5,noise=alls=5:allf=t",
-  // natural: lifts the shadows and neutralizes the orange candle cast, toward daylight-balanced realism (2026-10-19, Creador: "the palette looks terrible... shady").
+  // natural: lifts the shadows and neutralizes the orange candle cast, toward daylight-balanced realism (2026-10-19).
   natural: "curves=all='0/0.05 0.35/0.42 0.7/0.76 1/1',colorbalance=rs=-0.06:gs=-0.01:bs=0.05:rm=-0.05:gm=0:bm=0.04:rh=-0.02:bh=0.02,eq=saturation=0.9:contrast=0.97,unsharp=3:3:0.25",
 };
 const finish = FINISH[sl.finish ?? st.finish];

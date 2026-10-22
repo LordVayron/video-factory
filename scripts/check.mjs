@@ -49,5 +49,18 @@ t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", 
 (await import("./check-refs.mjs")).default(t, ROOT);
 await (await import("./check-providers.mjs")).default(t, ROOT);
 
+// What goes into a repo says what changed, never the owner's instructions (2026-10-22): no quotes of the owner in
+// code comments or logs, and the guard refuses commit messages, tags and release notes that carry them.
+{
+  const { unquote } = await import("./unquote.mjs");
+  const srcs = ["engine", "engine/lib", "scripts", "scripts/hooks"].filter((d) => fs.existsSync(path.join(ROOT, d))).flatMap((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(mjs|py)$/.test(f) && !["publish-public.mjs", "unquote.mjs"].includes(f)).map((f) => path.join(d, f)));
+  const logs = ["docs/improvements-log.md", "HANDOFF.md", "CHANGELOG.md"].filter((f) => fs.existsSync(path.join(ROOT, f)));
+  const quoted = [...srcs, ...logs].filter((f) => { const s = fs.readFileSync(path.join(ROOT, f), "utf8"); return unquote(s) !== s; });
+  t(`no quotes of the owner's instructions in code comments or logs (${quoted.join(", ") || "none"})`, !quoted.length);
+  const { decide } = await import("./hooks/guard.mjs");
+  const commit = (m) => !!decide({ tool_name: "Bash", tool_input: { command: `git commit -m "${m}"` } });
+  t("the guard refuses a commit message that names or quotes the owner and lets a plain one through", commit("Providers (asked by the creator)") && commit('Providers: \\"put the main provider first please\\"') && !commit("APIMart is the main provider"));
+}
+
 console.log(failed ? `\n${failed} check(s) failed.` : "\nAll checks passed.");
 process.exit(failed ? 1 : 0);

@@ -20,7 +20,7 @@ export const fileOf = (slug, k) => path.join(dirOf(slug), FILES[k]);
 export const read = (slug, k) => P.readJSON(fileOf(slug, k), null);
 
 // Release 1: what the editor finishes today. Anything else is refused at the intake, never offered half-working.
-// 30 s, plus up to 5 s so the brand ending can breathe (the creator, 2026-10-21: the ending felt rushed).
+// 30 s, plus up to 5 s so the brand ending can breathe (2026-10-21: the ending felt rushed).
 // Styles: any bible style with a "launch" block (how real footage is graded into its world) or a custom style made
 // from the creator's own references (launch.mjs style-from-refs). 2026-10-22: launch films opened past storybook.
 export function launchStyles() {
@@ -309,7 +309,7 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
       if (/\b(from above|from the top of the frame|from the sky)\b/i.test(m) && !/\b(hand|held|holding)\b/i.test(m)) out.push(`${s.id}: algo cae "desde arriba" sin causa visible; di qué lo mueve`);
       if (/\b(falls?|drops?|rolls?|slides?|flutters?|tumbles?|pours?|tips?)\b/i.test(m) && !/\b(into|onto|on|in|inside|lands?)\b/i.test(s.end || "")) out.push(`${s.id}: algo cae o rueda y el final no dice dónde termina (into/onto ...)`);
     }
-    // EVERYTHING MOVES (the creator, 2026-10-21): no still with a zoom, no flat card. Every shot is an animated generation;
+    // EVERYTHING MOVES (2026-10-21): no still with a zoom, no flat card. Every shot is an animated generation;
     // exact text and the logo are composited over moving picture.
     if (s.source !== "generate") out.push(`${s.id}: es "${s.source}"; en un launch film todas las tomas van animadas (source generate), nunca una imagen fija con zoom ni una tarjeta plana`);
     if (s.inserts.length && !/\b(locked|static camera|camera (?:does not|doesn't|never) move|tripod)\b/i.test(`${s.camera} ${s.motion || ""}`)) out.push(`${s.id}: lleva footage real dentro de pantallas; la cámara tiene que quedar fija (camera "locked") para que los clips no se salgan de las pantallas`);
@@ -353,8 +353,7 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const at = (r) => roles.lastIndexOf(r);
   if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("el resultado (outcome) llega después de la marca; la marca cierra");
   if (cfg?.music && !plan.musicPrompt?.trim()) out.push("la película lleva música y el plan no tiene musicPrompt");
-  // Every rule the first launch film taught is checked here, for any video model (2026-10-22, the creator: "toda regla
-  // tiene que estar en código").
+  // Every rule the first launch film taught is checked here, for any video model (2026-10-22).
   // ONE CONTINUOUS STORY: two shots in the same place are one set. "exact" starts on the previous shot's drawn last
   // frame (gen.mjs frame copies it, free); "same-set" is drawn from the previous shot's frame, same framing.
   const envOf = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));

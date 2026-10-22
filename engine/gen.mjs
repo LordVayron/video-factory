@@ -94,7 +94,7 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   let caps = () => {};
   // PROVIDERS (2026-10-22): cost() is the cheapest provider's live price (APIMart first, Kie second); the job goes there.
   let credits = m.cost(req);
-  // BUDGET GUARD (the creator, 2026-10-13: "you burned my credits without permission"). Once the Production Book is
+  // BUDGET GUARD (2026-10-13). Once the Production Book is
   // approved, its estimate is the hard ceiling. Any job that would push the project's spend past it is refused;
   // rerolls need a new approval: node engine/phase.mjs budget <slug> --add <credits> --note "approved by the creator".
   // Jobs in flight count against the cap too: pool() runs 4 at once, and without this every one of them
@@ -102,7 +102,7 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   if (slug) {
     const sl0 = P.loadShotlist(slug);
     assertV5(sl0);
-    // HARD CAP (the creator, 2026-10-19: "no more than 5 dollars, not one cent more"): an intake with a fixed budget caps
+    // HARD CAP (2026-10-19): an intake with a fixed budget caps
     // every paid job of the project, images and sheets included, before and after the book.
     const hard = sl0.intake?.budget?.mode === "fixed" && sl0.intake.budget.usd ? sl0.intake.budget.usd / 0.005 : null;
     const cap = sl0.budget?.approvedCredits;

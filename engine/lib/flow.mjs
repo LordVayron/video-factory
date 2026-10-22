@@ -128,7 +128,7 @@ function castCheckChars(sl) {
     if (c.likeness?.kind === "real-person" && !c.likeness.authorized?.said?.trim()) bad.push(`${id}: está basado en una persona real; falta tu declaración de que te autorizó (cast.mjs likeness ${id} --kind real-person --said "...")`);
     const d = path.join(P.BIBLE, "characters", id);
     if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet, P.characterLook(c, sl.style)?.modelSheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
-    // STANDARD SHEET (the creator, 2026-10-21): every project created from today, any vertical, needs one standard sheet per
+    // STANDARD SHEET (2026-10-21): every project created from today, any vertical, needs one standard sheet per
     // character in the project's style (cast.mjs model-sheet), and a character is one character, never a group.
     if ((sl.flow?.created || "") >= "2026-10-21" && c.species !== "set") {
       if (MS.isGroup(c.look)) bad.push(`${id}: su look describe a varios personajes; una ficha, un personaje (sepáralos en la biblia)`);

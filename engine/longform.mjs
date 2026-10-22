@@ -365,8 +365,7 @@ function create() {
   console.log(`created projects/${slug}/ (shotlist.json with a long-form template, concept.md).\nEdit longform.scenes, music, voice and script, then: node engine/longform.mjs estimate ${slug}`);
 }
 
-// The creator's own material (2026-10-20, Creador: "que yo pueda darte una idea, o la meditación escrita completa, y la
-// imagen; tú te encargas de la música y el resto"). A written meditation is kept word for word: it is only split
+// The creator's own material (2026-10-20). A written meditation is kept word for word: it is only split
 // into breath-sized segments at sentence ends, and the pauses come from its own marks or from the intention.
 //   node engine/longform.mjs script <slug> --file meditation.txt     marks: a blank line = a longer pause; [pause 12] = 12 s
 //   node engine/longform.mjs image <slug> --file picture.png [--scene A]   the creator's picture becomes the loop's still

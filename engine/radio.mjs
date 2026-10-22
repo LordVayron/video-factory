@@ -139,7 +139,7 @@ const pacing = {
   firstLaugh: laughs[0] ? Math.round(laughs[0].at * 10) / 10 : null,
   secondsPerLaugh: laughs.length ? Math.round((total / laughs.length) * 10) / 10 : null,
 };
-// Laugh rules are the sitcom's; a drama has none and speaks at a natural 140-165 wpm (the creator, 2026-10-19:
+// Laugh rules are the sitcom's; a drama has none and speaks at a natural 140-165 wpm (2026-10-19:
 // "que no hable tan rápido"). sl.paceRules overrides either set.
 const sitcom = sl.format === "sitcom";
 const rules = sl.paceRules || (sitcom

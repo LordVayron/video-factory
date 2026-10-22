@@ -183,7 +183,7 @@ export const linesMissing = (prompt, lines = []) => {
 };
 
 // Clips formats: the shot's prompt plus every spoken line of the script, verbatim and at a natural pace
-// (Creador: "que no hable tan rápido"). A prompt that already quotes every line is sent as written.
+// (). A prompt that already quotes every line is sent as written.
 export function clipPrompt(sl, s) {
   const base = (s.prompt || "").trim();
   const lines = (s.dialogue || []).filter((l) => l.text?.trim());
@@ -417,7 +417,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
         "a character not listed here appearing, or a listed character missing from a wide shot",
         "any change of outfit, hair, jewelry or props", "on-screen text or subtitles",
         // 2026-10-20, a past drama pilot: on a "fixed camera" close-up Wan pulled back mid-shot and a ceiling and a second
-        // wall frame appeared (Creador: "asegúrate de que haya consistencia en los backgrounds y en los sets").
+        // wall frame appeared ().
         "the camera zooming, pulling back or drifting, or the background changing (a ceiling, extra wall frames, a different window) during the shot or from earlier shots of the same person",
       ];
       const spec = { shot: k + 1, time: head.slice(head.indexOf("[") + 1, head.indexOf("]")), cut: k ? (s.continuous ? "no cut: same framing as the previous shot" : "hard cut") : "opens on Image 1", framing: s.framing || "medium shot", lens: s.lens || "35mm lens", camera: cam, in_frame: inFrame.length ? inFrame : all, everyone_in_the_room: where, action: [s.motion, moveNote(s)].filter(Boolean).join(" "), dialogue: (s.dialogue || []).length ? s.dialogue.map((l) => ({ speaker: character(l.char).name, delivery: l.delivery || "", says_exactly: l.text, lip_sync: true })) : "none", sound: s.sfx || undefined, must_not: mustNot };

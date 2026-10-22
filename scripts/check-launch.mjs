@@ -27,7 +27,7 @@ export default function checkLaunch(t, ROOT) {
   t("launch: a measurable claim without a proven capability is blocked", L.planRules(claimy, { brief, concepts }).some((x) => /afirma algo medible/.test(x)));
   const lettered = structuredClone(plan); lettered.shots[0].prompt += ' with a sign that reads "SALE"';
   t("launch: a prompt that asks the model for exact text is blocked (the editor composites text)", L.planRules(lettered, { brief, concepts }).some((x) => /entre comillas/.test(x)));
-  // ---- every lesson of the first launch film is a rule (2026-10-22: "toda regla tiene que estar en código")
+  // ---- every lesson of the first launch film is a rule (2026-10-22)
   const R = (p) => L.planRules(p, { brief, concepts, style: { ...style, thread: "sample-founder" } }).join(" | ");
   const unchained = structuredClone(plan); delete unchained.shots[1].chain;
   t("launch: two shots in the same place must be chained (exact last frame or the same set)", /encadénala/.test(R(unchained)));
@@ -99,7 +99,7 @@ export default function checkLaunch(t, ROOT) {
     t("gen frame sends each character's sheet in the project's style", fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("P.characterLook(ch, sl.style).sheet"));
   }
   {
-    // The standard character sheet (the creator, 2026-10-21): one per character, same layout and detail for every vertical.
+    // The standard character sheet (2026-10-21): one per character, same layout and detail for every vertical.
     const c = { name: "Checky", look: "a woman with a short black bob and a mustard sweater", sheetSpec: { label: "Check", expressions: ["happy", "curious", "surprised", "proud"], poses: ["waving", "thinking", "pointing"], details: ["bob haircut", "mustard sweater", "brown shoes"], palette: ["#111111", "#222222", "#333333", "#444444", "#555555"], notes: { role: "r", wants: "w", secret: "s" } } };
     const pr = MS.prompt(c, { look: "storybook", negative: "3D render, written text, letters" });
     t("standard sheet: one character per sheet (a group look is refused)", MS.isGroup("a group of four storybook creators") && MS.isGroup("three thumb-sized factory workers") && !MS.isGroup(c.look));

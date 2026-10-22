@@ -1,5 +1,5 @@
 // Sitcom sound library shared by the radio cut and the auto edit.
-// v2 (the first synthetic laughs did not sound like a studio audience): laughs are generated as several takes of a real
+// v2 (after ): laughs are generated as several takes of a real
 // studio audience, the take with the most sitcom-like envelope (fast attack, smooth decay, no lone voices) is
 // picked, a second take is layered under it so it sounds like a crowd, and it's band-limited like a TV mix.
 // Timing: an audience reacts AFTER the punchword (~0.15 s), peaks, and the next line steps in on the decay.

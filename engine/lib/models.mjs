@@ -244,8 +244,7 @@ export function getModel(key) {
 export const usd = (credits) => `$${(credits * 0.005).toFixed(3)}`;
 
 // ------------------------------------------------------------------ APIMart
-// APIMart (2026-10-22, Creador: "que quede apimart como la principal... busques los precios de ambas... para que
-// siempre encuentres el mejor modelo al mejor precio"). Each engine model that APIMart also sells gets its request
+// APIMart (2026-10-22). Each engine model that APIMart also sells gets its request
 // shape there and its live price (engine/prices-apimart.json, refreshed with the Kie feed by lib/pricing.mjs).
 // cost() then answers for the cheapest provider that can run the request, so the Production Book, the budget lock
 // and the filming all use the same price; lib/providers.mjs routes the job to that provider.

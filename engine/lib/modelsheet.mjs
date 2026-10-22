@@ -1,4 +1,4 @@
-// The studio's standard character sheet (the creator, 2026-10-21): one sheet per character, never a group, the same layout
+// The studio's standard character sheet (2026-10-21): one sheet per character, never a group, the same layout
 // and level of detail for every character in every vertical, drawn in the project's style. Modeled on a long-running
 // series' sheets: name and project, turnaround (front,
 // 3/4, side, back), expressions, poses, details with callouts, color palette with hex codes, notes (role, wants, a

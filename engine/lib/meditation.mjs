@@ -100,7 +100,7 @@ export function meditationRules(sl) {
   if (!/instrumental|no vocals/i.test(mp)) out.push('la música debe pedir "instrumental, no vocals"');
   const segs = (L.script || []).filter((s) => s.text?.trim());
   if (!L.voiceFree && !segs.length) out.push("sin guion de voz (o longform.voiceFree: true)");
-  // A demo must let the guiding voice be heard (the creator, 2026-10-20): 2-5 s of music between lines, not the full
+  // A demo must let the guiding voice be heard (2026-10-20): 2-5 s of music between lines, not the full
   // piece's long silences.
   const pause = isDemo(L) ? [2, 5] : I.pause;
   for (const [i, s] of segs.entries()) {

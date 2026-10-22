@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { carriesInstructions } from "../unquote.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 // APIMart (2026-10-22, the main provider) counts like Kie; its public price list (/api/pricing) is free to read.
@@ -41,6 +42,20 @@ export function decide({ tool_name: tool, tool_input: input = {} }) {
       const abs = path.isAbsolute(f) ? f : path.resolve(input.cwd || ROOT, f);
       if (allowedCode(abs) || !fs.existsSync(abs)) continue;
       if (reaches(abs, fs.readFileSync(abs, "utf8"))) return deny(`${f} calls a paid API outside the engine. One-off runner scripts are not allowed (a real failure); add the step to the engine instead.`);
+    }
+    // Rule 3: commit messages, tags and release notes say what changed, never the owner's instructions (2026-10-22).
+    if (/\bgit\s+(commit|tag)\b|\bgh\s+(release|pr)\s+(create|edit)\b/.test(raw)) {
+      const texts = [...raw.matchAll(/(?:-m|--message|--notes|--title|--body|-b|-t|printf|echo)\s+("((?:[^"\\]|\\.)*)"|'([^']*)')/g)].map((m) => m[2] ?? m[3]);
+      for (const h of raw.matchAll(/<<-?\s*['"]?(\w+)['"]?\n([\s\S]*?)\n\1\b/g)) texts.push(h[2]);
+      for (const m of raw.matchAll(/(?:-F|--file|--notes-file|--body-file)\s+("[^"]+"|'[^']+'|\S+)/g)) {
+        const f = m[1].replace(/^["']|["']$/g, "").replace(/^\$\{?TEMP\}?/, process.env.TEMP || "");
+        const abs = path.isAbsolute(f) ? f : path.resolve(input.cwd || ROOT, f);
+        if (fs.existsSync(abs)) texts.push(fs.readFileSync(abs, "utf8"));
+      }
+      for (const t of texts) {
+        const why = carriesInstructions(t);
+        if (why.length) return deny(`a commit message, tag or release note carries the owner's instructions (${why.join("; ")}). Say only what changed.`);
+      }
     }
   }
   // Rule 1: files that would become such scripts.

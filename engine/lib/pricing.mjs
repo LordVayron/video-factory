@@ -3,8 +3,7 @@
 // and recommends the best quality that fits the intake's budget mode. The pick is stored in sl.defaults, so the
 // book's estimate and the filming use the same model. Families Kie lists that the engine doesn't run yet are
 // reported, so a better or cheaper new model is never missed.
-// the creator, 2026-10-19: "always analyze the live prices in Kie, always provide the best options for high quality
-// while keeping the cost low". No model is excluded by rule; quality and price decide.
+// 2026-10-19. No model is excluded by rule; quality and price decide.
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./env.mjs";

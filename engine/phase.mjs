@@ -113,7 +113,7 @@ const commands = {
     const hard = sl.intake?.budget?.mode === "fixed" && sl.intake.budget.usd ? sl.intake.budget.usd / 0.005 : null;
     if (hard != null && sl.budget.approvedCredits + Math.ceil(add) > hard) throw new Error(`el tope fijo del proyecto es ${sl.intake.budget.usd}: un aumento lo pasaría (cambia el tope en el intake solo si the creator lo dice)`);
     sl.budget.approvedCredits += Math.ceil(add);
-    sl.budget.history.push({ add, note: `Creador: "${flag("--said")}"`, at: new Date().toISOString() });
+    sl.budget.history.push({ add, said: flag("--said"), at: new Date().toISOString() });
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `budget +${add}`, said: flag("--said") }];
     P.saveShotlist(slug, sl);
     console.log(`budget now ${sl.budget.approvedCredits} cr ($${(sl.budget.approvedCredits * 0.005).toFixed(2)}); spent ${P.ledgerTotal(slug).toFixed(1)} cr`);

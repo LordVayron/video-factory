@@ -33,7 +33,7 @@ const now = () => new Date().toISOString();
 const ff = (args, cwd) => execFileSync("ffmpeg", ["-v", "error", "-y", ...args], { cwd, maxBuffer: 1 << 26 });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 const lufs = (f) => Number((spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", f, "-af", "ebur128", "-f", "null", "-"], { encoding: "utf8" }).stderr.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
-const SFX_LUFS = -36; // effects ~21 dB under the narration (-15 LUFS); the creator 2026-10-21: still too loud at -31
+const SFX_LUFS = -36; // effects ~21 dB under the narration (-15 LUFS); 2026-10-21: still too loud at -31
 const sha = (v) => crypto.createHash("sha1").update(typeof v === "string" ? v : JSON.stringify(v)).digest("hex").slice(0, 12);
 
 // The creative files, parsed with their defaults. A rule that fails stops the command with the reasons.
@@ -574,7 +574,7 @@ async function build(sl, mode) {
       const ov = parts[i - 1].m - parts[i - 1].n, out = `x${i}`;
       const tr = parts[i].ps.transitionIn, timing = `duration=${(ov / fps).toFixed(4)}:offset=${((len - ov) / fps).toFixed(4)}`;
       if (ov && tr === "ripple") {
-        // RIPPLE (2026-10-21, a launch film v6, Creador: "he touches the screen and it blends like water into the world"): a
+        // RIPPLE (2026-10-21, a launch film v6): a
         // ring wave spreads from the touch point (rippleAt), bends both pictures and carries one into the other.
         const at = parts[i].ps.rippleAt || { x: 0.5, y: 0.3 }, cx = (at.x * W).toFixed(1), cy = (at.y * H).toFixed(1);
         // One ring of water travels out from the touch point; only the ring bends the picture, inside it the new world
