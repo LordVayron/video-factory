@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.1, 2026-10-22: repos carry only what changed
+
+- **Repos carry only what changed.** The guard refuses a commit message, tag, release note or PR text that names or quotes the repo owner (`scripts/unquote.mjs`), and `npm run check` fails when a code comment or log quotes them.
+- **Cleaner code comments.** Comments keep the rule and its date, without attributions or quotes.
+- **Budget top-ups** store the approval words in a `said` field.
+
 ## 2.8.0, 2026-10-22: APIMart as the main provider, live prices from both, and the reference engine
 
 - **APIMart is the main provider, Kie the second.** Every model the engine runs that APIMart also sells (Seedance 2.0 Mini/Fast/2.0/2.5, Wan 3.0 and Prime, Veo 3.1 Lite/Fast/Quality, Grok Imagine, Kling 3, GPT Image 2.5) has its APIMart request and live price. Each job runs on whichever provider sells that model cheaper right now (APIMart wins ties within 2 %), so the Production Book, the budget lock and the filming use the same price. Put `APIMART_API_KEY` in `.env`; either key alone works.
