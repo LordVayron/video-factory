@@ -16,6 +16,7 @@ import { missingMarks, castOf } from "./identity.mjs";
 import { planCheck } from "./state.mjs";
 import * as L from "./launch.mjs";
 import * as MS from "./modelsheet.mjs";
+import * as RF from "./refs.mjs";
 
 // What each format films and how. "scenes": multi-shot generations from storyboard grids (sitcom pipeline).
 // "clips": one first/last-frame generation per shot (influencer, UGC, cinematic...). "longform": loops + narration.
@@ -122,6 +123,9 @@ function castCheckChars(sl) {
     const approved = c.approved || P.characterLook(c, sl.style)?.status === "approved";
     if (!approved) bad.push(`${id}: ficha sin aprobar (studio.mjs approve-character ${id} --said "...")`);
     if (speaking.has(id) && !c.voice?.eleven) bad.push(`${id}: habla y no tiene voz`);
+    // LIKENESS (2026-10-22): a character made from a real person other than the creator goes ahead on the creator's
+    // statement that the person authorized it, recorded in their words (cast.mjs likeness <id> --kind real-person --said).
+    if (c.likeness?.kind === "real-person" && !c.likeness.authorized?.said?.trim()) bad.push(`${id}: está basado en una persona real; falta tu declaración de que te autorizó (cast.mjs likeness ${id} --kind real-person --said "...")`);
     const d = path.join(P.BIBLE, "characters", id);
     if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet, P.characterLook(c, sl.style)?.modelSheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
     // STANDARD SHEET (the creator, 2026-10-21): every project created from today, any vertical, needs one standard sheet per
@@ -257,7 +261,7 @@ function boardCheck(sl) {
 // voice-over line was recorded and fits its shot, and the animatic was built from the current frames and voice.
 function launchBoard(sl) {
   const plan = launchJSON(sl, "plan");
-  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") });
+  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
   if (!plan) return bad;
   if (sl.launch?.applied !== sha(launchFile(sl, "plan"))) bad.push("la shotlist no es el plan actual (launch.mjs apply)");
   for (const s of plan.shots || []) if (s.vo) {
@@ -395,18 +399,36 @@ function launchConcept(sl) {
 }
 function launchScript(sl) {
   const plan = launchJSON(sl, "plan");
-  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") });
+  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
   return bad.length ? no(bad.join("; ")) : ok(`${plan.shots.length} tomas · ${plan.durationSeconds} s`);
 }
 
 // who: "creator" = his approval, "auto" = checks only.
+// The reference bank (2026-10-22): when the creator has approved references for a format, the concept gate waits until
+// they choose which to use (or none), in their words; the script gate refuses lines that repeat a chosen reference's.
+export function refsGate(sl) {
+  const ids = RF.approved(sl.format);
+  if (!ids.length || sl.refsChoice || sl.flow?.approved?.concept) return []; // a concept approved before the bank had refs stands
+  return [`hay ${ids.length} referencia(s) aprobadas de ${sl.format} (${ids.join(", ")}): elige cuáles usar o ninguna, con las palabras del creador (studio.mjs refs <slug> --use id,id --said "..." | --none --said "...")`];
+}
+export function projectText(sl) {
+  if (sl.format === "launch") return (launchJSON(sl, "plan")?.shots || []).map((s) => s.vo || "").join(" ");
+  if (kindOf(sl) === "longform") return (sl.longform?.script || []).map((l) => l.text || l).join(" ");
+  return (sl.shots || []).flatMap((s) => (s.dialogue || []).map((l) => l.text)).join(" ");
+}
+export function copyGate(sl) {
+  const ids = sl.refsChoice?.ids || [];
+  return ids.length ? RF.copyOverlap(projectText(sl), ids).filter((x) => x.share > RF.COPY_MAX).map((x) => `el guion repite ${Math.round(x.share * 100)} % de las frases de la referencia ${x.ref} (máximo ${Math.round(RF.COPY_MAX * 100)} %): la referencia enseña, no se copia`) : [];
+}
+const withRefs = (check, extra) => (sl) => { const r = check(sl); if (!r.ok) return r; const bad = extra(sl); return bad.length ? no(bad.join("; ")) : r; };
+
 export const STEPS = {
   intake: { name: "Intake", who: "auto", check: intakeCheck, next: "studio.mjs new (las 7 preguntas)" },
   series: { name: "Biblia de la serie", who: "creator", check: (sl) => (fs.existsSync(path.join(P.PROJECTS, "..", "series", sl.series || "-", "series.json")) ? ok() : no("sin series.json")), next: "studio.mjs series new, luego approve series" },
-  concept: { name: "Concepto", who: "creator", check: (sl) => (!fs.existsSync(path.join(dir(sl), "concept.md")) ? no("sin concept.md") : sl.format === "launch" ? launchConcept(sl) : ok()), next: "escribe concept.md (launch: también launch/brief.json y launch/concepts.json; launch.mjs check), luego approve concept" },
+  concept: { name: "Concepto", who: "creator", check: withRefs((sl) => (!fs.existsSync(path.join(dir(sl), "concept.md")) ? no("sin concept.md") : sl.format === "launch" ? launchConcept(sl) : ok()), refsGate), next: "escribe concept.md (launch: también launch/brief.json y launch/concepts.json; launch.mjs check), luego approve concept" },
   // Meditations: the intention's rules (pace, pauses, voice share, music tempo, picture, safety) block the script
   // gate (2026-10-20: one universal engine for guided meditations, the intention only changes the numbers).
-  script: { name: "Guion", who: "creator", check: (sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("sin guion") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), next: "escribe el guion en la shotlist, luego approve script" },
+  script: { name: "Guion", who: "creator", check: withRefs((sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("sin guion") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), copyGate), next: "escribe el guion en la shotlist, luego approve script" },
   cast: { name: "Casting y sets", who: "creator", check: castCheck, next: "cast.mjs sheet / approve-character, luego approve cast" },
   radio: { name: "Radio cut", who: "auto", check: radioCheck, next: "radio.mjs" },
   board: { name: "Storyboard y prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (escenas) o gen.mjs frame (clips)" },

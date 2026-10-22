@@ -23,6 +23,7 @@ import * as F from "./lib/flow.mjs";
 import * as L from "./lib/launch.mjs";
 import * as eleven from "./lib/eleven.mjs";
 import * as REF from "./lib/reference.mjs";
+import * as RF from "./lib/refs.mjs";
 
 const argv = process.argv.slice(2);
 const [cmd, slug] = argv;
@@ -63,7 +64,7 @@ const commands = {
     const brief = L.read(slug, "brief"), concepts = L.read(slug, "concepts"), style = L.read(slug, "style");
     const groups = [
       ["brief.json", L.briefRules(brief)], ["concepts.json", L.conceptRules(concepts, brief)],
-      ["shot-plan.json", L.planRules(L.read(slug, "plan"), { brief, concepts, style, reference: L.read(slug, "reference") })], ["style-bible.json", L.styleRules(style, { slug, cast: F.castIds(sl) })],
+      ["shot-plan.json", L.planRules(L.read(slug, "plan"), { brief, concepts, style, reference: L.read(slug, "reference") || RF.asReference(sl.refsChoice?.ids || []) })], ["style-bible.json", L.styleRules(style, { slug, cast: F.castIds(sl) })],
     ];
     for (const [name, out] of groups) console.log(`${out.length ? "✗" : "✓"} ${name}${out.map((x) => `\n   - ${x}`).join("")}`);
     const plan = L.read(slug, "plan");
@@ -80,7 +81,7 @@ const commands = {
     let sl = P.loadShotlist(slug);
     F.requireStep(sl, "board", "launch apply");
     const { plan, style } = load(sl);
-    const bad = L.planRules(L.read(slug, "plan"), { brief: L.read(slug, "brief"), concepts: L.read(slug, "concepts"), style: L.read(slug, "style"), reference: L.read(slug, "reference") });
+    const bad = L.planRules(L.read(slug, "plan"), { brief: L.read(slug, "brief"), concepts: L.read(slug, "concepts"), style: L.read(slug, "style"), reference: L.read(slug, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
     if (bad.length) throw new F.FlowStop(`el plan no pasa:\n - ${bad.join("\n - ")}`);
     // The cast is the style bible's characters (the intake's --chars is usually empty for a new launch cast).
     const cast = [...new Set([...(sl.cast || []), ...style.characters.map((c) => c.id)])];

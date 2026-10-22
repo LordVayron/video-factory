@@ -41,7 +41,7 @@ A realistic character works best with a native reference (`bible/characters/<id>
 Style sheets live in `bible/styles/<id>/style.json` and are managed with `engine/style.mjs` (see the studio skill and `studio/references/styles.md`).
 
 ## Clone me / AI influencer
-Only for the user's own likeness, or a fictional person. Never clone a real third party.
+The user's own likeness, a fictional person, or a real person the user says authorized it. Record whose likeness it is with `node engine/cast.mjs likeness <id> --kind self|fictional|real-person`; a real person needs `--said "<the user's words that they were authorized>"`, and the cast gate refuses the character without it. Ask the user before building a real person's sheet.
 1. Ask the user for 6–12 photos of themselves (front, ¾, profile, two outfits, good light) dropped in `bible/characters/<id>/photos/`, plus 1–2 minutes of clean speech in `voice-source.mp3`.
 2. Build the sheet with Nano Banana from the photos as refs (`--ref` each photo, up to 10): "Character reference sheet of this exact person…".
 3. Voice: instant voice cloning needs an ElevenLabs paid plan (Starter). Clone in the ElevenLabs UI, then put the new voice id in `voice.eleven` with `"provider": "elevenlabs"`. Until then, pick the closest preset.

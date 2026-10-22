@@ -5,7 +5,7 @@
 <p align="center">
   <b>An AI video studio that your coding agent installs and runs for you.</b><br>
   UGC ads, micro-drama series, sitcoms, fantasy shorts, hour-long meditations and more,<br>
-  written and directed by Claude Code or Codex, rendered on Kie.ai and ElevenLabs.
+  written and directed by Claude Code or Codex, rendered on APIMart, Kie.ai and ElevenLabs.
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@ Your agent clones the repo, installs everything it needs, checks your machine, a
 
 > **Instalación en español:** abre Claude Code o Codex y escribe *"Instala https://github.com/LordVayron/video-factory y configúralo para mí"*. Tu agente instala todo, te hace 5 preguntas y deja listo tu primer proyecto.
 
-You need two accounts: [Kie.ai](https://kie.ai) (images, video, music) and [ElevenLabs](https://elevenlabs.io) (voices). You paste the keys into a local `.env` file yourself; they never leave your machine.
+You need [APIMart](https://apimart.ai) or [Kie.ai](https://kie.ai) for images and video (both is best: the engine compares their live prices and sends every job to the cheaper one, APIMart first; Kie also makes the music), and [ElevenLabs](https://elevenlabs.io) (voices). You paste the keys into a local `.env` file yourself; they never leave your machine.
 
 ## What you can make
 
@@ -102,7 +102,7 @@ Then copy `.env.example` to `.env`, paste your keys, run `npm run doctor:online`
 ```
 .claude/skills/   the skills your agent follows (studio, onboarding, story-architect, cinematographer, cast, format-series, format-longform)
   studio/references/   the knowledge base: vertical playbooks, QC rubric, styles, comedy and story craft
-engine/           Node CLIs that call Kie.ai, ElevenLabs and ffmpeg (generation, budget lock, edit, QC)
+engine/           Node CLIs that call APIMart, Kie.ai, ElevenLabs and ffmpeg (generation, budget lock, edit, QC)
 bible/styles/     style sheets (UGC phone, hyperreal, anime, podcast, retro sitcom, template)
 templates/        starting points: creator profile, character, set, series
 bible/, series/, projects/   your own characters, shows and videos (gitignored, they stay on your machine)
@@ -117,14 +117,14 @@ SETUP.md          step-by-step install instructions for agents
 | `npm run doctor` | Checks tools, Python packages, keys and the repo |
 | `npm run doctor:online` | Same, plus your Kie credits and ElevenLabs key |
 | `npm run check` | Offline smoke tests and a secret scan |
-| `npm run prices` | Kie's live price list |
-| `npm run credits` | Your Kie balance |
+| `npm run prices` | Live prices from APIMart and Kie, and which one runs each model |
+| `npm run credits` | Your APIMart and Kie balances |
 
 Engine CLIs (`node engine/<tool>.mjs`) are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Responsible use
 
-Make original characters and stories. Don't generate real people other than yourself (with your own photos and voice), copyrighted characters, or brands you don't own. Follow each platform's rules for AI-generated content and label it where required. Your Kie.ai and ElevenLabs usage is subject to their terms.
+Make original characters and stories. Don't generate real people other than yourself (with your own photos and voice) unless they authorized it (the engine records your statement), copyrighted characters, or brands you don't own. Follow each platform's rules for AI-generated content and label it where required. Your Kie.ai and ElevenLabs usage is subject to their terms.
 
 ## Documentation
 
@@ -133,4 +133,4 @@ Make original characters and stories. Don't generate real people other than your
 - [Formats and costs](docs/FORMATS.md)
 - [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
-<p align="center"><sub>MIT licensed. Not affiliated with Anthropic, OpenAI, Kie.ai, ElevenLabs or Higgsfield.</sub></p>
+<p align="center"><sub>MIT licensed. Not affiliated with Anthropic, OpenAI, APIMart, Kie.ai, ElevenLabs or Higgsfield.</sub></p>

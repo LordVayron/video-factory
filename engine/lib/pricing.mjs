@@ -9,7 +9,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./env.mjs";
 import * as kie from "./kie.mjs";
-import { MODELS } from "./models.mjs";
+import * as apimart from "./apimart.mjs";
+import { MODELS, apimartSpec, APIMART_PRICES } from "./models.mjs";
 
 const FILE = path.join(ROOT, "engine", "prices.json");
 
@@ -56,7 +57,26 @@ const FLOOR = { influencer: 10, ugc: 8, cinematic: 8, fantasy: 7, podcast: 7, "m
 // Resolution each format delivers at (sitcom can film at 480p: the broadcast finish downsamples).
 const RES = { sitcom: ["480p", "720p"], meditation: ["720p"] };
 
+// APIMart's live prices (2026-10-22): one public request per model the engine maps there. Written next to Kie's feed;
+// models.mjs prices every job from it, so the cheapest provider is chosen per model.
+export async function apimartPrices({ maxAgeH = 6 } = {}) {
+  let cached = null;
+  try { cached = JSON.parse(fs.readFileSync(APIMART_PRICES, "utf8")); } catch {}
+  if (cached && (Date.now() - Date.parse(cached.at)) / 36e5 <= maxAgeH) return { ...cached, fetched: false };
+  const ids = [...new Set(Object.keys(MODELS).map(apimartSpec).filter(Boolean).map((a) => a.model))];
+  const models = {}, missing = [];
+  await Promise.all(ids.map(async (id) => { try { models[id] = await apimart.fetchPrice(id); } catch { missing.push(id); } }));
+  if (!Object.keys(models).length) {
+    if (cached) return { ...cached, fetched: false, warning: "APIMart prices unreachable; using the last ones" };
+    return { at: null, models: {}, fetched: false, warning: "APIMart prices unreachable" };
+  }
+  const out = { at: new Date().toISOString(), models: { ...(cached?.models || {}), ...models } };
+  fs.writeFileSync(APIMART_PRICES, JSON.stringify(out, null, 1) + "\n");
+  return { ...out, fetched: true, missing };
+}
+
 export async function livePrices({ maxAgeH = 6 } = {}) {
+  await apimartPrices({ maxAgeH }).catch(() => null);
   let cached = null;
   try { cached = JSON.parse(fs.readFileSync(FILE, "utf8")); } catch {}
   const age = cached ? (Date.now() - fs.statSync(FILE).mtimeMs) / 36e5 : Infinity;
@@ -86,13 +106,37 @@ export function videoOptions(rows, { format, kind, seconds, clips = 1 }) {
     for (const [key, m] of Object.entries(MODELS)) {
       if (m.kind !== "video" || !QUALITY[key] || !(CAN[kind] || CAN.clips).includes(key)) continue;
       const row = liveRow(rows, key, res);
-      if (!row) continue;
-      const per = LIVE[key].per;
-      const credits = per === "second" ? row.credits * seconds : row.credits * Math.max(clips, Math.ceil(seconds / per));
-      out.push({ key, label: m.label.replace(/ \(.*\)$/, ""), res, credits: +credits.toFixed(1), usd: +(credits * 0.005).toFixed(2), unit: `${row.credits} cr ${row.unit}`, live: row.model, ...QUALITY[key] });
+      const offers = [];
+      if (row) {
+        const per = LIVE[key].per;
+        offers.push({ provider: "kie", credits: per === "second" ? row.credits * seconds : row.credits * Math.max(clips, Math.ceil(seconds / per)), unit: `${row.credits} cr ${row.unit}`, live: row.model });
+      }
+      const ap = apimartOffer(key, { res, seconds, clips });
+      if (ap) offers.push(ap);
+      if (!offers.length) continue;
+      // APIMart is the main provider: it wins a tie within 2 %.
+      const best = offers.sort((a, b) => (a.provider === "apimart" ? a.credits / 1.02 : a.credits) - (b.provider === "apimart" ? b.credits / 1.02 : b.credits))[0];
+      const other = offers.find((o) => o !== best);
+      out.push({ key, label: m.label.replace(/ \(.*\)$/, ""), res, provider: best.provider, credits: +best.credits.toFixed(1), usd: +(best.credits * 0.005).toFixed(2), unit: best.unit, live: best.live, ...(other ? { alt: { provider: other.provider, usd: +(other.credits * 0.005).toFixed(2) } } : {}), ...QUALITY[key] });
     }
   }
   return out.sort((a, b) => b.q - a.q || a.credits - b.credits);
+}
+
+// APIMart's price for `seconds` of footage of one engine model, split into clips the way the model films them.
+function apimartOffer(key, { res, seconds, clips }) {
+  const a = apimartSpec(key);
+  if (!a || process.env.VF_PROVIDER === "kie") return null;
+  let p = null;
+  try { p = JSON.parse(fs.readFileSync(APIMART_PRICES, "utf8")).models?.[a.model]; } catch {}
+  if (!p) return null;
+  const n = Math.max(clips, 1), per = seconds / n;
+  const req = { res, duration: /^veo/.test(key) ? 8 : per, sound: true };
+  if (a.supports && !a.supports(req)) return null;
+  const n2 = /^veo/.test(key) ? Math.max(clips, Math.ceil(seconds / 8)) : n;
+  const usd = a.usd(p, req) * n2;
+  if (!Number.isFinite(usd)) return null;
+  return { provider: "apimart", credits: usd / 0.005, unit: `APIMart ${a.model}`, live: a.model };
 }
 
 // What Kie sells that the engine can't run yet (one line per family), so new models get noticed.

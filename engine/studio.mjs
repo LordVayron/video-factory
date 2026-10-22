@@ -19,6 +19,7 @@
 //   node engine/studio.mjs formats                                formats and their recipes
 import fs from "node:fs";
 import { MODELS } from "./lib/models.mjs";
+import * as RF from "./lib/refs.mjs";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
@@ -124,6 +125,8 @@ const commands = {
     P.writeJSON(path.join(dir, "intake.json"), intake);
     fs.writeFileSync(path.join(dir, "concept.md"), CONCEPT(sl, intake));
     console.log(`creado projects/${slug}/ · ${F.FORMATS[format].label} · receta: ${F.recipe(sl).join(" → ")}`);
+    const bankIds = RF.approved(format);
+    if (bankIds.length) console.log(`referencias aprobadas de ${format}: ${bankIds.join(", ")}. Ofrécelas al creador (studio.mjs refs ${slug} --use ... | --none); el concepto espera su elección.`);
     commands.status([slug]);
   },
 
@@ -173,6 +176,18 @@ const commands = {
   },
 
   // The intake's fixed budget is a hard cap (gen.mjs job, book, phase budget). Only the creator's words raise it.
+  // Which approved references this production follows (or none), in the creator's words. Claude offers them from the
+  // bank with buttons; the creator never types this.
+  refs() {
+    const slug = pos[0], said = flag("--said"), use = flag("--use"), none = process.argv.includes("--none");
+    if (!slug || !said || (!use && !none)) throw new F.FlowStop('refs <slug> --use id,id --said "..." | --none --said "..."');
+    const sl0 = P.loadShotlist(slug), ids = none ? [] : use.split(",").map((x) => x.trim()).filter(Boolean);
+    const bad = ids.filter((id) => !RF.approved(sl0.format).includes(id));
+    if (bad.length) throw new F.FlowStop(`no son referencias aprobadas de ${sl0.format}: ${bad.join(", ")} (aprobadas: ${RF.approved(sl0.format).join(", ") || "ninguna"})`);
+    P.updateShotlist(slug, (sl) => { sl.refsChoice = { ids, said, at: now() }; sl.flow.log.push({ at: now(), event: `refs ${ids.join(",") || "none"}`, said }); });
+    console.log(ids.length ? `referencias elegidas: ${ids.join(", ")} (las reglas del guion se calibran con ellas)` : "sin referencias (palabras del creador registradas)");
+  },
+
   cap() {
     const slug = pos[0], usd = Number(flag("--usd")), said = flag("--said");
     if (!slug || !usd || !said) throw new F.FlowStop('cap <slug> --usd <nuevo tope> --said "palabras exactas del creador"');
@@ -251,8 +266,8 @@ const commands = {
       if (kind === "longform") { x.longform.videoModel = pick.key; x.longform.res = pick.res; }
       else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
     });
-    console.log(`Precios en vivo de Kie${live.fetched ? " (recién descargados)" : ` (de hace ${live.ageH.toFixed(1)} h)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
-    for (const o of options) { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (rápido)" : ""}  ` : ""}${o.note}`); }
+    console.log(`Precios en vivo de APIMart y Kie (cada modelo con el proveedor más barato; APIMart gana empates)${live.fetched ? " (recién descargados)" : ` (de hace ${live.ageH.toFixed(1)} h)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
+    for (const o of options) { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (rápido)" : ""}  ` : ""}${o.note}`); }
     if (maxWpm && measuredWpm(pick.key) > maxWpm) console.log(`AVISO: ${pick.label} se midió hablando a ${measuredWpm(pick.key)} wpm (máximo ${maxWpm}); díselo al creador antes del book.`);
     console.log(`\nRecomendado (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Elegido: ${pick.label} ${pick.res}${want ? " (elección del creador)" : ""}.`);
     if (fresh.length) console.log(`Modelos en Kie que el motor aún no usa: ${fresh.join(", ")}. Si alguno promete más calidad o menos costo para este formato, propón probarlo.`);

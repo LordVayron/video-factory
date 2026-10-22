@@ -39,3 +39,7 @@ site/*.bak.html
 site/renders/
 
 .vercel
+
+# Reference videos belong to others: the bank keeps their measured profile and breakdown, not the media.
+refs/**/source.*
+refs/**/sheets/

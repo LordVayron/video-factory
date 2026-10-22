@@ -31,8 +31,11 @@ export function loudnessBand(file, dur) {
 export function profile(file, { lang = "en" } = {}) {
   const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,width,height,r_frame_rate:format=duration", "-of", "json", file]).toString());
   const v = probe.streams.find((s) => s.codec_type === "video"), dur = num(probe.format.duration);
-  const cuts = [...ffErr(["-i", file, "-vf", "scdet=threshold=10", "-an", "-f", "null", "-"]).matchAll(/lavfi\.scd\.time: ([\d.]+)/g)].map((m) => num(m[1]))
-    .filter((t, i, a) => i === 0 || t - a[i - 1] > 0.3); // flashes of one or two frames are one cut
+  // Cuts: a sensitive threshold (2026-10-22: at 10 two Town cuts between scenes of one palette were missed), then the
+  // detections less than 0.35 s apart are one cut, placed on the frame that changed most (fast motion fires in bursts).
+  const det = [...ffErr(["-i", file, "-vf", "scdet=threshold=7", "-an", "-f", "null", "-"]).matchAll(/lavfi\.scd\.score: ([\d.]+)[\s\S]*?lavfi\.scd\.time: ([\d.]+)/g)].map((m) => ({ s: num(m[1]), t: num(m[2]) }));
+  const groups = []; for (const d of det) { const g = groups.at(-1); if (g && d.t - g.at(-1).t < 0.35) g.push(d); else groups.push([d]); }
+  const cuts = groups.map((g) => g.reduce((a, b) => (b.s > a.s ? b : a)).t).filter((t) => t > 0.2 && t < dur - 0.2);
   const bounds = [0, ...cuts, dur], shots = bounds.slice(1).map((b, i) => +(b - bounds[i]).toFixed(2));
   const w = words(file, lang);
   let speech = 0, maxGap = 0;

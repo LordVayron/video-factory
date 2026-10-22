@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.8.0, 2026-10-22: APIMart as the main provider, live prices from both, and the reference engine
+
+- **APIMart is the main provider, Kie the second.** Every model the engine runs that APIMart also sells (Seedance 2.0 Mini/Fast/2.0/2.5, Wan 3.0 and Prime, Veo 3.1 Lite/Fast/Quality, Grok Imagine, Kling 3, GPT Image 2.5) has its APIMart request and live price. Each job runs on whichever provider sells that model cheaper right now (APIMart wins ties within 2 %), so the Production Book, the budget lock and the filming use the same price. Put `APIMART_API_KEY` in `.env`; either key alone works.
+- **Safe fallback.** If APIMart refuses a job (no balance, a parameter it doesn't take), nothing was billed and it moves to Kie with the budget checked again at Kie's price. An accepted job is never resubmitted. The ledger keeps the cost APIMart reports.
+- **Live prices from both.** `studio.mjs prices` and the book show the provider and the other one's price for every model; `gen.mjs prices` and `credits` cover both. The vision judge tries APIMart first. The guard blocks APIMart calls outside the engine, and checks make sure no key is ever committed.
+- **Reference engine.** Give the agent any video you like (a file or a TikTok/Reel/YouTube link): it measures it locally (transcript, cuts, per-shot timing and motion, hook, pauses, music tempo, sound hits, on-screen text, look), cuts per-shot and per-join sheets, writes a frame-by-frame breakdown, and adds it to your bank in your words. Productions pick their references before the concept, are calibrated to them, and never repeat their lines. New `references` skill; `requirements.txt` adds yt-dlp, rapidocr and scipy.
+- **Likeness in your words.** A character based on a real person other than you goes ahead on your statement that they authorized it (`cast.mjs likeness <id> --kind real-person --said "..."`); the cast gate enforces it.
+
 ## 2.7.0, 2026-10-22: launch films in any style, and the launch film on the landing
 
 - **Art styles for launch films.** Pick storybook, anime or photoreal (any bible style with a `launch` block, which says how real footage is graded into that world), or bring your own: `launch.mjs style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "..."` copies your images into the bible and sends them to every frame and character sheet. A style from references needs two or more images, a written look, a never-list, a footage treatment and your words; the visual identity is still approved with `studio.mjs approve-look`.

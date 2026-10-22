@@ -9,6 +9,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
 import * as kie from "./lib/kie.mjs";
+import * as PV from "./lib/providers.mjs";
 import * as eleven from "./lib/eleven.mjs";
 import { getModel } from "./lib/models.mjs";
 
@@ -38,12 +39,12 @@ async function assets() {
     const out = path.join(dir, "intro", v, "street.mp4");
     if (fs.existsSync(out)) continue;
     const m = getModel(I.video.model);
-    const req = { prompt: V.prompt, frame: await kie.upload(path.join(dir, V.frame)), res: I.video.res, ar: "9:16", duration: I.video.seconds, sound: false };
+    const req = { prompt: V.prompt, frame: await PV.upload(path.join(dir, V.frame)), res: I.video.res, ar: "9:16", duration: I.video.seconds, sound: false };
     const cr = m.cost(req);
     console.log(`→ ${v} street shot: ${m.label} ${I.video.res} ${I.video.seconds}s ~${cr.toFixed(1)} cr ($${(cr * 0.005).toFixed(3)})`);
-    jobs.push(kie.run(m.modelFor ? m.modelFor(req) : m.model, m.build(req)).then(async (r) => {
+    jobs.push(PV.run(I.video.model, req).then(async (r) => {
       await kie.download(r.urls.find((u) => /\.mp4/i.test(u)) || r.urls[0], out);
-      ledger(`${id} intro ${v} street shot`, m.model, cr);
+      ledger(`${id} intro ${v} street shot`, `${m.model} (${r.provider})`, r.credits);
     }));
   }
   // 2. Theme music (Suno, instrumental), shared by every variant; both takes kept, I.music.pick chooses.

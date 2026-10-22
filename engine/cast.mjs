@@ -86,6 +86,19 @@ const commands = {
   // The standard sheet (lib/modelsheet.mjs): one character, the studio layout, in the project's style. Needs
   // character.json sheetSpec (label, expressions, poses, details, palette, notes). --ref <image> keeps a design the creator
   // already approved (e.g. an older sheet).
+  // Whose likeness a character uses: fictional, the creator's own ("self"), or a real person ("real-person"), who goes
+  // ahead on the creator's statement that the person authorized it, recorded in their words.
+  //   likeness <char> --kind fictional|self|real-person [--said "..."]
+  likeness() {
+    const kind = flag("--kind"), said = flag("--said");
+    if (!id || !["fictional", "self", "real-person"].includes(kind)) throw new Error('usage: likeness <char> --kind fictional|self|real-person [--said "..."]');
+    if (kind === "real-person" && !said?.trim()) throw new Error('una persona real necesita tu declaración de que te autorizó: --said "..."');
+    const data = P.readJSON(charFile(id));
+    data.likeness = { kind, ...(kind === "real-person" ? { authorized: { said, at: new Date().toISOString() } } : {}) };
+    P.writeJSON(charFile(id), data);
+    console.log(`${id}: ${kind === "real-person" ? "persona real, autorización declarada por el creador y registrada" : kind === "self" ? "tu propia cara y voz" : "personaje ficticio"}`);
+  },
+
   "model-sheet"() {
     const styleId = flag("--style");
     if (!id || !styleId) throw new Error("usage: model-sheet <char> --style <id> [--ref <image>]... [--project <slug>]");

@@ -242,3 +242,134 @@ export function getModel(key) {
 }
 
 export const usd = (credits) => `$${(credits * 0.005).toFixed(3)}`;
+
+// ------------------------------------------------------------------ APIMart
+// APIMart (2026-10-22, Creador: "que quede apimart como la principal... busques los precios de ambas... para que
+// siempre encuentres el mejor modelo al mejor precio"). Each engine model that APIMart also sells gets its request
+// shape there and its live price (engine/prices-apimart.json, refreshed with the Kie feed by lib/pricing.mjs).
+// cost() then answers for the cheapest provider that can run the request, so the Production Book, the budget lock
+// and the filming all use the same price; lib/providers.mjs routes the job to that provider.
+import fs from "node:fs";
+import path from "node:path";
+import { ROOT as _ROOT, hasApimart, hasKie } from "./env.mjs";
+
+export const APIMART_PRICES = path.join(_ROOT, "engine", "prices-apimart.json");
+let _pc = null, _pcAt = 0;
+export function apimartPrice(id) {
+  try {
+    const st = fs.statSync(APIMART_PRICES);
+    if (!_pc || st.mtimeMs !== _pcAt) { _pc = JSON.parse(fs.readFileSync(APIMART_PRICES, "utf8")); _pcAt = st.mtimeMs; }
+  } catch { return null; }
+  return _pc?.models?.[id] || null;
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+const perSec = (p, res) => p?.resolution_paid_prices?.[String(res).toUpperCase()];
+
+function sdApimart(id, allowed, maxSecs) {
+  const res = (r) => (allowed.includes(r.res) ? r.res : allowed[allowed.length - 1]);
+  const secs = (r) => clamp(r.duration || 5, 4, maxSecs);
+  return {
+    model: id, kind: "videos",
+    build: (r) => {
+      const b = { model: id, prompt: r.prompt, size: r.ar || "9:16", resolution: res(r), duration: secs(r), generate_audio: r.sound !== false };
+      if (r.refs?.length || r.refAudio?.length || r.refVideo?.length) {
+        const imgs = [r.frame, ...(r.refs || [])].filter(Boolean).slice(0, 9);
+        if (imgs.length) b.image_urls = imgs;
+        if (r.refAudio?.length) b.audio_urls = r.refAudio.slice(0, 3);
+        if (r.refVideo?.length) b.video_urls = r.refVideo.slice(0, 3);
+      } else if (r.frame) {
+        b.image_with_roles = [{ url: r.frame, role: "first_frame" }, ...(r.lastFrame ? [{ url: r.lastFrame, role: "last_frame" }] : [])];
+        if (id === "seedance-2.5") b.size = "adaptive";
+      }
+      return b;
+    },
+    usd: (p, r) => (perSec(p, res(r)) ?? NaN) * secs(r),
+  };
+}
+function wanApimart(id) {
+  const res = (r) => (["480p", "720p", "1080p"].includes(r.res) ? r.res : "720p");
+  const secs = (r) => clamp(r.duration || 5, 2, 30);
+  return {
+    model: id, kind: "videos",
+    build: (r) => {
+      const b = { model: id, prompt: r.prompt.replace(/@image(\d)/g, "Image$1").replace(/@audio(\d)/g, "Audio$1"), resolution: res(r).toUpperCase(), size: r.ar || "9:16", duration: secs(r), audio: r.sound !== false };
+      if (r.refs?.length || r.refAudio?.length) {
+        b.generation_type = "reference";
+        b.image_urls = [r.frame, ...(r.refs || [])].filter(Boolean).slice(0, 10);
+        if (r.refAudio?.length) b.audio_urls = r.refAudio.slice(0, 5);
+      } else if (r.frame) b.image_with_roles = [{ url: r.frame, role: "first_frame" }, ...(r.lastFrame ? [{ url: r.lastFrame, role: "last_frame" }] : [])];
+      return b;
+    },
+    usd: (p, r) => (perSec(p, res(r)) ?? NaN) * secs(r),
+  };
+}
+const veoSecs = (r) => [4, 6, 8].reduce((b, d) => (Math.abs(d - (r.duration || 8)) < Math.abs(b - (r.duration || 8)) ? d : b), 8);
+function veoApimart(id) {
+  return {
+    model: id, kind: "videos",
+    // APIMart's Veo only films 8 s clips, and Quality has no reference mode: anything else goes to Kie.
+    supports: (r) => veoSecs(r) === 8 && !(id === "veo3.1-quality" && !r.frame && r.refs?.length),
+    build: (r) => {
+      const b = { model: id, prompt: r.prompt, duration: 8, aspect_ratio: r.ar === "16:9" ? "16:9" : "9:16", resolution: r.res === "1080p" ? "1080p" : "720p" };
+      if (r.frame) { b.generation_type = "frame"; b.image_urls = [r.frame, r.lastFrame].filter(Boolean); }
+      else if (r.refs?.length) { b.generation_type = "reference"; b.image_urls = r.refs.slice(0, 3); }
+      return b;
+    },
+    usd: (p) => p?.paid_price ?? NaN,
+  };
+}
+
+const APIMART = {
+  "sd2-mini": sdApimart("seedance-2.0-mini", ["480p", "720p"], 15),
+  "sd2-fast": sdApimart("seedance-2.0-fast", ["480p", "720p"], 15),
+  sd2: sdApimart("seedance-2.0", ["480p", "720p", "1080p"], 15),
+  "sd2.5": sdApimart("seedance-2.5", ["480p", "720p", "1080p"], 30),
+  wan3: wanApimart("wan3.0-video"),
+  "wan3-prime": wanApimart("wan3.0-video-prime"),
+  "veo-lite": veoApimart("veo3.1-lite"),
+  "veo-fast": veoApimart("veo3.1-fast"),
+  veo: veoApimart("veo3.1-quality"),
+  grok: {
+    model: "grok-imagine-1.5-video-ext", kind: "videos",
+    supports: (r) => r.res !== "1080p" && (r.duration || 6) <= 15,
+    build: (r) => ({ model: "grok-imagine-1.5-video-ext", prompt: r.prompt, size: r.ar || "9:16", duration: clamp(r.duration || 6, 6, 15), resolution: r.res === "720p" ? "720p" : "480p", ...([r.frame, ...(r.refs || [])].filter(Boolean).length ? { image_urls: [r.frame, ...(r.refs || [])].filter(Boolean).slice(0, 7) } : {}) }),
+    usd: (p, r) => (perSec(p, r.res === "720p" ? "720p" : "480p") ?? NaN) * clamp(r.duration || 6, 6, 15),
+  },
+  kling3: {
+    model: "kling-v3", kind: "videos",
+    build: (r) => ({ model: "kling-v3", prompt: r.prompt, mode: r.res === "1080p" ? "pro" : "std", duration: clamp(r.duration || 5, 3, 15), aspect_ratio: r.ar || "9:16", audio: r.sound !== false, ...(r.frame ? { image_urls: [r.frame, r.lastFrame].filter(Boolean) } : {}) }),
+    usd: (p, r) => {
+      const tier = [r.res === "1080p" ? "pro" : "", r.sound !== false ? "sound" : ""].filter(Boolean).join("-");
+      return (tier ? p?.billing_tier_paid_prices?.[tier] : p?.paid_price) * clamp(r.duration || 5, 3, 15);
+    },
+  },
+  "gpt2.5": {
+    model: "gpt-image-2.5-sunburst", kind: "images",
+    build: (r) => ({ model: "gpt-image-2.5-sunburst", prompt: r.prompt, size: r.ar || "9:16", resolution: String(r.size || "1K").toLowerCase(), quality: "high", n: 1, output_format: "png", ...(r.refs?.length ? { image_urls: r.refs.slice(0, 16) } : {}) }),
+    usd: (p, r) => {
+      const s = String(r.size || "1K").toLowerCase();
+      return p?.size_quality_prices?.[`${r.ar || "9:16"}${s === "1k" ? "" : "@" + s}`]?.high ?? NaN;
+    },
+  },
+};
+
+// Who can run a request and at what price, cheapest first. APIMart wins a tie (within 2 %): it is the main provider.
+// VF_PROVIDER=kie|apimart forces one. Without a cached APIMart price its offer uses Kie's as a cautious estimate.
+export function offers(key, r = {}) {
+  const m = MODELS[key], a = APIMART[key];
+  const kie = { provider: "kie", credits: m.kieCost(r) };
+  const out = [];
+  const force = process.env.VF_PROVIDER;
+  if (a && hasApimart() && (!a.supports || a.supports(r)) && force !== "kie") {
+    const usdv = a.usd(apimartPrice(a.model), r);
+    out.push({ provider: "apimart", credits: Number.isFinite(usdv) ? +(usdv / 0.005).toFixed(2) : kie.credits, live: Number.isFinite(usdv) });
+  }
+  if ((hasKie() || !out.length) && force !== "apimart") out.push(kie);
+  return out.sort((x, y) => (x.provider === "apimart" ? x.credits / 1.02 : x.credits) - (y.provider === "apimart" ? y.credits / 1.02 : y.credits));
+}
+export const apimartSpec = (key) => APIMART[key] || null;
+
+for (const [key, m] of Object.entries(MODELS)) {
+  m.kieCost = m.cost;
+  if (APIMART[key]) m.cost = (r = {}) => offers(key, r)[0].credits;
+}

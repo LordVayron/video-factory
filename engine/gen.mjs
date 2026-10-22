@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // AI Video Factory: generation CLI. Every paid job is written to the project's ledger.json.
 //
-//   node engine/gen.mjs credits                      balance in credits and USD
-//   node engine/gen.mjs prices [filter]              refresh live prices -> engine/prices.json
+//   node engine/gen.mjs credits                      balance of each provider (APIMart, Kie) in USD
+//   node engine/gen.mjs prices [filter]              refresh live prices of both providers; who is cheaper per model
 //   node engine/gen.mjs models                       list model keys with tier and use
 //   node engine/gen.mjs estimate <slug>              cost of what is still to generate
 //   node engine/gen.mjs still "<prompt>" <out.png> [--model gpt2.5] [--ref f]... [--ar 9:16] [--size 1K]
@@ -30,6 +30,7 @@ import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
 import * as kie from "./lib/kie.mjs";
+import * as PV from "./lib/providers.mjs";
 import { MODELS, getModel, usd } from "./lib/models.mjs";
 import * as P from "./lib/project.mjs";
 import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
@@ -90,9 +91,9 @@ async function job(args) {
 
 async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   const m = getModel(modelKey);
-  const input = m.build(req);
-  const credits = m.cost(req);
-  const model = m.modelFor ? m.modelFor(req) : m.model;
+  let caps = () => {};
+  // PROVIDERS (2026-10-22): cost() is the cheapest provider's live price (APIMart first, Kie second); the job goes there.
+  let credits = m.cost(req);
   // BUDGET GUARD (the creator, 2026-10-13: "you burned my credits without permission"). Once the Production Book is
   // approved, its estimate is the hard ceiling. Any job that would push the project's spend past it is refused;
   // rerolls need a new approval: node engine/phase.mjs budget <slug> --add <credits> --note "approved by the creator".
@@ -104,15 +105,17 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
     // HARD CAP (the creator, 2026-10-19: "no more than 5 dollars, not one cent more"): an intake with a fixed budget caps
     // every paid job of the project, images and sheets included, before and after the book.
     const hard = sl0.intake?.budget?.mode === "fixed" && sl0.intake.budget.usd ? sl0.intake.budget.usd / 0.005 : null;
-    if (hard != null && P.ledgerTotal(slug) + (inFlight.get(slug) || 0) + credits > hard + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the project's hard cap of ${sl0.intake.budget.usd} (spent ${(P.ledgerTotal(slug) * 0.005).toFixed(2)}).`);
     const cap = sl0.budget?.approvedCredits;
     if (cap == null && !["image", "voice"].includes(m.kind)) throw new FlowStop(`BUDGET STOP: "${label}" (${m.label}) needs the budget that approving the Production Book locks.`);
-    if (cap != null) {
-      const spent = P.ledgerTotal(slug) + (inFlight.get(slug) || 0);
-      if (spent + credits > cap + 0.5) {
-        throw new Error(`BUDGET STOP: "${label}" costs ${credits.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
+    // Checked again at the new price when a job moves from APIMart to Kie.
+    caps = (cr, held = 0) => {
+      if (hard != null && P.ledgerTotal(slug) + (inFlight.get(slug) || 0) - held + cr > hard + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the project's hard cap of ${sl0.intake.budget.usd} (spent ${(P.ledgerTotal(slug) * 0.005).toFixed(2)}).`);
+      if (cap != null) {
+        const spent = P.ledgerTotal(slug) + (inFlight.get(slug) || 0) - held;
+        if (spent + cr > cap + 0.5) throw new Error(`BUDGET STOP: "${label}" costs ${cr.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
       }
-    }
+    };
+    caps(credits);
     // PROMPT TOO LONG: a model with a prompt limit (Kling 3.0: 2,500 characters) is never sent a longer prompt.
     if (m.maxPrompt && typeof req.prompt === "string" && req.prompt.length > m.maxPrompt) throw new FlowStop(`PROMPT STOP: "${label}" is ${req.prompt.length} characters; ${m.label} takes ${m.maxPrompt}.`);
     // DIALOGUE STOP (2026-10-19, The Glow Up: the clip prompt carried no lines and Seedance improvised a paid take).
@@ -133,14 +136,24 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   process.stderr.write(`→ ${label}: ${m.label} ~${credits.toFixed(1)} cr (${usd(credits)})
 `);
   const lock = outBase + ".lock";
-  let taskId = null, keepLock = false;
+  let taskId = null, keepLock = false, provider = null;
   try {
-    taskId = await kie.createTask(model, input);
+    const sent = await PV.submitBest(modelKey, req, {
+      onSwitch: (o) => {
+        caps(o.credits, credits);
+        if (slug) inFlight.set(slug, (inFlight.get(slug) || 0) - credits + o.credits);
+        credits = o.credits;
+        process.stderr.write(`  → ${o.provider} ~${credits.toFixed(1)} cr (${usd(credits)})
+`);
+      },
+    });
+    ({ taskId, provider } = sent);
     fs.mkdirSync(path.dirname(lock), { recursive: true });
-    fs.writeFileSync(lock, JSON.stringify({ taskId, slug, modelKey, credits, label, outBase: path.relative(ROOT, outBase), ext, register }));
-    const { urls } = await kie.waitTask(taskId, { label });
+    fs.writeFileSync(lock, JSON.stringify({ taskId, provider, slug, modelKey, credits, label, outBase: path.relative(ROOT, outBase), ext, register }));
+    const { urls, usd: charged } = await PV.wait(provider, taskId, { label });
     try {
-      return await finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls });
+      // The ledger keeps what the provider says it charged when it says (APIMart does), else the estimate.
+      return await finish({ slug, modelKey, credits: charged != null ? charged / 0.005 : credits, label, outBase, ext, register, taskId, urls, provider });
     } catch (e) {
       // Kie already billed this task; keep the lock so "recover" downloads it instead of paying again.
       keepLock = true;
@@ -149,7 +162,7 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   } catch (e) {
     // A timeout means the task may still finish (and bill): keep the lock for "recover".
     if (taskId && /timed out/i.test(e.message)) keepLock = true;
-    P.ledger(slug, { ok: false, label, model: modelKey, credits: 0, taskId, error: e.message.slice(0, 300) });
+    P.ledger(slug, { ok: false, label, model: modelKey, provider, credits: 0, taskId, error: e.message.slice(0, 300) });
     throw e;
   } finally {
     if (slug) inFlight.set(slug, (inFlight.get(slug) || 0) - credits);
@@ -161,16 +174,17 @@ const inFlight = new Map();
 // Some models return extras (Suno returns cover art next to the audio): keep only the asked-for kind.
 const KIND = { ".mp3": /\.(mp3|wav|m4a|ogg)(\?|$)/i, ".mp4": /\.(mp4|mov)(\?|$)/i, ".png": /\.(png|jpe?g|webp)(\?|$)/i };
 
-async function finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls }) {
-  if (ext && KIND[ext]) urls = urls.filter((u) => KIND[ext].test(new URL(u).pathname));
+async function finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls, provider = "kie" }) {
+  // APIMart links may carry no extension: filter by kind only when that keeps something.
+  if (ext && KIND[ext]) { const k = urls.filter((u) => KIND[ext].test(new URL(u).pathname)); if (k.length) urls = k; else urls = urls.slice(0, 1); }
   const files = [];
   for (let k = 0; k < urls.length; k++) {
     const e = ext || path.extname(new URL(urls[k]).pathname) || ".bin";
     const f = urls.length > 1 ? `${outBase}-${k + 1}${e}` : `${outBase}${e}`;
-    await kie.download(urls[k], f);
+    await PV.download(urls[k], f);
     files.push(f);
   }
-  P.ledger(slug, { ok: true, label, model: modelKey, credits, taskId, files: files.map((f) => path.relative(ROOT, f)) });
+  P.ledger(slug, { ok: true, label, model: modelKey, provider, credits: +(+credits).toFixed(2), taskId, files: files.map((f) => path.relative(ROOT, f)) });
   if (register) {
     P.updateShotlist(slug, (x) => {
       const t = P.findItem(x, register.shot);
@@ -191,8 +205,8 @@ async function recover(slug) {
       try { j = JSON.parse(fs.readFileSync(lockPath, "utf8") || "null"); } catch {}
       if (!j?.taskId) { fs.rmSync(lockPath, { force: true }); continue; }
       try {
-        const { urls } = await kie.waitTask(j.taskId, { label: `recover ${j.label}`, timeoutMs: 10 * 60 * 1000 });
-        const files = await finish({ ...j, outBase: path.join(ROOT, j.outBase), urls });
+        const { urls, usd: charged } = await PV.wait(j.provider || "kie", j.taskId, { label: `recover ${j.label}`, timeoutMs: 10 * 60 * 1000 });
+        const files = await finish({ ...j, ...(charged != null ? { credits: charged / 0.005 } : {}), provider: j.provider || "kie", outBase: path.join(ROOT, j.outBase), urls });
         console.error(`recovered ${j.label}: ${files.map((x) => path.basename(x)).join(", ")}`);
       } catch (e) {
         console.error(`could not recover ${j.label}: ${e.message.slice(0, 120)}`);
@@ -254,8 +268,9 @@ const commands = {
   },
 
   async credits() {
-    const c = await kie.credits();
-    console.log(`${c} credits = ${usd(c)}`);
+    const b = await PV.balances();
+    for (const [k, v] of Object.entries(b)) console.log(`${k.padEnd(8)} ${typeof v === "number" ? "$" + v.toFixed(2) : v}`);
+    if (!Object.keys(b).length) console.log("no provider key (APIMART_API_KEY or KIE_API_TOKEN in .env)");
   },
 
   async prices() {
@@ -263,7 +278,15 @@ const commands = {
     fs.writeFileSync(path.join(ROOT, "engine", "prices.json"), JSON.stringify(all, null, 1));
     const f = pos[0] ? new RegExp(pos[0], "i") : /seedance|veo|kling 3|grok-imagine|nano|seedream 5|infinitalk|infinitetalk|avatar|lip sync|elevenlabs|suno, generate music|topaz video/i;
     for (const r of all.filter((r) => f.test(r.model))) console.log(`${String(r.credits).padStart(7)} cr  $${String(r.usd).padEnd(7)} ${r.unit.padEnd(20)} ${r.model}`);
-    console.log(`\n${all.length} prices saved to engine/prices.json`);
+    console.log(`\n${all.length} Kie prices saved to engine/prices.json`);
+    const { apimartPrices } = await import("./lib/pricing.mjs");
+    const ap = await apimartPrices({ maxAgeH: 0 });
+    console.log(`${Object.keys(ap.models).length} APIMart prices saved to engine/prices-apimart.json${ap.warning ? " (" + ap.warning + ")" : ""}\n\nWho runs each model (5 s at 720p with sound; APIMart wins ties):`);
+    const { offers } = await import("./lib/models.mjs");
+    for (const k of Object.keys(MODELS).filter((k) => ["video", "image"].includes(MODELS[k].kind))) {
+      const o = offers(k, { res: "720p", duration: 5, sound: true, ar: "9:16" });
+      console.log(`  ${k.padEnd(11)} ${o.map((x) => `${x.provider} $${(x.credits * 0.005).toFixed(3)}`).join("  vs  ")}`);
+    }
   },
 
   async models() {
@@ -303,7 +326,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   async still() {
     const [prompt, out] = pos;
     if (!prompt || !out) throw new Error('usage: still "<prompt>" <out.png> [--model gpt2.5] [--ref f]...');
-    const refs = await Promise.all(flags("--ref").map(kie.asUrl));
+    const refs = await Promise.all(flags("--ref").map(PV.asUrl));
     const outBase = out.replace(/\.(png|jpe?g)$/i, "");
     const files = await job({ slug: flag("--project"), modelKey: flag("--model", "gpt2.5"), req: { prompt, refs, ar: flag("--ar", "9:16"), size: flag("--size", "1K") }, outBase, label: path.basename(out), ext: ".png" });
     console.log(files.join("\n"));
@@ -381,7 +404,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const st = P.style(sl.style);
     report(await pool(todo, async (sc) => {
       const refs = P.sceneRefs(sl, sc);
-      const urls = await Promise.all(refs.map((r) => kie.asUrl(r.file)));
+      const urls = await Promise.all(refs.map((r) => PV.asUrl(r.file)));
       const { cols, rows, ar } = P.gridLayout(sc.shots.length);
       const note = flag("--note") ? ` Director's note: ${flag("--note")}` : sc.queueNote ? ` Director's note: ${sc.queueNote}` : "";
       const outBase = nextName(dir, `${sc.id}-grid`, ".png");
@@ -417,7 +440,7 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
       const c = P.character(id);
       const sc = sl.scenes.find((x) => P.sceneShots(sl, x).some((s) => P.singleOf(s) === id));
       const refs = P.sceneRefs(sl, sc).filter((r) => r.role === "set" || r.id === id);
-      const urls = await Promise.all(refs.map((r) => kie.asUrl(r.file)));
+      const urls = await Promise.all(refs.map((r) => PV.asUrl(r.file)));
       const lock = refs.map((r, i) => r.role === "set" ? `The room is reference image ${i + 1}.` : `${r.name} is reference image ${i + 1}.`).join(" ");
       const outBase = nextName(dir, `angle-${id}`, ".png");
       fs.writeFileSync(outBase + ".lock", "");
@@ -498,7 +521,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...lines.flatMap((f) => ["-i", f]), "-filter_complex", `concat=n=${lines.length}:v=0:a=1`, joined]);
     const clip = P.abs(slug, s.clips[s.clip].file);
     const outBase = nextName(P.abs(slug, "clips"), `${id}-dub`, ".mp4");
-    const files = await job({ slug, modelKey: "lipsync", req: { video: await kie.upload(clip), audio: await kie.upload(joined), duration: mediaDuration(joined) }, outBase, label: `${id} dub`, ext: ".mp4" });
+    const files = await job({ slug, modelKey: "lipsync", req: { video: await PV.upload(clip), audio: await PV.upload(joined), duration: mediaDuration(joined) }, outBase, label: `${id} dub`, ext: ".mp4" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.clips.push({ file: P.rel(slug, files[0]), model: "lipsync", dub: true }); });
     console.log(files[0]);
   },
@@ -535,7 +558,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     // a launch film: only refs/sheets were read, so no storybook sheet reached the model and six frames drew strangers).
     // A last frame is drawn from the shot's own first frame, so it is the same scene at its end state.
     const stRefs = (() => { try { const st = P.style(sl.style); return (st.refs || []).map((f) => path.join(st.dir, f)); } catch { return []; } })(); // a style made from the creator's references
-    const refs = await Promise.all([...setRef, ...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...stRefs, ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(kie.asUrl));
+    const refs = await Promise.all([...setRef, ...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...stRefs, ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(PV.asUrl));
     const sent = setRef.length ? `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}` : prompt;
     const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt: sent, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[`${which}Prompt`] = prompt; });
@@ -586,7 +609,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       } else first = P.abs(slug, first);
       const req = {
         prompt: P.clipPrompt(sl, s), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: test && flag("--secs") ? Number(flag("--secs")) : s.duration,
-        frame: await kie.upload(first), lastFrame: s.last ? await kie.upload(P.abs(slug, s.last)) : undefined, ...(silent ? { sound: false } : {}),
+        frame: await PV.upload(first), lastFrame: s.last ? await PV.upload(P.abs(slug, s.last)) : undefined, ...(silent ? { sound: false } : {}),
       };
       const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} take`, ext: ".mp4" });
       console.log("filmed", P.rel(slug, out));
@@ -626,7 +649,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
   async talk() {
     const [image, audio, out] = pos;
     if (!out) throw new Error("usage: talk <image> <audio> <out.mp4>");
-    const files = await job({ slug: flag("--project"), modelKey: flag("--model", "infinitetalk"), req: { frame: await kie.asUrl(image), audio: await kie.asUrl(audio), prompt: flag("--prompt"), res: flag("--res", "480p"), duration: mediaDuration(audio) }, outBase: out.replace(/\.mp4$/i, ""), label: path.basename(out), ext: ".mp4" });
+    const files = await job({ slug: flag("--project"), modelKey: flag("--model", "infinitetalk"), req: { frame: await PV.asUrl(image), audio: await PV.asUrl(audio), prompt: flag("--prompt"), res: flag("--res", "480p"), duration: mediaDuration(audio) }, outBase: out.replace(/\.mp4$/i, ""), label: path.basename(out), ext: ".mp4" });
     console.log(files[0]);
   },
 
@@ -678,7 +701,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         P.updateShotlist(slug, (x) => { x.longform.scenes.find((s) => s.id === sc.id).image = P.rel(slug, still); });
       }
       if (sc.motion === "kenburns") return [still];
-      const url = await kie.upload(still);
+      const url = await PV.upload(still);
       // First frame only: asked for the same first and last frame, Kling returned a frozen picture (2026-10-20,
       // Midnight Lake, motion 0.09). The seam is hidden by longform.mjs, which cross-fades the tail into the head.
       const prompt = `${sc.motion}. Clearly visible, slow, continuous ambient motion through the whole clip, from the first second to the last; the camera stays still; nothing enters or leaves the frame; no cuts.`;
@@ -814,7 +837,7 @@ async function renderSceneByShots(slug, sl, sc, modelKey, res) {
     const prompt = P.shotPrompt(sl, sc, s, getModel(modelKey).maxPrompt || 4000);
     const duration = shotGenSecs(s, modelKey);
     const outBase = nextName(path.join(dir, "shots"), `${s.id}-${modelKey}`, ".mp4");
-    const [f] = await job({ slug, modelKey, req: { prompt, lines: s.dialogue || [], cast: P.sceneCast(sl, sc), frame: await kie.upload(P.abs(slug, panel)), res, ar: sl.ar, duration, sound: true }, outBase, label: `${s.id} ${modelKey} ${res} ${duration}s`, ext: ".mp4" });
+    const [f] = await job({ slug, modelKey, req: { prompt, lines: s.dialogue || [], cast: P.sceneCast(sl, sc), frame: await PV.upload(P.abs(slug, panel)), res, ar: sl.ar, duration, sound: true }, outBase, label: `${s.id} ${modelKey} ${res} ${duration}s`, ext: ".mp4" });
     files.push(f);
   }
   // Join the shots into one scene take (same size, fps and audio), registered like a multi-shot take.
@@ -832,11 +855,11 @@ async function renderScene(slug, sl, sc, modelKey, res) {
   const first = shots[0].board?.file;
   if (!first) throw new Error(`${sc.id}: no storyboard panel for ${shots[0].id}; run storyboard first`);
   const refs = P.sceneRefs(sl, sc);
-  const frame = await kie.upload(P.abs(slug, first));
-  const refUrls = await Promise.all(refs.map((r) => kie.asUrl(r.file)));
+  const frame = await PV.upload(P.abs(slug, first));
+  const refUrls = await Promise.all(refs.map((r) => PV.asUrl(r.file)));
   const speakers = [...new Set(shots.flatMap((s) => (s.dialogue || []).map((l) => l.char)))];
   const samples = voiceRefFiles(sl, speakers, slug);
-  const refAudio = await Promise.all(samples.map((v) => kie.upload(v.file)));
+  const refAudio = await Promise.all(samples.map((v) => PV.upload(v.file)));
   let prompt = P.scenePrompt(sl, sc, refs, { voiceRefs: samples.map((v) => v.char) });
   if (sc.queueNote) prompt += `\nDirector's note: ${sc.queueNote}`;
   const duration = P.sceneSecs(shots);
@@ -854,7 +877,7 @@ async function renderFrames(slug, sl, shots, n, modelKey, { size = "1K", withBoa
   fs.mkdirSync(dir, { recursive: true });
   const refCache = {};
   return pool(shots.flatMap((s) => Array.from({ length: n }, () => s)), async (s) => {
-    refCache[s.id] ??= Promise.all(P.shotRefs(sl, s, { withBoard }).map(kie.asUrl));
+    refCache[s.id] ??= Promise.all(P.shotRefs(sl, s, { withBoard }).map(PV.asUrl));
     const refs = await refCache[s.id];
     const note = s.queueNote ? ` Director's note: ${s.queueNote}` : "";
     const outBase = nextName(dir, s.id, ".png");
@@ -872,16 +895,16 @@ async function renderShot(slug, sl, s, modelKey, res, { tag } = {}) {
   if (!s.frames[fi].qc?.pass) {
     throw new Error(`${s.id}: keyframe ${fi} hasn't passed QC. Run: node engine/qc.mjs frames ${slug} --shots ${s.id}`);
   }
-  const frame = await kie.upload(P.abs(slug, s.frames[fi].file));
+  const frame = await PV.upload(P.abs(slug, s.frames[fi].file));
   const seedance = modelKey.startsWith("sd2") || modelKey.startsWith("wan3");
   const samples = s.audioMode === "native" && m.refAudio ? P.voiceSamples(sl, s) : [];
-  const refs = seedance && !s.strictFrame ? await Promise.all(P.shotRefs(sl, s).slice(0, 8).map(kie.asUrl)) : [];
-  const refAudio = await Promise.all(samples.map((v) => kie.upload(v.file)));
+  const refs = seedance && !s.strictFrame ? await Promise.all(P.shotRefs(sl, s).slice(0, 8).map(PV.asUrl)) : [];
+  const refAudio = await Promise.all(samples.map((v) => PV.upload(v.file)));
   const refMode = seedance && (refs.length > 0 || refAudio.length > 0);
   let prompt = P.motionPrompt(sl, s, { voiceRefs: samples.map((v) => v.char), refMode });
   if (s.queueNote) prompt += ` Director's note: ${s.queueNote}`;
   // End-frame lock: pinning the last frame stops the model from wandering into an invented room.
-  const lastFrame = s.endFrame ? await kie.upload(P.abs(slug, s.endFrame)) : undefined;
+  const lastFrame = s.endFrame ? await PV.upload(P.abs(slug, s.endFrame)) : undefined;
   const req = { prompt, lines: s.dialogue || [], frame, lastFrame, refs: lastFrame ? [] : refs, refAudio: lastFrame ? [] : refAudio, res, ar: sl.ar, duration: s.duration, sound: s.audioMode !== "silent" };
   const dir = P.abs(slug, "clips");
   fs.mkdirSync(dir, { recursive: true });

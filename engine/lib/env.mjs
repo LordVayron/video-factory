@@ -38,3 +38,12 @@ export function kieKey() {
 export function elevenKey() {
   return env("ELEVENLABS_API_KEY");
 }
+
+// APIMart (2026-10-22): the main provider; Kie stays as the second one. Either key alone is enough.
+export function apimartKey() {
+  const k = env("APIMART_API_KEY");
+  if (!k) throw new Error("No APIMart key. Put APIMART_API_KEY=... in " + CANDIDATES[0]);
+  return k;
+}
+export const hasApimart = () => !!(process.env.APIMART_API_KEY || env("APIMART_API_KEY"));
+export const hasKie = () => !!(process.env.KIE_API_TOKEN || process.env.KIE_AI_API_KEY || env("KIE_AI_API_KEY") || env("KIE_API_TOKEN"));

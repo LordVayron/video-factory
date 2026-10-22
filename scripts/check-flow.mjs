@@ -27,7 +27,7 @@ export default function checkFlow(t, ROOT) {
     t("a project without flow v5 cannot run anything", stops(() => F.requireStep(P.loadShotlist(slug), "board")));
     P.updateShotlist(slug, (x) => { x.flow = { v: 5, archived: "test" }; });
     t("an archived project cannot run anything", stops(() => F.requireStep(P.loadShotlist(slug), "board")));
-    P.updateShotlist(slug, (x) => { x.flow = { v: 5, approved: {}, overrides: [], log: [] }; x.intake = { series: "single", format: "influencer", start: "idea", platform: {}, cast: "none", budget: {}, refs: {} }; });
+    P.updateShotlist(slug, (x) => { x.flow = { v: 5, approved: {}, overrides: [], log: [] }; x.intake = { series: "single", format: "influencer", start: "idea", platform: {}, cast: "none", budget: {}, refs: {} }; x.refsChoice = { ids: [], said: "check" }; }); // the bank may hold influencer references: this test chose none
     fs.writeFileSync(path.join(d, "concept.md"), "# c");
     t("filming waits for every step before it", stops(() => F.requireStep(P.loadShotlist(slug), "film")));
     t("an approval needs the creator's words", stops(() => F.approve(slug, "concept", "")));
@@ -186,4 +186,5 @@ export default function checkFlow(t, ROOT) {
   t("guard allows engine code", !g("Write", { file_path: path.join(ROOT, "engine", "lib", "x.mjs"), content: "kie." + "upload(f)" }));
   t("guard denies sending a video with no receipt", g("SendUserFile", { files: [path.join(ROOT, "projects", "no-such", "out", "x.mp4")] }));
   t("guard allows a labelled preview", !g("SendUserFile", { files: [path.join(ROOT, "projects", "no-such", "out", "x-PREVIEW.mp4")] }));
+  t("likeness: a character from a real person needs the creator's statement that they were authorized (cast gate, cast.mjs likeness)", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes('c.likeness?.kind === "real-person" && !c.likeness.authorized?.said') && fs.readFileSync(path.join(ROOT, "engine", "cast.mjs"), "utf8").includes("likeness() {"));
 }

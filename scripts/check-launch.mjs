@@ -155,6 +155,8 @@ export default function checkLaunch(t, ROOT) {
     P.writeJSON(L.fileOf(slug, "plan"), { ...plan, shots: plan.shots.map((s) => withInserts({ ...s, assets: s.assets.filter((a) => env.has(a)) })) });
     P.writeJSON(L.fileOf(slug, "style"), { ...style, characters: [], thread: "studio" });
     t("launch: the concept gate needs the brief rules (a broken brief can't be approved)", (() => { const b = P.readJSON(L.fileOf(slug, "brief")); P.writeJSON(L.fileOf(slug, "brief"), { ...b, interview: [] }); const r = F.stepStatus(P.loadShotlist(slug), "concept").ok; P.writeJSON(L.fileOf(slug, "brief"), b); return !r; })());
+    // With references in the bank, the concept waits for the choice (none here: the mock writes its own plan).
+    if (F.refsGate(P.loadShotlist(slug)).length) P.updateShotlist(slug, (x) => { x.refsChoice = { ids: [], said: "check" }; });
     F.approve(slug, "concept", "check");
     F.approve(slug, "script", "check");
     fs.mkdirSync(path.join(d, "frames"), { recursive: true });

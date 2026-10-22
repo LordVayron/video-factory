@@ -34,7 +34,10 @@ fs.existsSync(path.join(ROOT, "node_modules", "@anthropic-ai", "sdk")) ? ok("nod
 console.log("\nKeys (values are never printed)");
 const kie = env("KIE_API_TOKEN") || env("KIE_AI_API_KEY");
 const el = env("ELEVENLABS_API_KEY");
-kie ? ok("KIE_API_TOKEN set") : bad("KIE_API_TOKEN missing", "copy .env.example to .env and paste your key (https://kie.ai/api-key)");
+const ap = env("APIMART_API_KEY");
+// APIMart is the main provider and Kie the second one: either key is enough; both let the engine pick the cheaper.
+ap ? ok("APIMART_API_KEY set (main provider)") : warn("APIMART_API_KEY missing: every job goes to Kie (APIMart is usually cheaper, https://apimart.ai/keys)");
+kie ? ok("KIE_API_TOKEN set") : (ap ? warn("KIE_API_TOKEN missing: audio and video references can't be hosted, and models only Kie sells are off") : bad("no provider key", "copy .env.example to .env and paste APIMART_API_KEY (https://apimart.ai/keys) or KIE_API_TOKEN (https://kie.ai/api-key)"));
 el ? ok("ELEVENLABS_API_KEY set") : bad("ELEVENLABS_API_KEY missing", "copy .env.example to .env and paste your key (https://elevenlabs.io/app/settings/api-keys)");
 
 console.log("\nRepository");

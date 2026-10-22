@@ -46,6 +46,8 @@ t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", 
 
 (await import("./check-flow.mjs")).default(t, ROOT);
 (await import("./check-launch.mjs")).default(t, ROOT);
+(await import("./check-refs.mjs")).default(t, ROOT);
+await (await import("./check-providers.mjs")).default(t, ROOT);
 
 console.log(failed ? `\n${failed} check(s) failed.` : "\nAll checks passed.");
 process.exit(failed ? 1 : 0);

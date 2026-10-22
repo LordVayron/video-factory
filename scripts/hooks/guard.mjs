@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Claude Code PreToolUse guard (flow v5). Two rules that hold even when the agent forgets them:
 //  1. No paid API call outside the engine. A script, an inline `node -e`/`python -c`, or a curl that reaches
-//     Kie, ElevenLabs or the vision judge without going through engine/ (budget lock, flow gates, ledger) is denied.
+//     APIMart, Kie, ElevenLabs or the vision judge without going through engine/ (budget lock, flow gates, ledger) is denied.
 //     Why: a shot once ran through a one-off runner script, so no gate and no eval ever saw it.
 //  2. No video or audio is sent to the creator without a delivery receipt (studio.mjs deliver) whose hash matches the
 //     file. Files named *DRAFT* or *PREVIEW* can be sent to ask him something; they are never deliverables.
@@ -12,11 +12,12 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const API = /api\.kie\.ai|elevenlabs\.io|lib[\\/](kie|eleven|judge|identity)\.mjs|\b(kie|eleven)\.(upload|createTask|waitTask|run|sts|tts|sfx)\(|\bidentityCheck\(|\bjudge(JSON)?\(/;
+// APIMart (2026-10-22, the main provider) counts like Kie; its public price list (/api/pricing) is free to read.
+const API = /api\.kie\.ai|api\.apimart\.ai\/(?!api\/pricing)|elevenlabs\.io|lib[\\/](kie|apimart|providers|eleven|judge|identity)\.mjs|\b(kie|apimart|eleven)\.(upload|createTask|waitTask|run|sts|tts|sfx)\(|\bPV\.(run|submit|submitBest)\(|\bidentityCheck\(|\bjudge(JSON)?\(/;
 const CODE = /\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd)$/i;
 // Python and shell can't import the engine's modules, so for them only a direct call to the API hosts counts
 // (a doc-writing script that merely names lib/identity.mjs is fine).
-const HOSTS = /api\.kie\.ai|elevenlabs\.io/;
+const HOSTS = /api\.kie\.ai|api\.apimart\.ai\/(?!api\/pricing)|elevenlabs\.io/;
 const reaches = (file, text) => (/\.(mjs|cjs|js|ts)$/i.test(file) ? API : HOSTS).test(text);
 const MEDIA = /\.(mp4|mov|m4v|webm|mkv|mp3|wav|m4a|aac|flac)$/i;
 const inside = (f, d) => { const r = path.relative(path.join(ROOT, d), path.resolve(ROOT, f)); return !!r && !r.startsWith("..") && !path.isAbsolute(r); };
