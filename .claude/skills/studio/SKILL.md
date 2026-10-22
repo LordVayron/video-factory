@@ -38,7 +38,7 @@ Read the vertical's file in `references/verticals/` before writing a single line
 | Cinematic / hyperreal | `cinematic-hyperreal.md` |
 | Micro-drama / vertical novela series (TikTok, Reels) | `micro-drama.md` |
 | Fantasy short (epic or cozy) | `fantasy-short.md` |
-| Product launch film (30–35 s, 16:9, storybook) from a landing page or launch context | `launch-film.md` (its own editor: `engine/launch.mjs`) |
+| Product launch film (30–35 s, 16:9; storybook, anime, photoreal or a style from your references) from a landing page or launch context | `launch-film.md` (its own editor: `engine/launch.mjs`) |
 | Long-form meditation, sleep, ambient or focus (10 min to 3 h) | `meditation-longform.md`, then follow the **`format-longform`** skill (its own pipeline: `engine/longform.mjs`) |
 
 A new vertical gets a new DNA file (research → what makes it great → structure → writing rules → picture → sound → pacing numbers → QC → failure modes) before its first video. Every retro adds its lessons to that file.

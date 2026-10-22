@@ -101,7 +101,7 @@ const commands = {
     if (format === "launch") {
       const R = L.RELEASE;
       if (!R.ar.includes(intake.platform.ar) || !R.seconds.includes(intake.platform.seconds)) throw new F.FlowStop(`Product launch film: por ahora solo ${R.seconds.join("/")} s en ${R.ar.join("/")} a ${R.fps.join("/")} fps (Release 1). ${intake.platform.seconds} s en ${intake.platform.ar} todavía no está disponible.`);
-      if (flag("--style") && !R.styles.includes(flag("--style"))) throw new F.FlowStop(`Product launch film: por ahora solo el estilo ${R.styles.join(", ")} (Release 1)`);
+      if (flag("--style") && !R.styles.includes(flag("--style"))) throw new F.FlowStop(`Product launch film: estilos disponibles ${R.styles.join(", ")}, o uno propio desde las referencias del creador (launch.mjs style-from-refs)`);
     }
     const chars = flag("--chars") ? flag("--chars").split(",") : [];
     for (const id of chars) if (!fs.existsSync(path.join(P.BIBLE, "characters", id, "character.json")) && intake.cast === "existing") throw new F.FlowStop(`el personaje ${id} no existe en la biblia`);

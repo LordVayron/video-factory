@@ -21,7 +21,26 @@ export const read = (slug, k) => P.readJSON(fileOf(slug, k), null);
 
 // Release 1: what the editor finishes today. Anything else is refused at the intake, never offered half-working.
 // 30 s, plus up to 5 s so the brand ending can breathe (the creator, 2026-10-21: the ending felt rushed).
-export const RELEASE = { seconds: [30, 30.5, 31, 31.5, 32, 32.5, 33, 33.5, 34, 34.5, 35], ar: ["16:9"], fps: [24], styles: ["storybook"] };
+// Styles: any bible style with a "launch" block (how real footage is graded into its world) or a custom style made
+// from the creator's own references (launch.mjs style-from-refs). 2026-10-22: launch films opened past storybook.
+export function launchStyles() {
+  const dir = path.join(P.BIBLE, "styles");
+  return fs.readdirSync(dir).filter((id) => { try { const s = JSON.parse(fs.readFileSync(path.join(dir, id, "style.json"), "utf8")); return !!s.launch; } catch { return false; } }).sort();
+}
+export const RELEASE = { seconds: [30, 30.5, 31, 31.5, 32, 32.5, 33, 33.5, 34, 34.5, 35], ar: ["16:9"], fps: [24], get styles() { return launchStyles(); } };
+// A style made from the creator's references: the images exist (2 or more), the look is written out, the never-list
+// is set, and it says how real footage is treated.
+export function customStyleRules(st) {
+  const out = [];
+  if (st.kind !== "custom") return out;
+  const refs = (st.refs || []).filter((f) => fs.existsSync(path.isAbsolute(f) ? f : path.join(st.dir || "", f)));
+  if (refs.length < 2) out.push(`el estilo ${st.id} se hizo desde referencias y tiene ${refs.length}; necesita al menos 2 imágenes del creador`);
+  if ((st.look || "").trim().split(/\s+/).length < 12) out.push(`el estilo ${st.id} no describe su look (al menos 12 palabras: línea, color, textura, luz, profundidad)`);
+  if (!(st.negative || "").trim()) out.push(`el estilo ${st.id} no tiene lista de "nunca" (negative)`);
+  if (!st.launch) out.push(`el estilo ${st.id} no dice cómo se integra el video real (launch.insertTreatment)`);
+  if (!st.madeFrom?.said?.trim()) out.push(`el estilo ${st.id} no tiene las palabras del creador que lo piden`);
+  return out;
+}
 export const MODES = ["story-driven", "explainer", "motion-graphics", "cinematic", "performance"];
 export const ROLES = ["hook", "friction", "problem", "possibility", "interaction", "demo", "proof", "outcome", "brand", "cta"];
 export const CONNECT = ["action", "object", "push-in", "pull-out", "same-place", "pov"];
@@ -89,7 +108,7 @@ export const PlannedShot = z.object({
   claim: z.string().optional(), brand: z.string().optional(),
   // Real footage played inside the shot's screens (drawn solid bright green), in reading order: the proof.
   // treatment "storybook" (default in illustrated styles) grades it into the film's world; "none" keeps it raw.
-  inserts: z.array(z.object({ file: z.string(), from: z.number().min(0).default(0), label: z.string().optional(), treatment: z.enum(["storybook", "none"]).optional(), onAt: z.number().min(0).optional() })).default([]),
+  inserts: z.array(z.object({ file: z.string(), from: z.number().min(0).default(0), label: z.string().optional(), treatment: z.enum(["storybook", "style", "none"]).optional(), onAt: z.number().min(0).optional() })).default([]),
   // How this shot follows the previous one (2026-10-21, Town vs a launch film: every Town cut is motivated by an action,
   // an object, or the same place seen closer or wider; ours jumped between five places).
   connect: z.object({ type: z.enum(CONNECT), how: str }).optional(),
@@ -385,6 +404,9 @@ export function styleRules(raw, { slug, cast = [] } = {}) {
   if (st.brand.logo && slug && !fs.existsSync(abs(st.brand.logo))) out.push(`no existe el logo ${st.brand.logo}`);
   if (st.text.fontFile && slug && !fs.existsSync(abs(st.text.fontFile))) out.push(`no existe la fuente ${st.text.fontFile}`);
   for (const e of st.environments) if (e.ref && slug && !fs.existsSync(abs(e.ref))) out.push(`no existe la imagen del escenario ${e.id}: ${e.ref}`);
+  // The style bible's preset is a style launch films can use, and a custom one passes its own rules.
+  if (!launchStyles().includes(st.preset)) out.push(`el estilo "${st.preset}" no está disponible para launch films (${launchStyles().join(", ")}, o uno propio con launch.mjs style-from-refs)`);
+  else { try { out.push(...customStyleRules(P.style(st.preset))); } catch (e) { out.push(e.message); } }
   for (const c of st.characters) {
     try { P.character(c.id); } catch { out.push(`el personaje ${c.id} no está en la biblia (bible/characters/${c.id}); créalo con cast.mjs`); }
     if (cast.length && !cast.includes(c.id)) out.push(`el personaje ${c.id} está en el style bible pero no en el cast del proyecto`);

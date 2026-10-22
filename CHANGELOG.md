@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.0, 2026-10-22: launch films in any style, and the launch film on the landing
+
+- **Art styles for launch films.** Pick storybook, anime or photoreal (any bible style with a `launch` block, which says how real footage is graded into that world), or bring your own: `launch.mjs style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "..."` copies your images into the bible and sends them to every frame and character sheet. A style from references needs two or more images, a written look, a never-list, a footage treatment and your words; the visual identity is still approved with `studio.mjs approve-look`.
+- **The interview asks for the style** (or your reference images) along with the ICP, the pain and the CTA.
+- **Landing:** the Video Factory launch film now plays in the hero, in a big CRT inside the VHS box, muted until you press "Watch with sound".
+
 ## 2.6.1, 2026-10-22: every launch rule in code
 
 Every lesson from the first launch film is now enforced by the engine, for any video model that takes a last frame (Kling, Veo, Seedance and Wan qualify; the creator picks). `docs/launch-rules.md` maps each rule to the code that enforces it and the test that proves it.

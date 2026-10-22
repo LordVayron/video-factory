@@ -56,7 +56,8 @@ The reference is the 30.06 s Town launch film (1280×720, 24 fps), measured 2026
    - the CTA;
    - the intent: **Brand** (desirability, recall) or **Conversion** (pain → demo → proof → CTA);
    - voice-over yes/no, captions yes/no, music yes/no;
-   - claims that must not appear.
+   - claims that must not appear;
+   - the art style: storybook, anime or photoreal, or their own reference images (2 or more).
 
    Then add the questions the process needs: tone, the brand assets he owns (logo file, licensed font, palette), and screenshots for UI cards.
 
@@ -109,7 +110,7 @@ The reference is the 30.06 s Town launch film (1280×720, 24 fps), measured 2026
 - **Cinematic:** emotion, sound, a staged reveal, restrained copy (≤1.4 words per second of film).
 - **Performance:** a fast explicit pain hook, the benefit, proof, a visible CTA.
 
-Mode and visual style are separate choices. Release 1 has one style: `storybook` (Whimsical Illustrated World, `bible/styles/storybook`).
+Mode and visual style are separate choices. **Art styles:** any bible style with a `launch` block — today `storybook` (Whimsical Illustrated World), `anime` and `hyperreal` (photoreal) — or **the creator's own style from their reference images** (`launch.mjs style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "..."`: the images are copied into `bible/styles/<id>/refs/`, every frame and character sheet receives them, and the style needs 2+ images, a written look, a never-list, a footage treatment and the creator's words). Each style says how real footage is graded into its world (`launch.insertTreatment`). Ask the creator which style, or for references, in the interview; the visual identity is still locked with `studio.mjs approve-look`.
 
 **Editable 30 s blueprint:**
 | Time | Beat |
@@ -188,7 +189,7 @@ Mode and visual style are separate choices. Release 1 has one style: `storybook`
 - 15, 45 and 60 s;
 - 9:16 and 1:1;
 - 30 fps;
-- other visual styles;
+- styles without a `launch` block (phone UGC, podcast, retro sitcom);
 - transitions the creator did not ask for (any transition, zoom, effect or text needs `said`);
 - automatic URL ingestion inside the engine (Claude reads the page and records the source);
 - A/B variants.

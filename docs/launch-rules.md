@@ -7,7 +7,10 @@ Every lesson from the first launch film is enforced by the engine (2026-10-22: e
 | Brief: sourced facts, one ICP, interview, approved assumptions | `lib/launch.mjs briefRules`, concept gate | "the sample brief waits for the creator's interview…" |
 | Three concepts that differ | `conceptRules` (metaphor/thesis overlap) | "concepts that are paraphrases…" |
 | A concept launches the product (names it or its category) | `conceptRules(c, brief)` | "a concept that tells a story without naming the product…" |
-| Release 1 limits (30–35 s, 16:9, 24 fps, storybook) | `conceptRules`, `studio.mjs new` | "options outside Release 1…", "the intake refuses a length…" |
+| Release 1 limits (30–35 s, 16:9, 24 fps) | `conceptRules`, `studio.mjs new` | "options outside Release 1…", "the intake refuses a length…" |
+| Art style: a bible style with a `launch` block (storybook, anime, hyperreal) or the creator's own from references | `lib/launch.mjs launchStyles`, `conceptRules`, `styleRules` | "films can use storybook, anime or hyperreal…", "a concept in an offered style passes…" |
+| A style from references: 2+ images, a written look, a never-list, a footage treatment, the creator's words; every frame and sheet receives the images | `customStyleRules`, `launch.mjs style-from-refs`, `gen.mjs frame`, `cast.mjs model-sheet` | "a style from the creator's references needs…", "every frame and character sheet receives…", "style-from-refs copies…" |
+| Real footage graded by the project style's own treatment | `launch.mjs build` (`launch.insertTreatment`) | "real footage gets the project style's own treatment…" |
 | Timed plan sums to the length; shot lengths; rhythm band | `planRules` | "shot durations must add up…" |
 | One continuous narration in one take, picture cut to it, no silence > 1.2 s, ≥ 75 % coverage | `planRules`, `flow.mjs launchBoard`, `launch.mjs voice --take` | "a narrated film keeps talking…", "the narration is recorded in one take…" |
 | Narration re-cut keeps the creator's pauses (`shot.pause`) | `launch.mjs takeVoice` | "a narration re-cut keeps the creator's pauses" |

@@ -297,6 +297,16 @@
   .install .ctas { display: flex; gap: 14px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
   .needs { margin-top: 22px; font-size: 11.5px; font-weight: 600; color: var(--cream-dim); }
 
+  /* Hero TV: the launch film plays muted in a big CRT inside the sleeve; one click plays it with sound */
+  .hero-tv { max-width: 980px; margin: clamp(18px, 2.4vw, 30px) auto 0; }
+  .hero-tv .tv-set { width: 100%; animation: none; padding: clamp(12px, 2vw, 24px) clamp(12px, 2vw, 24px) clamp(46px, 5vw, 62px); }
+  .hero-tv .screen { aspect-ratio: 16 / 9; }
+  .hero-tv .tv-bar { left: clamp(12px, 2vw, 24px); right: clamp(12px, 2vw, 24px); bottom: clamp(12px, 1.6vw, 18px); }
+  .hero-tv .sound-chip { top: auto; left: auto; right: clamp(10px, 2vw, 22px); bottom: clamp(10px, 2vw, 22px); translate: none; z-index: 4; cursor: pointer; border: 0; font-family: inherit; }
+  .hero-tv .sound-chip:hover { transform: translateY(-2px); }
+  .hero-tv .screen.live .sound-chip { display: none; }
+  .hero-tv .sound-chip .short { display: none; }
+  @media (max-width: 640px) { .hero-tv .sound-chip { padding: 8px 12px 8px 10px; font-size: 11px; gap: 8px; box-shadow: 0 8px 20px rgba(0,0,0,.5); } .hero-tv .sound-chip i { border-left-width: 11px; border-top-width: 7px; border-bottom-width: 7px; } .hero-tv .sound-chip .long { display: none; } .hero-tv .sound-chip .short { display: inline; } }
   /* CRT player */
   dialog.tv { border: 0; padding: 0; background: transparent; max-width: none; max-height: none; width: 100%; height: 100%; color: var(--cream); }
   dialog.tv::backdrop { background: rgba(6,6,10,.9); backdrop-filter: blur(4px); }
@@ -411,6 +421,16 @@
     <p class="kicker">The AI video studio your agent runs</p>
     <h1 class="worn">Video Factory</h1>
     <p class="spaced">Studio</p>
+    <div class="hero-tv">
+      <div class="tv-set">
+        <div class="screen" id="heroScreen">
+          <video id="heroFilm" autoplay muted loop playsinline preload="auto" poster="media/launch-film-poster.jpg" aria-label="The Video Factory launch film"><source src="media/launch-film.mp4" type="video/mp4"></video>
+          <span class="lines"></span>
+          <button class="play-chip sound-chip" id="heroSound" type="button" data-track="hero-sound"><i></i><span class="long">Watch with sound</span><span class="short">Sound</span></button>
+        </div>
+        <div class="tv-bar"><span class="brandplate">Factory·Vision</span><span class="knobs"><i></i><i></i></span></div>
+      </div>
+    </div>
     <p class="lede">Paste one link into <em>Claude Code</em> or <em>Codex</em>. It installs a full studio that writes, storyboards, films and edits your videos. You approve the idea, the script, the cast and the budget. It does the rest.</p>
     <div class="cmd cmd-hero">
       <div class="r">R</div>
@@ -711,6 +731,15 @@
 </dialog>
 
 <script>
+  // Hero TV: muted loop until the visitor asks for sound, then the film plays from the start with its narration.
+  (() => {
+    const v = document.getElementById("heroFilm"), b = document.getElementById("heroSound"), scr = document.getElementById("heroScreen");
+    if (!v || !b) return;
+    b.addEventListener("click", () => { v.loop = false; v.muted = false; v.currentTime = 0; v.controls = true; scr.classList.add("live"); v.play().catch(() => {}); });
+    v.addEventListener("ended", () => { v.controls = false; v.muted = true; v.loop = true; scr.classList.remove("live"); v.play().catch(() => {}); });
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { v.removeAttribute("autoplay"); v.pause(); }
+  })();
+
   // Clicks count as page views of /click/<name>/ (Vercel Web Analytics, free plan has no custom events).
   document.querySelectorAll("[data-track]").forEach((el) => el.addEventListener("click", () => {
     const f = document.createElement("iframe");

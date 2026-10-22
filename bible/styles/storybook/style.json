@@ -18,7 +18,12 @@
   },
   "characterSheet": {
     "layout": "2x2",
-    "views": ["front", "threeQuarter", "profile", "full"],
+    "views": [
+      "front",
+      "threeQuarter",
+      "profile",
+      "full"
+    ],
     "prompt": "A 2x2 character model sheet of the same {who}, hand-drawn storybook illustration on a plain warm paper background: top-left front view, top-right three-quarter view, bottom-left side profile, bottom-right full body with its props. {look}. Identical shapes, colors, outfit and props in all four, neutral reference pose. Thin gutters between panels. No text, no labels."
   },
   "refPolicy": "sheet",
@@ -31,5 +36,9 @@
     "video": "kling3",
     "res": "720p",
     "storyboardGrid": "gpt2.5"
+  },
+  "launch": {
+    "insertTreatment": "eq=saturation=0.72:contrast=0.9:brightness=0.035,colorbalance=rs=0.05:gs=0.015:bs=-0.05,noise=alls=8:allf=t",
+    "note": "warm grade, softer saturation, paper grain: real clips read as part of the drawn world"
   }
 }

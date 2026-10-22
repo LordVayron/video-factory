@@ -166,6 +166,35 @@ const commands = {
     console.log(`${P.rel(slug, out)} · animatic (cuadros, voz y texto al tiempo exacto; sin música)`);
   },
 
+  // A style made from the creator's own references (2026-10-22): their images are copied into the bible, the look is
+  // written out in words, and every frame and character sheet of the project receives the images.
+  //   style-from-refs <slug> --name <id> --ref a.png --ref b.png [--ref c.png] --look "..." --negative "..." --said "..."
+  "style-from-refs"() {
+    const id = flag("--name"), refs = process.argv.flatMap((a, i) => (a === "--ref" && process.argv[i + 1] ? [process.argv[i + 1]] : []));
+    if (!id || !flag("--look") || !flag("--negative") || !flag("--said")) throw new F.FlowStop('style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "palabras exactas del creador"');
+    if (!/^[a-z0-9][a-z0-9-]{2,40}$/.test(id)) throw new F.FlowStop("--name: minúsculas, números y guiones (3–40)");
+    const dir = path.join(P.BIBLE, "styles", id);
+    if (fs.existsSync(path.join(dir, "style.json")) && JSON.parse(fs.readFileSync(path.join(dir, "style.json"), "utf8")).kind !== "custom") throw new F.FlowStop(`ya existe el estilo ${id} y no es propio; usa otro nombre`);
+    fs.mkdirSync(path.join(dir, "refs"), { recursive: true });
+    const copied = refs.map((f, k) => { if (!fs.existsSync(f)) throw new F.FlowStop(`no existe la referencia ${f}`); const to = `refs/ref-${k + 1}${path.extname(f).toLowerCase() || ".png"}`; fs.copyFileSync(f, path.join(dir, to)); return to; });
+    const base = P.style("storybook");
+    const st = {
+      id, name: id, kind: "custom", status: "draft", description: "A style made from the creator's own reference images.",
+      look: flag("--look"), negative: flag("--negative"),
+      imageRules: "Match the reference images: the same line, color, texture, light and depth in every frame. One clear focal action per frame; clean space where the editor places text.",
+      camera: base.camera, motion: "Small, purposeful actions; keep the exact look of the first frame for the whole shot.",
+      characterSheet: { ...base.characterSheet, prompt: "A 2x2 character model sheet of the same {who} in the style of the reference images, on a plain background: top-left front view, top-right three-quarter view, bottom-left side profile, bottom-right full body with its props. {look}. Identical shapes, colors, outfit and props in all four, neutral reference pose. Thin gutters between panels. No text, no labels." },
+      refs: copied, refPolicy: "sheet", setRef: false, finish: "none", models: base.models,
+      launch: { insertTreatment: flag("--footage") || "none", note: "real footage kept as it is unless the creator asks for a grade" },
+      madeFrom: { said: flag("--said"), at: now() },
+    };
+    fs.writeFileSync(path.join(dir, "style.json"), JSON.stringify(st, null, 2) + "\n");
+    const problems = L.customStyleRules({ ...st, dir });
+    if (problems.length) throw new F.FlowStop(problems.join("; "));
+    P.updateShotlist(slug, (x) => { x.style = id; });
+    console.log(`estilo propio ${id}: ${copied.length} referencias en bible/styles/${id}; el proyecto usa este estilo. Pon visualStyle "${id}" en concepts.json y preset "${id}" en el style bible; la identidad visual se aprueba igual (studio.mjs approve-look).`);
+  },
+
   // The motion test before the book can be skipped only in the creator's words (2026-10-22).
   "waive-test"() {
     if (!flag("--said")) throw new F.FlowStop('waive-test <slug> --said "palabras exactas del creador"');
@@ -484,7 +513,9 @@ async function build(sl, mode) {
         const b = boxes[k], x = Math.max(0, Math.round((b.x - pad) * W)), y = Math.max(0, Math.round((b.y - pad) * H));
         const w = Math.min(W - x, Math.round((b.w + 2 * pad) * W)) & ~1, h = Math.min(H - y, Math.round((b.h + 2 * pad) * H)) & ~1;
         // Real footage graded into the illustrated world (2026-10-21: raw photoreal clips broke the storybook universe).
-        const treat = (ps.inserts[k].treatment ?? (/storybook|illustrat/i.test(style.preset) ? "storybook" : "none")) === "storybook" ? ",eq=saturation=0.72:contrast=0.9:brightness=0.035,colorbalance=rs=0.05:gs=0.015:bs=-0.05,noise=alls=8:allf=t" : "";
+        // The project style says how (bible/styles/<id>/style.json launch.insertTreatment; "none" keeps it raw).
+        const lt = (() => { try { return P.style(sl.style).launch?.insertTreatment; } catch { return null; } })();
+        const treat = ps.inserts[k].treatment !== "none" && lt && lt !== "none" ? `,${lt}` : "";
         g.push(`[${k + 1}:v]fps=${fps},scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1${treat},tpad=stop_mode=clone:stop_duration=${Math.ceil(m / fps) + 1}${ps.inserts[k].onAt != null ? `,fade=t=in:st=${ps.inserts[k].onAt}:d=0.12` : ""}[c${k}]`, `[b${k}][c${k}]overlay=${x}:${y}[b${k + 1}]`);
       });
       g.push(`[b${ps.inserts.length}][fg]overlay=0:0,setsar=1`);

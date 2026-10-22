@@ -63,5 +63,9 @@
     "winner": null,
     "results": []
   },
-  "lessons": []
+  "lessons": [],
+  "launch": {
+    "insertTreatment": "eq=saturation=1.08:contrast=1.06,unsharp=5:5:0.5",
+    "note": "a touch more saturation and crisper edges, closer to cel shading"
+  }
 }

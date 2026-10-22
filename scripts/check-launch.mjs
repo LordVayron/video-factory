@@ -58,6 +58,19 @@ export default function checkLaunch(t, ROOT) {
   const busy = structuredClone(plan); busy.shots[1].motion = "a; b; c; d";
   t("launch: one clear action per shot (more than three is refused)", /más de tres acciones/.test(R(busy)));
   t("launch: the board asks for the animatic again once every frame is drawn", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("no ha visto el animatic con los cuadros dibujados"));
+  // ---- art styles (2026-10-22): bible styles with a launch block, or the creator's own from references
+  const ls = L.launchStyles();
+  t("launch: films can use storybook, anime or hyperreal; phone UGC and podcast styles are not offered", ["storybook", "anime", "hyperreal"].every((x) => ls.includes(x)) && !ls.includes("ugc-phone") && !ls.includes("podcast"));
+  const anime = structuredClone(concepts); anime.config.visualStyle = "anime"; const phone = structuredClone(concepts); phone.config.visualStyle = "ugc-phone";
+  t("launch: a concept in an offered style passes; one in a style without a launch block is refused", !L.conceptRules(anime, brief).some((x) => /estilo/.test(x)) && L.conceptRules(phone, brief).some((x) => /estilo/.test(x)));
+  const tmpStyle = path.join(ROOT, "bible", "styles", `_check-style-${process.pid}`); fs.mkdirSync(path.join(tmpStyle, "refs"), { recursive: true });
+  fs.writeFileSync(path.join(tmpStyle, "refs", "a.png"), "x");
+  const cst = { id: "_c", kind: "custom", dir: tmpStyle, refs: ["refs/a.png"], look: "short", negative: "", launch: null, madeFrom: {} };
+  const bad = L.customStyleRules(cst);
+  fs.writeFileSync(path.join(tmpStyle, "refs", "b.png"), "x");
+  const good = L.customStyleRules({ ...cst, refs: ["refs/a.png", "refs/b.png"], look: "flat bold shapes, thick black outline, two-tone shading, grainy risograph texture, warm noon light, shallow depth", negative: "3D, photorealism, text", launch: { insertTreatment: "none" }, madeFrom: { said: "check" } });
+  fs.rmSync(tmpStyle, { recursive: true, force: true });
+  t("launch: a style from the creator's references needs 2+ images, a written look, a never-list, a footage treatment and their words", bad.length >= 4 && !good.length);
   const src = (f) => fs.readFileSync(path.join(ROOT, "engine", ...f.split("/")), "utf8");
   t("launch: chain exact copies the previous shot's last frame as the first frame (free) and same-set draws from it", src("gen.mjs").includes('s.chain === "exact"') && src("gen.mjs").includes("The same set as the first reference image"));
   t("launch: the editor measures every chain exact join (SSIM) and fails a jump", src("launch.mjs").includes("la unión con") && src("launch.mjs").includes('"-lavfi", "ssim"'));
@@ -67,6 +80,9 @@ export default function checkLaunch(t, ROOT) {
   t("launch: apply keeps a take whose animation prompt didn't change, whatever its new length", src("launch.mjs").includes("o.prompt === s.prompt && len > 0"));
   t("launch: rules are model-agnostic; only models that take a last frame are offered and filmed", MODELS.kling3.lastFrame && MODELS.veo.lastFrame && MODELS.sd2.lastFrame && MODELS.wan3.lastFrame && MODELS.grok.lastFrame === false && src("studio.mjs").includes("MODELS[o.key]?.lastFrame") && src("gen.mjs").includes("no acepta cuadro final"));
   t("launch: effects are measured and set well under the narration", /const SFX_LUFS = -3[5-9]/.test(src("launch.mjs")));
+  t("launch: real footage gets the project style's own treatment (launch.insertTreatment), not a fixed storybook grade", src("launch.mjs").includes("launch?.insertTreatment") && !src("launch.mjs").includes('/storybook|illustrat/i.test(style.preset)'));
+  t("launch: every frame and character sheet receives a custom style's reference images", src("gen.mjs").includes("const stRefs") && fs.readFileSync(path.join(ROOT, "engine", "cast.mjs"), "utf8").includes("a custom style's reference images"));
+  t("launch: style-from-refs copies the creator's images into the bible and needs their words", src("launch.mjs").includes('"style-from-refs"()') && src("launch.mjs").includes('--said "palabras exactas del creador"'));
   const same = structuredClone(concepts); same.concepts[2] = { ...same.concepts[0], id: "copy" };
   t("launch: concepts that are paraphrases of each other are blocked", L.conceptRules(same).some((x) => /se parecen/.test(x)));
   const wide = structuredClone(concepts); wide.config.aspectRatio = "9:16"; wide.config.durationSeconds = 60;

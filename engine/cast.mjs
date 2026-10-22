@@ -97,7 +97,7 @@ const commands = {
     fs.mkdirSync(dir, { recursive: true });
     let k = 1; while (fs.existsSync(path.join(dir, `model-sheet-${k}.png`))) k++;
     const out = path.join(dir, `model-sheet-${k}.png`);
-    const refs = argv.flatMap((a, i) => (a === "--ref" && argv[i + 1] ? [path.resolve(argv[i + 1])] : []));
+    const refs = [...argv.flatMap((a, i) => (a === "--ref" && argv[i + 1] ? [path.resolve(argv[i + 1])] : [])), ...(st.refs || []).map((f) => path.join(st.dir, f))]; // a custom style's reference images
     gen(MS.prompt(c, st), out, { model: flag("--model", st.models?.keyframe || "gpt2.5"), ar: "16:9", refs });
     const data = P.readJSON(charFile(id));
     data.looks ||= {};
