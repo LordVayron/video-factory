@@ -39,7 +39,7 @@ function seedanceInput(req, allowed, adaptiveFrames = false) {
 }
 
 const sd = (id, label, table, resList, tier) => ({
-  key: id, kind: "video", tier, label,
+  key: id, kind: "video", tier, label, lastFrame: true,
   model: { "sd2-mini": "bytedance/seedance-2-mini", "sd2-fast": "bytedance/seedance-2-fast", sd2: "bytedance/seedance-2", "sd2.5": "bytedance/seedance-2-5" }[id],
   resolutions: resList,
   speaks: true, refs: 9, refAudio: 3,
@@ -67,7 +67,7 @@ export const MODELS = {
   veo: veo("veo3", "Veo 3.1 Quality", { "720p": 250, "1080p": 255 }, "premium"),
 
   grok: {
-    key: "grok", kind: "video", tier: "budget", label: "Grok Imagine (audio always on)",
+    key: "grok", kind: "video", tier: "budget", label: "Grok Imagine (audio always on)", lastFrame: false,
     model: "grok-imagine/image-to-video", resolutions: ["480p", "720p", "1080p"], speaks: true, refs: 7,
     build: (r) => ({
       prompt: r.prompt,
@@ -81,7 +81,7 @@ export const MODELS = {
   },
 
   kling3: {
-    key: "kling3", kind: "video", tier: "standard", label: "Kling 3.0 (start+end frame, elements)",
+    key: "kling3", kind: "video", tier: "standard", label: "Kling 3.0 (start+end frame, elements)", lastFrame: true,
     model: "kling-3.0/video", resolutions: ["720p", "1080p"], speaks: true, refs: 0, maxPrompt: 2500,
     build: (r) => ({
       prompt: r.prompt,
@@ -186,7 +186,7 @@ export const MODELS = {
 // References are named Image1/Audio1 in the prompt; 2–30s; 480P/720P/1080P.
 function wan(key, model, label, table, tier) {
   return {
-    key, kind: "video", tier, label: `${label} (refs + voice refs, 2–30s)`, model,
+    key, lastFrame: true, kind: "video", tier, label: `${label} (refs + voice refs, 2–30s)`, model,
     resolutions: ["480p", "720p", "1080p"], speaks: true, refs: 10, refAudio: 5,
     build: (r) => {
       const input = {
@@ -213,7 +213,7 @@ function veo(tier, label, table, costTier) {
   return {
     key: { veo3_lite: "veo-lite", veo3_fast: "veo-fast", veo3: "veo" }[tier],
     hidden: false, // offered like any model: the live price analysis (lib/pricing.mjs) decides per project
-    kind: "video", tier: costTier, label: `${label} (4/6/8s, speaks dialogue in prompt)`,
+    kind: "video", tier: costTier, label: `${label} (4/6/8s, speaks dialogue in prompt)`, lastFrame: true,
     model: "veo-3-1", resolutions: ["720p", "1080p"], speaks: true, refs: 3,
     build: (r) => {
       const input = {

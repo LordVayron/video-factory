@@ -62,7 +62,7 @@ const commands = {
     F.assertV5(sl);
     const brief = L.read(slug, "brief"), concepts = L.read(slug, "concepts"), style = L.read(slug, "style");
     const groups = [
-      ["brief.json", L.briefRules(brief)], ["concepts.json", L.conceptRules(concepts)],
+      ["brief.json", L.briefRules(brief)], ["concepts.json", L.conceptRules(concepts, brief)],
       ["shot-plan.json", L.planRules(L.read(slug, "plan"), { brief, concepts, style, reference: L.read(slug, "reference") })], ["style-bible.json", L.styleRules(style, { slug, cast: F.castIds(sl) })],
     ];
     for (const [name, out] of groups) console.log(`${out.length ? "✗" : "✓"} ${name}${out.map((x) => `\n   - ${x}`).join("")}`);
@@ -93,7 +93,7 @@ const commands = {
         // --keep S7,S8: a reviewed frame stays even though its prompt text changed (its takes don't).
         // A still that becomes an animated shot keeps its first frame too (2026-10-21: every launch shot is animated).
         const sameKind = o?.source === s.source || (o?.source === "still" && s.source === "generate");
-        const takeFits = (o, s) => { const t = o.clips?.[o.clip], len = t && fs.existsSync(P.abs(slug, t.file)) ? dur(P.abs(slug, t.file)) : 0; return o.prompt === s.prompt && (o.duration === s.duration || len >= s.planned.duration + 0.4); };
+        const takeFits = (o, s) => { const t = o.clips?.[o.clip], len = t && fs.existsSync(P.abs(slug, t.file)) ? dur(P.abs(slug, t.file)) : 0; return o.prompt === s.prompt && len > 0; }; // 2026-10-22: a re-timed shot kept dropping a good take; the editor reports a short one
         if (o?.frame && sameKind && (flag("--keep") || "").split(",").includes(s.id) && (o.framePrompt !== s.framePrompt || o.source !== s.source)) { kept++; return { ...s, frame: o.frame, frameKeptFrom: o.framePrompt, ...(takeFits(o, s) ? Object.fromEntries(Object.entries({ clips: o.clips, clip: o.clip, duration: o.duration, cutOut: o.cutOut, cleanPatch: o.cleanPatch, retime: o.retime, splice: o.splice, in: o.in }).filter(([, v]) => v !== undefined)) : {}) }; }
         if (!o || o.framePrompt !== s.framePrompt || o.source !== s.source) return s;
         kept++;
@@ -101,7 +101,7 @@ const commands = {
         // A filmed take is kept when its animation prompt is the same and it is long enough for the new timing
         // (2026-10-21: the v2 re-timed shots; re-filming takes that already fit would waste money).
         const take = o.clips?.[o.clip], len = take && fs.existsSync(P.abs(slug, take.file)) ? dur(P.abs(slug, take.file)) : 0;
-        if (o.prompt === s.prompt && (o.duration === s.duration || len >= s.planned.duration + 0.4)) Object.assign(keep, { clips: o.clips, clip: o.clip, duration: o.duration, cutOut: o.cutOut, cleanPatch: o.cleanPatch, retime: o.retime, splice: o.splice, in: o.in }); // edit decisions travel with their take
+        if (o.prompt === s.prompt && len > 0) Object.assign(keep, { clips: o.clips, clip: o.clip, duration: o.duration, cutOut: o.cutOut, cleanPatch: o.cleanPatch, retime: o.retime, splice: o.splice, in: o.in }); // edit decisions travel with their take
         return { ...s, ...Object.fromEntries(Object.entries(keep).filter(([, v]) => v !== undefined)) };
       });
       x.fps = plan.fps;
@@ -153,9 +153,24 @@ const commands = {
   async animatic() {
     const sl = P.loadShotlist(slug);
     F.requireStep(sl, "board", "launch animatic");
+    // --approve --said: the creator watched this plan's animatic (storyboard panels or frames, voice, text, timing).
+    // No frame is paid for before it (2026-10-22: every cut and bridge is judged on the storyboard first).
+    if (has("--approve")) {
+      if (!flag("--said")) throw new F.FlowStop('animatic --approve necesita --said "palabras exactas del creador"');
+      if (!sl.launch?.animatic || !fs.existsSync(path.join(P.projectDir(slug), "out", "animatic.mp4"))) throw new F.FlowStop("primero arma el animatic (launch.mjs animatic) y enséñaselo al creador");
+      P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), animaticApproved: { plan: F.planSha(x), sig: F.launchSig(x), said: flag("--said"), at: now() } }; });
+      return console.log("animatic aprobado con las palabras del creador; ya se pueden dibujar los cuadros (gen.mjs frame --planned)");
+    }
     const out = await build(sl, "animatic");
     P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), animatic: { sig: F.launchSig(x), at: now() } }; });
     console.log(`${P.rel(slug, out)} · animatic (cuadros, voz y texto al tiempo exacto; sin música)`);
+  },
+
+  // The motion test before the book can be skipped only in the creator's words (2026-10-22).
+  "waive-test"() {
+    if (!flag("--said")) throw new F.FlowStop('waive-test <slug> --said "palabras exactas del creador"');
+    P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), motionTestWaived: { said: flag("--said"), at: now() } }; });
+    console.log("prueba de movimiento omitida con las palabras del creador (queda en el book)");
   },
 
   async build() {
@@ -174,14 +189,34 @@ const commands = {
     F.requireStep(sl, "film", "launch review");
     const id = flag("--shot"), s = id && P.shot(sl, id), i = s?.clip ?? (s?.clips || []).length - 1, t = s?.clips?.[i];
     if (!t) throw new F.FlowStop("review <slug> --shot <id> [--ok \"qué se revisó\" | --reject \"qué falla\"]");
+    const sheet = path.join(P.projectDir(slug), "out", "_review", `${id}.jpg`), joinSheet = path.join(P.projectDir(slug), "out", "_review", `${id}-join.jpg`);
+    const prevShot = sl.shots[sl.shots.indexOf(s) - 1];
+    if (flag("--ok")) {
+      // A verdict answers every point of the checklist in words, after the sheets of this exact take were made
+      // (2026-10-22: a take "without things appearing" was approved while it melted, idled and broke the story).
+      const pts = { motion: "--motion", join: "--join", logic: "--logic", appear: "--appear", end: "--end" };
+      const miss = Object.entries(pts).filter(([, f]) => !flag(f)?.trim() || flag(f).trim().split(/\s+/).length < 2).map(([, f]) => f);
+      if (miss.length) throw new F.FlowStop(`${id}: la revisión responde cada punto en palabras: ${miss.join(" ")} (movimiento natural sin deformarse; unión con la toma anterior; lógica de la historia; nada aparece, desaparece o se queda sin hacer nada; el último cuadro es el final planeado)`);
+      const fresh = (f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= fs.statSync(P.abs(slug, t.file)).mtimeMs;
+      if (!fresh(sheet)) throw new F.FlowStop(`${id}: primero mira la hoja cuadro por cuadro de esta toma (launch.mjs review ${slug} --shot ${id})`);
+      if (prevShot && !fresh(joinSheet)) throw new F.FlowStop(`${id}: primero mira la unión con ${prevShot.id} (launch.mjs review ${slug} --shot ${id} genera ${id}-join.jpg)`);
+    }
     if (flag("--ok") || flag("--reject")) {
-      P.updateShotlist(slug, (x) => { const tk = P.shot(x, id).clips[i]; tk.review = { ok: !!flag("--ok"), notes: flag("--ok") || flag("--reject"), file: tk.file, prompt: sha(P.shot(x, id).prompt), at: now() }; });
+      const answers = flag("--ok") ? { motion: flag("--motion"), join: flag("--join"), logic: flag("--logic"), appear: flag("--appear"), end: flag("--end") } : null;
+      P.updateShotlist(slug, (x) => { const tk = P.shot(x, id).clips[i]; tk.review = { ok: !!flag("--ok"), notes: flag("--ok") || flag("--reject"), ...(answers ? { answers } : {}), file: tk.file, prompt: sha(P.shot(x, id).prompt), at: now() }; });
       return console.log(`${id}: revisión ${flag("--ok") ? "APROBADA" : "RECHAZADA"} (${flag("--ok") || flag("--reject")})`);
     }
     const out = path.join(P.projectDir(slug), "out", "_review", `${id}.jpg`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const n = Math.ceil(dur(P.abs(slug, t.file)) * 4);
     ff(["-i", P.abs(slug, t.file), "-vf", `fps=4,scale=640:-2,tile=4x${Math.ceil(n / 4)}`, "-frames:v", "1", "-q:v", "3", out]);
+    // The join: the last second of the previous shot's take and the first second of this one, as the film plays them.
+    const pt = prevShot?.clips?.[prevShot.clip ?? prevShot.clips.length - 1];
+    if (pt && fs.existsSync(P.abs(slug, pt.file))) {
+      const pf = P.abs(slug, pt.file), a = Math.max(0, dur(pf) - 1), b = s.in ?? 0;
+      ff(["-ss", String(a), "-t", "1", "-i", pf, "-ss", String(b), "-t", "1", "-i", P.abs(slug, t.file), "-filter_complex", "[0:v]fps=6,scale=480:-2[a];[1:v]fps=6,scale=480:-2[b];[a][b]concat=n=2:v=1:a=0,tile=6x2", "-frames:v", "1", "-q:v", "3", joinSheet]);
+      console.log(`unión con ${prevShot.id}: ${joinSheet}`);
+    }
     const st = L.read(slug, "style") || {};
     console.log(`${out}
 Mira cada cuadro y revisa:
@@ -191,7 +226,7 @@ Mira cada cuadro y revisa:
  - reglas de continuidad: ${(st.continuity || []).map((c) => `${c.subject}: ${c.rule}`).join("; ") || "—"}
  - letras o logos dibujados por el modelo
  - el último cuadro coincide con el final planeado: ${P.shot(sl, id).end || L.read(slug, "plan")?.shots?.find((x) => x.id === id)?.end || "—"}
-Luego: launch.mjs review ${slug} --shot ${id} --ok "..." | --reject "..."`);
+Luego: launch.mjs review ${slug} --shot ${id} --ok "..." --motion "..." --join "..." --logic "..." --appear "..." --end "..." | --reject "..."`);
   },
 
   package() {
@@ -244,9 +279,12 @@ async function takeVoice(plan, lines, V) {
   }
   // Retime: line i starts its shot (lead 0.12 s); a closing shot without a line starts 0.3 s after the last word.
   const fps = plan.fps, q = (t) => Math.round(t * fps) / fps, lead = 0.12, n0 = plan.narrationStart;
-  const end = n0 + spans.at(-1).b, last = plan.shots.at(-1), tail = !last.vo;
+  // shot.pause: seconds of breathing after a shot's line, kept on every re-cut (2026-10-22: --recut re-timed the plan
+  // from the narration and dropped the extra second the creator wanted after a line and the full celebration).
+  const pauses = plan.shots.map((s) => s.pause || 0), before = (i) => pauses.slice(0, i).reduce((n, v) => n + v, 0);
+  const end = n0 + spans.at(-1).b + before(spans.length), last = plan.shots.at(-1), tail = !last.vo;
   if (end > plan.durationSeconds - (tail ? 1.8 : 0.3)) throw new F.FlowStop(`la narración termina en ${end.toFixed(2)} s y la película dura ${plan.durationSeconds} s${tail ? " con el cierre de marca" : ""}; acorta el texto`);
-  const starts = spans.map((x, i) => (i ? Math.floor((n0 + x.a - lead) * fps) / fps : 0)); // down to the frame, so no line starts before its shot
+  const starts = spans.map((x, i) => (i ? Math.floor((n0 + x.a - lead + before(i)) * fps) / fps : 0)); // down to the frame, so no line starts before its shot
   if (tail) starts.push(q(Math.max(end + 0.3, plan.durationSeconds - 3.5)));
   const p2 = L.read(slug, "plan");
   p2.shots.forEach((s, i) => { s.start = starts[i]; s.duration = +(((i + 1 < starts.length ? starts[i + 1] : plan.durationSeconds) - starts[i])).toFixed(4); });
@@ -254,7 +292,7 @@ async function takeVoice(plan, lines, V) {
   // where the next line starts, so lines are contiguous in the take and never overlap; the line is placed by its cut.
   spans.forEach((x) => { x.ca = Math.max(0, x.prevEnd + 0.02, x.a - 0.12); });
   spans.forEach((x, i) => { x.cb = spans[i + 1] ? spans[i + 1].ca : Math.min(dur(take), x.b + 0.6); });
-  spans.forEach((x, i) => { p2.shots[i].voAt = +(n0 + x.ca - starts[i]).toFixed(3); });
+  spans.forEach((x, i) => { p2.shots[i].voAt = +(n0 + x.ca + before(i) - starts[i]).toFixed(3); });
   const short = p2.shots.filter((s) => s.duration < 1);
   if (short.length) throw new F.FlowStop(`con esta toma ${short.map((s) => `${s.id} dura ${s.duration.toFixed(2)} s`).join(", ")}; reparte el texto (una toma necesita al menos 1 s)`);
   P.writeJSON(L.fileOf(slug, "plan"), p2);
@@ -383,6 +421,8 @@ async function build(sl, mode) {
       // last clean frame holds. It does not reopen the approved plan.
       // s.retime {upTo}: an edit decision (2026-10-21, a launch film A1/A9: Kling invented motion late in the take): only the
       // clean part up to here is used, slowed with motion interpolation to fill the planned length (never below 0.65x).
+      // Every edit decision on a take is the creator's call, in their words (2026-10-22).
+      if (mode === "final") for (const k of ["retime", "splice", "cutOut", "cleanPatch"]) if (s[k] && !s[k].said?.trim()) throw new F.FlowStop(`${ps.id}: la decisión de edición ${k} no tiene las palabras del creador (${k}.said)`);
       const file = P.abs(slug, t.file), a = s.in ?? 0, b = Math.min(s.retime?.upTo ?? Infinity, s.cutOut?.at ?? Infinity, t.evals?.jumps?.trimAt ?? Infinity, dur(file));
       // s.splice {keep: [[from, to], ...], fade}: an edit decision (2026-10-21, a launch film S7: Kling made something
       // appear in the cart mid-pan): the clean pieces of one take joined by short dissolves, slowed to fill the shot.
@@ -479,6 +519,17 @@ async function build(sl, mode) {
     fs.renameSync(graded, p.seg);
     p.grade = { brightness: +b.toFixed(3), saturation: +sat.toFixed(3) };
   });
+  // chain "exact": the cut must disappear. The previous shot's last frame and this shot's first frame, as the film plays
+  // them, are compared (SSIM); a jump means the take drifted from its drawn last frame or the in-point moved.
+  if (mode !== "animatic") for (let i = 1; i < parts.length; i++) if (parts[i].ps.chain === "exact" && parts[i].ps.source === "generate") {
+    const a1 = path.join(tmp, `join-${i}-a.png`), b1 = path.join(tmp, `join-${i}-b.png`);
+    ff(["-sseof", "-0.05", "-i", parts[i - 1].seg, "-update", "1", "-frames:v", "1", a1]);
+    ff(["-i", parts[i].seg, "-frames:v", "1", b1]);
+    const e = spawnSync("ffmpeg", ["-hide_banner", "-i", a1, "-i", b1, "-lavfi", "ssim", "-f", "null", "-"], { encoding: "utf8" }).stderr;
+    const v = Number((e.match(/All:([\d.]+)/) || [])[1] ?? 0);
+    parts[i].join = +v.toFixed(3);
+    if (v < 0.8) problems.push(`${parts[i].ps.id}: la unión con ${parts[i - 1].ps.id} salta (SSIM ${v.toFixed(2)}, mínimo 0.80 para un corte invisible); revisa el in de la toma o el último cuadro de ${parts[i - 1].ps.id}`);
+  }
   const picture = path.join(tmp, "picture.mp4");
   if (parts.every((p) => p.m === p.n)) {
     fs.writeFileSync(path.join(tmp, "segments.txt"), parts.map((p) => `file '${path.basename(p.seg)}'`).join("\n"));

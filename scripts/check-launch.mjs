@@ -3,6 +3,7 @@
 // fake takes and tones instead of voice and music, then the real editor builds the film. The mock film proves the
 // timing, compositing and mixing; it is deleted at the end and is never a production film.
 import fs from "node:fs";
+import { MODELS } from "../engine/lib/models.mjs";
 import path from "node:path";
 import { spawnSync, execFileSync } from "node:child_process";
 import * as F from "../engine/lib/flow.mjs";
@@ -18,7 +19,7 @@ export default function checkLaunch(t, ROOT) {
   const brief = sample("brief.json"), concepts = sample("concepts.json"), plan = sample("shot-plan.json"), style = sample("style-bible.json");
 
   // ---- the rules, on the sample and on broken copies
-  t("launch: the sample's concepts and timed plan pass every rule", !L.conceptRules(concepts).length && !L.planRules(plan, { brief, concepts, style }).length);
+  t("launch: the sample's concepts and timed plan pass every rule", !L.conceptRules(concepts, brief).length && !L.planRules(plan, { brief, concepts, style }).length);
   t("launch: the sample brief waits for the creator's interview and his yes on its assumption", L.briefRules(brief).some((x) => /entrevista/.test(x)) && L.briefRules(brief).some((x) => /sin aprobar/.test(x)));
   const shifted = structuredClone(plan); shifted.shots[3].duration += 0.6;
   t("launch: shot durations must add up to the length (±0.25 s) with no gaps", L.planRules(shifted, { brief, concepts }).some((x) => /suman/.test(x)) && L.planRules(shifted, { brief, concepts }).some((x) => /sin huecos/.test(x)));
@@ -26,6 +27,46 @@ export default function checkLaunch(t, ROOT) {
   t("launch: a measurable claim without a proven capability is blocked", L.planRules(claimy, { brief, concepts }).some((x) => /afirma algo medible/.test(x)));
   const lettered = structuredClone(plan); lettered.shots[0].prompt += ' with a sign that reads "SALE"';
   t("launch: a prompt that asks the model for exact text is blocked (the editor composites text)", L.planRules(lettered, { brief, concepts }).some((x) => /entre comillas/.test(x)));
+  // ---- every lesson of the first launch film is a rule (2026-10-22: "toda regla tiene que estar en código")
+  const R = (p) => L.planRules(p, { brief, concepts, style: { ...style, thread: "sample-founder" } }).join(" | ");
+  const unchained = structuredClone(plan); delete unchained.shots[1].chain;
+  t("launch: two shots in the same place must be chained (exact last frame or the same set)", /encadénala/.test(R(unchained)));
+  const exactNoEnd = structuredClone(plan); exactNoEnd.shots[1].chain = "exact"; delete exactNoEnd.shots[0].end;
+  t("launch: chain exact needs the previous shot's choreographed last frame", /no tiene final coreografiado \(shot.end\)/.test(R(exactNoEnd)) || /chain "exact" empieza/.test(R(exactNoEnd)));
+  const unasked = structuredClone(plan); delete unasked.shots[2].transitionAsked;
+  t("launch: a transition the creator didn't ask for is refused", /sin las palabras del creador que la piden/.test(R(unasked)));
+  const fx = structuredClone(plan); delete fx.sfx[Object.keys(fx.sfx)[0]].said;
+  t("launch: an effect the creator didn't ask for or approve is refused", /sfx\..*\.said/.test(R(fx)));
+  const txt = structuredClone(plan); const ts = txt.shots.find((x) => (x.text || []).some((o) => o.kind !== "cta")); ts.text.find((o) => o.kind !== "cta").said = "";
+  t("launch: on-screen text the creator didn't ask for is refused (only the brand and the CTA go unasked)", /text\.said/.test(R(txt)));
+  // Throwaway characters, so the test runs on any install (the public bible ships no characters).
+  const mk = (id, name) => { const d = path.join(ROOT, "bible", "characters", id); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, "character.json"), JSON.stringify({ id, name, species: "human", look: "a test character" })); return id; };
+  const crewId = mk(`_check-crew-${process.pid}`, "the check crew"), handId = mk(`_check-hand-${process.pid}`, "The Check Hand");
+  const idle = structuredClone(plan); idle.shots[1].assets.push(crewId); idle.shots[1].motion = "the camera drifts slowly to the right";
+  t("launch: a character in frame with nothing to do is refused", /no dice qué hace/.test(R(idle)));
+  const pile = structuredClone(plan); pile.shots[0].motion = "one card drops from the pile onto the desk"; pile.shots[0].end = (pile.shots[0].end || "") + " the card lies on the desk";
+  t("launch: nothing falls near a pile (video models animate piles on their own)", /junto a una pila/.test(R(pile)));
+  const slow = structuredClone(plan); slow.shots[0].role = "possibility"; slow.shots[0].voAt = 1.2;
+  t("launch: the first shot hooks (hook, friction or problem; the voice by 0.5 s)", /engancha/.test(R(slow)));
+  const story = structuredClone(concepts); story.concepts[0].creativeThesis = "A tiny rental store at night"; story.concepts[0].metaphorMapsTo = "a cozy shop where tapes wait";
+  t("launch: a concept that tells a story without naming the product or its category is refused", L.conceptRules(story, brief).some((x) => /lanza el producto/.test(x)));
+  const nopain = structuredClone(plan); nopain.shots.forEach((x) => { if (["hook", "friction", "problem"].includes(x.role) && x.start < 8) x.role = "possibility"; });
+  t("launch: the pain must be readable by 8 s", /antes de los 8 s/.test(R(nopain)));
+  const hands = structuredClone(plan); const RH = (p) => L.planRules(p, { brief, concepts, style: { ...style, thread: handId } }).join(" | "); hands.shots[0].assets.push(handId); hands.shots[0].motion += "; another hand presses the card";
+  t("launch: one hand per shot (models invent extra hands)", /una sola mano/.test(RH(hands)));
+  for (const id of [crewId, handId]) fs.rmSync(path.join(ROOT, "bible", "characters", id), { recursive: true, force: true });
+  const busy = structuredClone(plan); busy.shots[1].motion = "a; b; c; d";
+  t("launch: one clear action per shot (more than three is refused)", /más de tres acciones/.test(R(busy)));
+  t("launch: the board asks for the animatic again once every frame is drawn", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("no ha visto el animatic con los cuadros dibujados"));
+  const src = (f) => fs.readFileSync(path.join(ROOT, "engine", ...f.split("/")), "utf8");
+  t("launch: chain exact copies the previous shot's last frame as the first frame (free) and same-set draws from it", src("gen.mjs").includes('s.chain === "exact"') && src("gen.mjs").includes("The same set as the first reference image"));
+  t("launch: the editor measures every chain exact join (SSIM) and fails a jump", src("launch.mjs").includes("la unión con") && src("launch.mjs").includes('"-lavfi", "ssim"'));
+  t("launch: a take review answers motion, join, logic, appear and end in words, after its sheet and its join sheet", ["--motion", "--join", "--logic", "--appear", "--end", "-join.jpg"].every((x) => src("launch.mjs").includes(x)));
+  t("launch: every edit decision on a take needs the creator's words", src("launch.mjs").includes("la decisión de edición ${k} no tiene las palabras del creador"));
+  t("launch: a narration re-cut keeps the creator's pauses (shot.pause)", src("launch.mjs").includes("const pauses = plan.shots.map((s) => s.pause || 0)"));
+  t("launch: apply keeps a take whose animation prompt didn't change, whatever its new length", src("launch.mjs").includes("o.prompt === s.prompt && len > 0"));
+  t("launch: rules are model-agnostic; only models that take a last frame are offered and filmed", MODELS.kling3.lastFrame && MODELS.veo.lastFrame && MODELS.sd2.lastFrame && MODELS.wan3.lastFrame && MODELS.grok.lastFrame === false && src("studio.mjs").includes("MODELS[o.key]?.lastFrame") && src("gen.mjs").includes("no acepta cuadro final"));
+  t("launch: effects are measured and set well under the narration", /const SFX_LUFS = -3[5-9]/.test(src("launch.mjs")));
   const same = structuredClone(concepts); same.concepts[2] = { ...same.concepts[0], id: "copy" };
   t("launch: concepts that are paraphrases of each other are blocked", L.conceptRules(same).some((x) => /se parecen/.test(x)));
   const wide = structuredClone(concepts); wide.config.aspectRatio = "9:16"; wide.config.durationSeconds = 60;
@@ -122,6 +163,8 @@ export default function checkLaunch(t, ROOT) {
     const an = node(["launch.mjs", "animatic", slug]);
     const anFrames = an.status === 0 ? Number(probe(path.join(d, "out", "animatic.mp4"), "stream=nb_read_frames").streams[0].nb_read_frames) : -1;
     t(`launch: the animatic lands on 720 frames (30 s at 24 fps; got ${anFrames})`, anFrames === 720);
+    t("launch: the board waits for the creator to approve this plan's animatic", /no aprobó el animatic/.test(F.stepStatus(P.loadShotlist(slug), "board").why || JSON.stringify(F.stepStatus(P.loadShotlist(slug), "board"))));
+    node(["launch.mjs", "animatic", slug, "--approve", "--said", "check"]);
     t("launch: the board step passes with the plan applied, the voice measured and a current animatic", F.stepStatus(P.loadShotlist(slug), "board").ok);
     const ass = fs.existsSync(path.join(d, "out", "_launch", "text.ass")) ? fs.readFileSync(path.join(d, "out", "_launch", "text.ass"), "utf8") : "";
     t("launch: every on-screen text and the brand go to the compositor word for word", plan.shots.flatMap((s) => (s.text || []).map((o) => o.text)).every((x) => ass.includes(x)) && ass.includes(style.brand.name));
@@ -129,6 +172,8 @@ export default function checkLaunch(t, ROOT) {
     P.updateShotlist(slug, (x) => { x.defaults = { videoModel: "kling3", res: "720p" }; x.priceCheck = { at: new Date().toISOString(), seconds: 0, options: [], pick: { key: "kling3", label: "Kling 3.0", res: "720p", usd: 0 } }; });
     const book = node(["book.mjs", slug]);
     t("launch: the Production Book builds with the strategy, the timed plan and the style bible", book.status === 0 && /Strategy/.test(fs.readFileSync(path.join(d, "book", "index.html"), "utf8")) && /visual identity locked/.test(fs.readFileSync(path.join(d, "book", "index.html"), "utf8")));
+    t("launch: the book waits for a motion test on the chosen video model (or the creator's waiver)", /prueba de movimiento/.test(JSON.stringify(F.stepStatus(P.loadShotlist(slug), "book"))));
+    node(["launch.mjs", "waive-test", slug, "--said", "check"]);
     F.approve(slug, "book", "check");
     P.updateShotlist(slug, (x) => {
       x.shots.filter(F.films).forEach((s) => { const f = `clips/${s.id}-take1.mp4`; fs.mkdirSync(path.join(d, "clips"), { recursive: true }); ff([...(s.inserts ? ["-loop", "1", "-i", path.join(d, s.frame), "-t", String(s.duration), "-r", "24"] : ["-f", "lavfi", "-i", `testsrc=s=1280x720:r=24:d=${s.duration}`]), "-pix_fmt", "yuv420p", path.join(d, f)]); s.clips = [{ file: f, model: "mock", evals: { identity: { pass: true }, jumps: { internal: 0 }, dialogue: { pass: true } } }]; s.clip = 0; });
@@ -138,7 +183,10 @@ export default function checkLaunch(t, ROOT) {
     });
     t("launch: every shot has a take that passed; the film step passes", F.stepStatus(P.loadShotlist(slug), "film").ok);
     t("launch: the final refuses a take nobody reviewed frame by frame", node(["launch.mjs", "build", slug]).status === 2);
-    for (const s of P.loadShotlist(slug).shots.filter(F.films)) node(["launch.mjs", "review", slug, "--shot", s.id, "--ok", "mock: offline check"]);
+    const first = P.loadShotlist(slug).shots.filter(F.films)[0];
+    t("launch: a review verdict without answers to the checklist is refused", node(["launch.mjs", "review", slug, "--shot", first.id, "--ok", "looks fine"]).status === 2);
+    const A = ["--motion", "mock natural motion", "--join", "mock clean join", "--logic", "mock story holds", "--appear", "mock nothing pops", "--end", "mock planned end"];
+    for (const s of P.loadShotlist(slug).shots.filter(F.films)) { node(["launch.mjs", "review", slug, "--shot", s.id]); node(["launch.mjs", "review", slug, "--shot", s.id, "--ok", "mock: offline check", ...A]); }
     const built = node(["launch.mjs", "build", slug]);
     const out = path.join(d, "out", `${slug}.mp4`);
     let pr = null; try { pr = probe(out, "stream=codec_type,codec_name,width,height,pix_fmt,r_frame_rate,nb_read_frames"); } catch {}

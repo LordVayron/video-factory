@@ -6,23 +6,28 @@
   "sfx": {
     "paper-shuffle": {
       "prompt": "a small pile of paper cards shuffled and sliding on a wooden desk",
-      "seconds": 2
+      "seconds": 2,
+      "said": "(sample) the creator's exact words that asked for or approved this go here"
     },
     "pop-up": {
       "prompt": "a cardboard pop-up book unfolding with soft paper creaks and a tiny flourish",
-      "seconds": 2
+      "seconds": 2,
+      "said": "(sample) the creator's exact words that asked for or approved this go here"
     },
     "mailbox": {
       "prompt": "a tiny metal mailbox flap opening and closing, light and playful",
-      "seconds": 1
+      "seconds": 1,
+      "said": "(sample) the creator's exact words that asked for or approved this go here"
     },
     "clapper": {
       "prompt": "a miniature film clapperboard snapping shut, small and crisp",
-      "seconds": 1
+      "seconds": 1,
+      "said": "(sample) the creator's exact words that asked for or approved this go here"
     },
     "bell": {
       "prompt": "a single small desk bell ding, warm and clear",
-      "seconds": 2
+      "seconds": 2,
+      "said": "(sample) the creator's exact words that asked for or approved this go here"
     }
   },
   "shots": [
@@ -99,7 +104,8 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "chain": "same-set"
     },
     {
       "id": "S3",
@@ -144,7 +150,10 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "transitionAsked": {
+        "said": "(sample) the creator's exact words that asked for or approved this go here"
+      }
     },
     {
       "id": "S4",
@@ -176,7 +185,7 @@
         "studio"
       ],
       "prompt": "A large hand holding a blank paper card above a tiny red mailbox at the front of a miniature film studio, three thumb-sized crew members looking up, a director with a beret, a camera operator and a set builder",
-      "motion": "the hand lowers the card into the mailbox slot; the tiny crew cheer and run to pull it out",
+      "motion": "the hand lowers the card into the mailbox slot; the tiny crew cheer and run to pull it out; the factory crew keeps working at their stations",
       "risks": [
         "hand anatomy",
         "small characters"
@@ -190,7 +199,8 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "chain": "same-set"
     },
     {
       "id": "S5",
@@ -213,7 +223,8 @@
           "text": "UGC ad",
           "kind": "label",
           "at": 0.3,
-          "position": "bottom"
+          "position": "bottom",
+          "said": "(sample) the creator's exact words that asked for or approved this go here"
         }
       ],
       "sfx": [
@@ -229,7 +240,7 @@
         "studio"
       ],
       "prompt": "Inside a miniature bathroom set the size of a phone, a tiny creator holds up a small blank bottle toward a tiny camera operated by a thumb-sized crew member, soft light from a little lamp",
-      "motion": "the tiny creator lifts the bottle and smiles at the camera while the crew member steadies the tiny camera",
+      "motion": "the tiny creator lifts the bottle and smiles at the camera while the crew member steadies the tiny camera; the factory crew keeps working at their stations",
       "risks": [
         "small characters"
       ],
@@ -242,7 +253,8 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "chain": "same-set"
     },
     {
       "id": "S6",
@@ -264,7 +276,8 @@
           "text": "AI influencer",
           "kind": "label",
           "at": 0.3,
-          "position": "bottom"
+          "position": "bottom",
+          "said": "(sample) the creator's exact words that asked for or approved this go here"
         }
       ],
       "music": "mid",
@@ -283,7 +296,8 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "chain": "same-set"
     },
     {
       "id": "S7",
@@ -306,7 +320,8 @@
           "text": "Mini-drama",
           "kind": "label",
           "at": 0.3,
-          "position": "bottom"
+          "position": "bottom",
+          "said": "(sample) the creator's exact words that asked for or approved this go here"
         }
       ],
       "music": "high",
@@ -315,7 +330,7 @@
         "studio"
       ],
       "prompt": "A tiny theatre stage with a red curtain, two small actors facing each other in a tense moment under a spotlight, a thumb-sized director with a beret watching from the front",
-      "motion": "one actor turns away slowly with a dramatic gesture while the director leans forward in excitement",
+      "motion": "one actor turns away slowly with a dramatic gesture while the director leans forward in excitement; the factory crew keeps working at their stations",
       "risks": [
         "two characters"
       ],
@@ -328,7 +343,8 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "chain": "same-set"
     },
     {
       "id": "S8",
@@ -347,7 +363,8 @@
           "text": "Delivered and checked: UGC ad · AI influencer · Mini-drama",
           "kind": "ui",
           "at": 0.2,
-          "position": "center"
+          "position": "center",
+          "said": "(sample) the creator's exact words that asked for or approved this go here"
         }
       ],
       "sfx": [
@@ -457,7 +474,10 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "transitionAsked": {
+        "said": "(sample) the creator's exact words that asked for or approved this go here"
+      }
     }
   ]
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.6.1, 2026-10-22: every launch rule in code
+
+Every lesson from the first launch film is now enforced by the engine, for any video model that takes a last frame (Kling, Veo, Seedance and Wan qualify; the creator picks). `docs/launch-rules.md` maps each rule to the code that enforces it and the test that proves it.
+
+- **One continuous story.** Two shots in the same place must be chained: `exact` starts on the previous shot's drawn last frame (copied for free) and the editor measures the join (SSIM ≥ 0.80); `same-set` is drawn from the previous frame with the same framing.
+- **Nothing the creator didn't ask for.** Any transition, screen zoom, sound effect, on-screen text or edit decision needs the creator's words (`said`); only the brand and the CTA go unasked.
+- **Story rules:** every character in frame does something named in its motion, one hand per shot, at most three actions per shot, nothing falls near a pile, the first shot hooks and the pain shows by 8 s, every concept names the product.
+- **Gates:** the creator approves the storyboard animatic before any frame is paid for and again with every frame drawn; a motion test on the chosen model comes before the book (or the creator's waiver).
+- **Review:** each take's verdict answers motion, join, story logic, appear/idle and end frame in words, after its frame sheet and its join sheet.
+- **Fixes:** a narration re-cut keeps the creator's pauses (`shot.pause`); `apply` keeps a take whose animation didn't change; `studio.mjs prices` offers only models that take a last frame.
+
 ## 2.6.0, 2026-10-22: product launch films
 
 A new vertical: a 30–35 s product launch film from a landing page or launch context, built like a creative director would. Release 1 is 16:9, 24 fps, in an illustrated storybook style.

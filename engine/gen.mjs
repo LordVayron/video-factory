@@ -37,7 +37,7 @@ import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
 import { motionScore, MIN_MOTION } from "./lib/meditation.mjs";
 import * as eleven from "./lib/eleven.mjs";
-import { requireStep, requirePilot, assertV5, takeOk, kindOf, FlowStop } from "./lib/flow.mjs";
+import { requireStep, requirePilot, assertV5, takeOk, kindOf, FlowStop, planSha } from "./lib/flow.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 
 const argv = process.argv.slice(2);
@@ -516,13 +516,27 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     requireStep(sl, "board", "gen frame");
     const s = P.shot(sl, id);
     if (s.source === "card") throw new FlowStop(`${id} is a card: the editor draws it, it has no generated frame`);
+    // Launch films (2026-10-22): no frame is paid for before the creator approved the storyboard animatic of this plan.
+    if (sl.format === "launch" && has("--planned") && sl.launch?.animaticApproved?.plan !== planSha(sl)) throw new FlowStop(`${id}: el creador no ha aprobado el animatic de este plan (launch.mjs animatic ${slug} --approve --said "...")`);
+    // chain "exact": the first frame IS the previous shot's drawn last frame (copied, free), so the cut disappears.
+    const i0 = sl.shots.indexOf(s), prev = sl.shots[i0 - 1];
+    if (sl.format === "launch" && which === "first" && s.chain === "exact") {
+      if (!prev?.last) throw new FlowStop(`${id} empieza en el último cuadro de ${prev?.id}; dibuja primero ese cuadro (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
+      const out = nextName(P.abs(slug, "frames"), `${id}-first`, ".png");
+      fs.copyFileSync(P.abs(slug, prev.last), out);
+      P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.frame = P.rel(slug, out); t.firstPrompt = prompt; t.frameFrom = `${prev.id}:last`; });
+      return console.log(`${out} (el último cuadro de ${prev.id}, sin costo)`);
+    }
+    // chain "same-set": drawn from the previous shot's frame with the same framing (GPT Image reframes unless told).
+    const setRef = sl.format === "launch" && which === "first" && s.chain === "same-set" && (prev?.last || prev?.frame) ? [P.abs(slug, prev.last || prev.frame)] : [];
     const miss = missingMarks(prompt, s.characters || castOf(sl, prompt));
     if (miss.length) throw new FlowStop(`PROMPT STOP: the ${which} frame of ${id} leaves out ${miss.join("; ")}`);
     // Each character's sheet in the project's style first (cast.mjs sheet --style writes looks.<style>.sheet; 2026-10-21,
     // a launch film: only refs/sheets were read, so no storybook sheet reached the model and six frames drew strangers).
     // A last frame is drawn from the shot's own first frame, so it is the same scene at its end state.
-    const refs = await Promise.all([...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(kie.asUrl));
-    const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
+    const refs = await Promise.all([...setRef, ...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(kie.asUrl));
+    const sent = setRef.length ? `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}` : prompt;
+    const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt: sent, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[`${which}Prompt`] = prompt; });
     console.log(out);
   },
@@ -551,6 +565,8 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const model = test ? flag("--model") : s.model || sl.defaults?.videoModel || "veo";
     // A launch film never uses a take's own sound (voice-over, music and effects are mixed by launch.mjs).
     const silent = sl.format === "launch";
+    // Its shots are choreographed to a drawn last frame: the video model must take one (any model that does).
+    if (silent && !getModel(model).lastFrame) throw new FlowStop(`${model} no acepta cuadro final; un launch film necesita un modelo con cuadro inicial y final (studio.mjs prices los muestra)`);
     let n;
     if (flag("--eval")) {
       n = Number(flag("--eval"));

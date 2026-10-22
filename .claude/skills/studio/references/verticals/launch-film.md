@@ -2,7 +2,9 @@
 
 A 30-second film that makes people understand a product and remember it. **Claude is the creative director here, not a clip stitcher.** No image gets made until the brief, the concepts and the timed plan are approved. Engine: `engine/lib/launch.mjs` (contracts and rules), `engine/launch.mjs` (plan tools and editor). Format id: `launch`.
 
-## Calibrated on Town (2026-10-21, after the first launch film's v1 felt "disconnected")
+**Every rule below is enforced in code, for any video model** (the creator picks the model). The full map of rule → code → test is `docs/launch-rules.md`; a lesson is not done until it is there.
+
+## Calibrated on Town (2026-10-21, after the first launch film v1 felt "disconnected")
 
 Measured with `launch.mjs reference <slug> --file <video>` (whisper transcript, never silence detection: v1 was planned on a wrong "music only" reading):
 
@@ -87,7 +89,8 @@ The reference is the 30.06 s Town launch film (1280×720, 24 fps), measured 2026
    3. `launch.mjs voice`, which records the voice-over and measures each line against its room;
    4. `launch.mjs animatic`, which builds the frames, voice and text at the exact timing.
 
-   Show the creator every frame and the animatic.
+   Show the creator the storyboard animatic and approve it in their words **before any frame is paid for** (`launch.mjs animatic <slug> --approve --said "..."`; `gen.mjs frame --planned` refuses without it), then again once every frame is drawn (the board refuses without it). A shot chained `exact` gets the previous shot's last frame copied for free; `same-set` is drawn from it with the same framing.
+   Before the book, film one shot as a **motion test** on the chosen model (`gen.mjs clip <slug> --shot <id> --test --model <k> --said "..."`), or record their waiver (`launch.mjs waive-test`).
 10. **Prices → book:** `studio.mjs prices`, then `book.mjs`. The book shows the strategy, the concepts, the timed plan, the style board, the prompts and the cost. The creator approves it, which locks the budget.
 11. **Film:** `gen.mjs clip --shot <id>` for each generated shot (the pilot rule applies). Then `gen.mjs music` and `gen.mjs sfx`.
 12. **Edit:** `launch.mjs build`. Watch the whole film, then write `launch/quality-report.json` with the final's sha.
@@ -135,7 +138,10 @@ Mode and visual style are separate choices. Release 1 has one style: `storybook`
 - **Claims:** a number, a superlative or a promise of speed in the voice-over or on screen needs `shot.claim` pointing to a capability in the brief. Never invent metrics, testimonials, integrations or prices.
 - **Proof:** one shot with role `proof` tied to `message.proofCapability`. At least one `interaction` or `demo`.
 - **Brand:** the logo or the product name in the last 4 s. A brand film ends on a `brand` or `cta` shot; a conversion film ends on a `cta` shot whose CTA text matches the brief.
-- **Continuity:** every drawn shot names an environment of the style bible in `assets`, and characters are referenced by bible id.
+- **Continuity:** every drawn shot names an environment of the style bible in `assets`, and characters are referenced by bible id. Two shots in the same place are chained (`chain: "exact"` or `"same-set"`); an `exact` join is measured in the film (SSIM ≥ 0.80).
+- **The creator's words:** `transitionAsked.said` for any transition, `zoomInto.said`, `sfx.<name>.said`, `text[].said` (only the brand and the CTA go unasked), `said` on every edit decision.
+- **Story:** the first shot hooks (hook/friction/problem, voice by 0.5 s); the pain shows before 8 s; every character in frame does something named in `motion`; one hand per shot; at most three actions per shot; nothing falls near a pile.
+- **Pauses:** `shot.pause` (seconds after its line) survives every narration re-cut.
 - **Shot sources:**
   - `generate`: first frame + animated clip (the expensive one);
   - `still`: a first frame the editor pushes in slowly;
@@ -183,7 +189,7 @@ Mode and visual style are separate choices. Release 1 has one style: `storybook`
 - 9:16 and 1:1;
 - 30 fps;
 - other visual styles;
-- transitions other than hard cuts;
+- transitions the creator did not ask for (any transition, zoom, effect or text needs `said`);
 - automatic URL ingestion inside the engine (Claude reads the page and records the source);
 - A/B variants.
 

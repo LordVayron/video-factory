@@ -73,7 +73,7 @@ export const CreativeConcept = z.object({
   risk: z.enum(["low", "medium", "high"]), effort: z.enum(["low", "medium", "high"]), rationale: str,
 });
 export const Concepts = z.object({ config: LaunchFilmConfig, concepts: z.array(CreativeConcept).min(3), selected: z.string(), modeRationale: str, picked: z.enum(["creator", "recommended"]) });
-const Overlay = z.object({ text: z.string().trim().min(1), kind: z.enum(["title", "label", "cta", "ui"]), at: z.number().min(0).default(0), until: z.number().optional(), position: z.enum(["top", "center", "bottom", "lower-third"]).default("bottom") });
+const Overlay = z.object({ text: z.string().trim().min(1), kind: z.enum(["title", "label", "cta", "ui"]), said: z.string().optional(), at: z.number().min(0).default(0), until: z.number().optional(), position: z.enum(["top", "center", "bottom", "lower-third"]).default("bottom") });
 const Sfx = z.union([z.string(), z.object({ name: z.string(), at: z.number().min(0).default(0), db: z.number().default(-8), gain: z.number().optional() })]);
 export const PlannedShot = z.object({
   id: z.string().regex(/^[A-Za-z0-9_-]+$/), start: z.number().min(0), duration: z.number().positive(),
@@ -84,7 +84,8 @@ export const PlannedShot = z.object({
   vo: z.string().optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
   sfx: z.array(Sfx).default([]), music: z.enum(["low", "mid", "high"]).default("mid"),
   // The transition into this shot from the previous one (xfade names; "cut" or none is a hard cut).
-  rippleAt: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(), zoomInto: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0.1).max(0.9), secs: z.number().min(0.3).max(2).default(0.9) }).optional(), transitionIn: z.enum(TRANSITIONS).optional(), transitionSecs: z.number().min(0.15).max(0.8).default(0.4), transitionOut: z.string().optional(),
+  chain: z.enum(["exact", "same-set", "cut"]).optional(), pause: z.number().min(0).max(2).optional(), transitionAsked: z.object({ said: z.string().trim().min(2) }).optional(),
+  rippleAt: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(), zoomInto: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0.1).max(0.9), secs: z.number().min(0.3).max(2).default(0.9), said: z.string().optional() }).optional(), transitionIn: z.enum(TRANSITIONS).optional(), transitionSecs: z.number().min(0.15).max(0.8).default(0.4), transitionOut: z.string().optional(),
   claim: z.string().optional(), brand: z.string().optional(),
   // Real footage played inside the shot's screens (drawn solid bright green), in reading order: the proof.
   // treatment "storybook" (default in illustrated styles) grades it into the film's world; "none" keeps it raw.
@@ -107,7 +108,7 @@ export const ShotPlan = z.object({
   threadCloseWaived: z.object({ said: z.string().trim().min(2), reason: z.string().trim().min(2) }).optional(),
   // A narrated film is cut to its narration: one take, every line placed where it falls in that take.
   narrationStart: z.number().min(0).default(0.2),
-  sfx: z.record(z.string(), z.object({ prompt: str, seconds: z.number().positive() })).default({}),
+  sfx: z.record(z.string(), z.object({ prompt: str, seconds: z.number().positive(), said: z.string().optional() })).default({}),
 });
 export const StyleBible = z.object({
   name: str, preset: z.string(), artStyle: str, palette: z.array(hex).min(3), line: str, texture: str, lighting: str, colorTemp: z.string().optional(),
@@ -162,7 +163,7 @@ export function briefRules(raw) {
 // ---- concepts: three meaningfully different angles, one picked
 const words = (s) => new Set(String(s).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 3));
 const overlap = (a, b) => { const A = words(a), B = words(b); if (!A.size || !B.size) return 0; let n = 0; for (const w of A) if (B.has(w)) n++; return n / Math.min(A.size, B.size); };
-export function conceptRules(raw) {
+export function conceptRules(raw, brief) {
   const { data: c, problems } = parse(Concepts, raw, "concepts.json");
   if (!c) return problems;
   const out = [], cfg = c.config;
@@ -178,6 +179,10 @@ export function conceptRules(raw) {
     if (overlap(a.visualMetaphor, b.visualMetaphor) > 0.5 || overlap(a.creativeThesis, b.creativeThesis) > 0.6) out.push(`los conceptos ${a.id} y ${b.id} se parecen demasiado (misma metáfora o tesis); tienen que ser ángulos distintos, no paráfrasis`);
   }
   if (!ids.includes(c.selected)) out.push(`el concepto elegido "${c.selected}" no existe`);
+  // A concept launches the product (2026-10-21: a rental store, a night crew and a pop-up book told stories and were
+  // rejected as "not launch videos"): its thesis or its metaphor's mapping names the product or its category.
+  const pn = brief?.product?.name?.toLowerCase(), cat = (brief?.product?.category || "").toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+  if (pn) for (const x of c.concepts) { const t = `${x.creativeThesis} ${x.metaphorMapsTo}`.toLowerCase(); if (!t.includes(pn) && !cat.some((w) => t.includes(w))) out.push(`${x.id}: la tesis y la metáfora no nombran el producto ("${brief.product.name}") ni su categoría; un concepto lanza el producto, no solo cuenta una historia`); }
   return out;
 }
 
@@ -329,6 +334,44 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const at = (r) => roles.lastIndexOf(r);
   if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("el resultado (outcome) llega después de la marca; la marca cierra");
   if (cfg?.music && !plan.musicPrompt?.trim()) out.push("la película lleva música y el plan no tiene musicPrompt");
+  // Every rule the first launch film taught is checked here, for any video model (2026-10-22, the creator: "toda regla
+  // tiene que estar en código").
+  // ONE CONTINUOUS STORY: two shots in the same place are one set. "exact" starts on the previous shot's drawn last
+  // frame (gen.mjs frame copies it, free); "same-set" is drawn from the previous shot's frame, same framing.
+  const envOf = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));
+  for (const [i, s] of plan.shots.entries()) {
+    if (!i) { if (s.chain && s.chain !== "cut") out.push(`${s.id}: la primera toma no tiene anterior a la que encadenarse`); continue; }
+    const prev = plan.shots[i - 1], a = envOf(prev), through = prev.zoomInto || (s.transitionIn && s.transitionIn !== "cut"); // flying into a screen changes place
+    const same = s.connect?.type === "same-place" || (!through && [...envOf(s)].some((e) => a.has(e)));
+    if (same && !["exact", "same-set"].includes(s.chain)) out.push(`${s.id}: pasa en el mismo lugar que ${prev.id}; encadénala (chain "exact": empieza en el último cuadro de ${prev.id}; "same-set": se dibuja desde el cuadro de ${prev.id}, mismo set y encuadre)`);
+    if (s.chain === "exact" && !prev.end?.trim()) out.push(`${s.id}: chain "exact" empieza en el último cuadro de ${prev.id}, y ${prev.id} no tiene final coreografiado (shot.end)`);
+    if (s.chain === "exact" && s.transitionIn && s.transitionIn !== "cut") out.push(`${s.id}: chain "exact" es un corte invisible; no lleva transición`);
+  }
+  // NO TRANSITION, ZOOM, EFFECT OR TEXT THE CREATOR DID NOT ASK FOR (a slide-up nobody asked for was rejected).
+  for (const s of plan.shots) if (s.transitionIn && s.transitionIn !== "cut" && !s.transitionAsked?.said?.trim()) out.push(`${s.id}: transición "${s.transitionIn}" sin las palabras del creador que la piden (transitionAsked.said)`);
+  for (const s of plan.shots) if (s.zoomInto && !s.zoomInto.said?.trim()) out.push(`${s.id}: zoomInto sin las palabras del creador que lo piden (zoomInto.said)`);
+  for (const [n, d] of Object.entries(plan.sfx || {})) if (!d.said?.trim()) out.push(`efecto "${n}" sin las palabras del creador que lo piden o lo aprueban (sfx.${n}.said)`);
+  for (const s of plan.shots) for (const o of s.text) if (o.kind !== "cta" && !o.said?.trim()) out.push(`${s.id}: el texto "${o.text}" no lo pidió el creador (text.said); sin pedirse solo van la marca y el CTA`);
+  // NOTHING IDLES: every character in an animated shot does something named in its motion.
+  for (const s of plan.shots) if (s.source === "generate" && !/\blocked\b/i.test(s.camera || "")) for (const a of s.assets) {
+    let c; try { c = P.character(a); } catch { continue; }
+    if (c.species === "set") continue;
+    const names = [c.name, ...(c.aliases || []), /hand/i.test(`${a} ${c.name}`) ? "hand" : null].filter(Boolean).map((x) => x.toLowerCase());
+    if (!names.some((n) => (s.motion || "").toLowerCase().includes(n))) out.push(`${s.id}: ${c.name} está en cuadro y la animación no dice qué hace (nada se queda quieto sin razón; nómbralo en shot.motion)`);
+  }
+  // NOTHING FALLS NEAR A PILE: video models animate piles on their own (cards turned see-through, tapes jumped out).
+  for (const s of plan.shots) if (/\b(falls?|drops?|tumbles?|spills?|slides? down)\b/i.test(s.motion || "") && /\b(pile|stack|heap|full of|crowded)\b/i.test(`${s.prompt} ${s.motion || ""}`)) out.push(`${s.id}: algo cae junto a una pila; los modelos de video animan las pilas solos; quita la caída o la pila`);
+  // THE PAIN IS READABLE BY 8 S (a metaphor so clever the viewer can't tell the problem fails).
+  if (!plan.shots.some((s) => s.start < 8 && ["hook", "friction", "problem"].includes(s.role))) out.push("ninguna toma muestra el dolor antes de los 8 s (role hook, friction o problem)");
+  // ONE HAND PER SHOT and ONE ACTION PER SHOT (extra hands appeared; four characters moving at once looked rushed).
+  const handThread = /hand/i.test(style?.thread || "");
+  for (const s of plan.shots) if (handThread && s.assets.includes(style.thread) && /\b(two hands|another hand|second hand|other hand|two arms)\b/i.test(`${s.prompt} ${s.motion || ""}`)) out.push(`${s.id}: una sola mano por toma; los modelos inventan manos de más`);
+  const acts = (m) => m.split(/;|\bthen\b/i).map((x) => x.trim()).filter((x) => x && !/^the camera\b/i.test(x) && !/\b(move|moves) gently|at a natural pace|stays? (still|in place)\b/i.test(x));
+  for (const s of plan.shots) if (s.source === "generate" && acts(s.motion || "").length > 3) out.push(`${s.id}: más de tres acciones en una toma; una sola acción definida por toma (divídela)`);
+  // THE FIRST SECOND HOOKS.
+  const f0 = plan.shots[0];
+  if (f0 && !["hook", "friction", "problem"].includes(f0.role)) out.push(`${f0.id}: la primera toma engancha (role hook, friction o problem), no ${f0.role}`);
+  if (f0?.vo && f0.voAt > 0.5) out.push(`${f0.id}: la voz entra a ${f0.voAt} s; el primer segundo engancha (máximo 0.5 s)`);
   for (const s of plan.shots) for (const x of s.sfx) { const n = typeof x === "string" ? x : x.name; if (!plan.sfx[n]) out.push(`${s.id}: el efecto "${n}" no está definido en plan.sfx`); }
   return out;
 }

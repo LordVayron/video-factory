@@ -18,6 +18,7 @@
 //   node engine/studio.mjs archive-legacy                         projects from before flow v5 become read-only
 //   node engine/studio.mjs formats                                formats and their recipes
 import fs from "node:fs";
+import { MODELS } from "./lib/models.mjs";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
@@ -232,7 +233,9 @@ const commands = {
       : kind === "clips" ? (sl.shots || []).filter(F.films).reduce((n, s) => n + (s.duration || 8), 0) : (sl.longform?.scenes || []).filter((s) => s.motion !== "kenburns").reduce((n, s) => n + (s.seconds || 8), 0);
     const clips = kind === "clips" ? (sl.shots || []).filter(F.films).length : kind === "longform" ? (sl.longform?.scenes || []).length : (sl.scenes || []).length;
     const live = await livePrices();
-    const options = videoOptions(live.rows, { format: sl.format, kind, seconds: secs, clips });
+    let options = videoOptions(live.rows, { format: sl.format, kind, seconds: secs, clips });
+    // A launch film's shots are choreographed to a drawn last frame: only models that take one are offered.
+    if (sl.format === "launch") options = options.filter((o) => MODELS[o.key]?.lastFrame);
     if (!options.length) throw new F.FlowStop("ningún modelo del motor aparece en los precios en vivo; revisa engine/lib/pricing.mjs");
     const baseline = kind === "longform" ? sl.longform?.videoModel : (() => { try { return P.style(sl.style).models?.video; } catch { return null; } })();
     // Speaking formats outside the sitcom are held to the edit's 175 wpm: a model measured faster is not recommended.

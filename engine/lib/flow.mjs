@@ -281,6 +281,10 @@ function launchBoard(sl) {
   }
   const an = sl.launch?.animatic;
   if (!an || !fs.existsSync(path.join(dir(sl), "out", "animatic.mp4")) || an.sig !== launchSig(sl)) bad.push("sin animatic del plan actual (launch.mjs animatic)");
+  // The creator watched the storyboard animatic of this exact plan before any frame was paid for (2026-10-22).
+  if (sl.launch?.animaticApproved?.plan !== planSha(sl)) bad.push("el creador no aprobó el animatic de este plan (launch.mjs animatic <slug> --approve --said \"...\")");
+  // ...and again once every frame is drawn: the creator sees every frame before prices and the book.
+  else if ((sl.shots || []).every((s) => s.frame) && sl.launch?.animaticApproved?.sig !== launchSig(sl)) bad.push("el creador no ha visto el animatic con los cuadros dibujados (launch.mjs animatic <slug> --approve --said \"...\")");
   return bad;
 }
 // What the animatic shows: the plan, the frames and the recorded voice. Changing any of them asks for a new one.
@@ -312,6 +316,10 @@ function modelsCheck(sl) {
 
 function bookCheck(sl) {
   if (!fs.existsSync(path.join(dir(sl), "book", "index.html"))) return no("sin Production Book (book.mjs)");
+  // A launch film tests the chosen video model on one shot before the book (2026-10-22): the creator picks the model
+  // with the video in front of them, or waives the test in their words.
+  if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && !(sl.shots || []).some((s) => (s.clips || []).some((c) => c.test && c.model === sl.defaults?.videoModel)))
+    return no(`sin prueba de movimiento con ${sl.defaults?.videoModel || "el modelo elegido"} (gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", o launch.mjs waive-test <slug> --said "...")`);
   if (sl.bookEstimate == null) return no("el book no tiene estimado de costo");
   return ok(`estimado ${sl.bookEstimate} cr`);
 }
@@ -382,7 +390,7 @@ const both = (...rs) => rs.find((r) => !r.ok) || ok(rs.map((r) => r.detail).filt
 
 function launchConcept(sl) {
   const c = launchJSON(sl, "concepts");
-  const bad = [...L.briefRules(launchJSON(sl, "brief")), ...L.conceptRules(c)];
+  const bad = [...L.briefRules(launchJSON(sl, "brief")), ...L.conceptRules(c, launchJSON(sl, "brief"))];
   return bad.length ? no(bad.join("; ")) : ok(`concepto ${c.selected} de ${c.concepts.length}`);
 }
 function launchScript(sl) {
