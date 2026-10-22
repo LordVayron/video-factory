@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.8.3, 2026-10-22: checks on every PR, contribution templates
+
+- **Checks on every pull request.** GitHub runs the offline checks (`npm test`: no keys, no paid calls) on every PR and on `main`; the README shows the result.
+- **`npm test`** runs the checks, as most projects expect.
+- **Issue and pull request templates:** bug report, feature request and a PR checklist. Security reports go through GitHub's private vulnerability reporting.
+- **A full CONTRIBUTING guide:** setup, branches, Conventional Commits titles, where each kind of change goes, and what never to commit.
+- **SECURITY.md** covers both providers.
+- **Commit subjects and PR titles follow Conventional Commits** in the maintainer's checkout (the guard enforces it there; off in a regular install).
+
 ## 2.8.2, 2026-10-22: optional PR-only main
 
 - **Optional PR-only main rule in the guard.** In the maintainer's own checkout, the guard refuses a commit or push straight to `main` (branches and tags still allowed). It stays off in a regular install, so your workflow doesn't change.

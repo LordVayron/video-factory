@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in the factory doesn't work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please never paste API keys, `.env` contents or personal photos.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The command or the message you gave your agent, and the step of the flow you were on (`node engine/studio.mjs status <slug>`).
+      placeholder: |
+        1. node engine/studio.mjs new ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Error output
+      description: The full error message. It is formatted as code automatically.
+      render: text
+  - type: input
+    id: format
+    attributes:
+      label: Format
+      placeholder: UGC ad, micro-drama, sitcom, meditation, launch film...
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Output of `npm run doctor` (it never prints keys), your OS, and the agent you use (Claude Code or Codex).
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: "`npm test` passes on my install"
+        - label: I removed keys, emails and personal paths from everything above
+          required: true

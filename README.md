@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/media/hero.png" alt="AI Video Factory" width="100%">
+  <img src="docs/media/hero.jpg" alt="Video Factory: the AI video studio your agent runs" width="100%">
 </p>
 
 <p align="center">
@@ -9,6 +9,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/LordVayron/video-factory/actions/workflows/check.yml"><img alt="checks" src="https://github.com/LordVayron/video-factory/actions/workflows/check.yml/badge.svg"></a>
+  <a href="https://github.com/LordVayron/video-factory/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/LordVayron/video-factory"></a>
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
   <img alt="agents" src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-8A63D2">
   <img alt="node" src="https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white">
@@ -116,7 +118,7 @@ SETUP.md          step-by-step install instructions for agents
 |---|---|
 | `npm run doctor` | Checks tools, Python packages, keys and the repo |
 | `npm run doctor:online` | Same, plus your Kie credits and ElevenLabs key |
-| `npm run check` | Offline smoke tests and a secret scan |
+| `npm test` | Offline checks and a secret scan (no keys, no paid calls; GitHub runs them on every PR) |
 | `npm run prices` | Live prices from APIMart and Kie, and which one runs each model |
 | `npm run credits` | Your APIMart and Kie balances |
 
