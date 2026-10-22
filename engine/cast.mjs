@@ -3,6 +3,7 @@
 // views that shots use as references. Sets get an approved empty plate.
 //
 //   node engine/cast.mjs sheet <char> --style <id> [--set <setId>] [--model gpt2.5] [--note "..."] [--project <slug>]  (--project charges it to that project and its cap)
+//   node engine/cast.mjs model-sheet <char> --style <id> [--ref <img>] [--project <slug>]   THE standard sheet (one per character)
 //   node engine/cast.mjs split <char> --style <id> [--sheet <file>]          re-cut the 2x2 views
 //   node engine/cast.mjs approve <char> --style <id> consistency=9 anatomy=9 design=9 style=9 layout=9
 //   node engine/cast.mjs plate <set> --style <id> "<description>" [--model gpt2.5]
@@ -13,6 +14,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
 import * as P from "./lib/project.mjs";
+import * as MS from "./lib/modelsheet.mjs";
 
 const argv = process.argv.slice(2);
 const [cmd, id] = argv;
@@ -81,6 +83,28 @@ const commands = {
     P.writeJSON(charFile(id), data);
     console.log(`${out}\nviews: ${Object.keys(views).join(", ")}\nReview it, then: node engine/cast.mjs approve ${id} --style ${styleId} ${Object.keys(SHEET_RUBRIC).map((k2) => `${k2}=N`).join(" ")}`);
   },
+  // The standard sheet (lib/modelsheet.mjs): one character, the studio layout, in the project's style. Needs
+  // character.json sheetSpec (label, expressions, poses, details, palette, notes). --ref <image> keeps a design the creator
+  // already approved (e.g. an older sheet).
+  "model-sheet"() {
+    const styleId = flag("--style");
+    if (!id || !styleId) throw new Error("usage: model-sheet <char> --style <id> [--ref <image>]... [--project <slug>]");
+    const st = P.style(styleId), c = P.character(id);
+    if (MS.isGroup(c.look)) throw new Error(`${id}: the look describes more than one character. One sheet, one character: split it into one bible character each.`);
+    const miss = MS.specProblems(c);
+    if (miss.length) throw new Error(`${id}: character.json is missing ${miss.join("; ")}`);
+    const dir = path.join(c.dir, styleId);
+    fs.mkdirSync(dir, { recursive: true });
+    let k = 1; while (fs.existsSync(path.join(dir, `model-sheet-${k}.png`))) k++;
+    const out = path.join(dir, `model-sheet-${k}.png`);
+    const refs = argv.flatMap((a, i) => (a === "--ref" && argv[i + 1] ? [path.resolve(argv[i + 1])] : []));
+    gen(MS.prompt(c, st), out, { model: flag("--model", st.models?.keyframe || "gpt2.5"), ar: "16:9", refs });
+    const data = P.readJSON(charFile(id));
+    data.looks ||= {};
+    data.looks[styleId] = { ...(data.looks[styleId] || {}), modelSheet: path.relative(c.dir, out).replace(/\\/g, "/"), status: "draft" };
+    P.writeJSON(charFile(id), data);
+    console.log(`${out}\nReview every label and drawing, then: node engine/cast.mjs approve ${id} --style ${styleId} ${Object.keys(SHEET_RUBRIC).map((k2) => `${k2}=N`).join(" ")}`);
+  },
   split() {
     const styleId = flag("--style");
     const c = P.character(id);
@@ -102,7 +126,7 @@ const commands = {
     const pass = vals.every((v) => v >= (st.qc?.minEach ?? 7)) && avg >= (st.qc?.minAvg ?? 8);
     const data = P.readJSON(charFile(id));
     const lk = data.looks?.[styleId];
-    if (!lk?.views) throw new Error(`no ${styleId} sheet for ${id}; run sheet first`);
+    if (!lk?.views && !lk?.modelSheet) throw new Error(`no ${styleId} sheet for ${id}; run model-sheet first`);
     lk.qc = { scores, avg: +avg.toFixed(2), pass, at: new Date().toISOString() };
     lk.status = pass ? "approved" : "rejected";
     P.writeJSON(charFile(id), data);

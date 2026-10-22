@@ -1,0 +1,50 @@
+{
+  "_how": "Sample launch brief for Video Factory itself (PRD §6 example). A real project starts from the creator's landing page or text, then the interview fills what the page doesn't say. The interview below is empty on purpose: the creator answers it when this film is made for real.",
+  "sources": [
+    { "kind": "file", "ref": "Product_Launch_Films_PRD.md §6, example concept for Video Factory (the creator, 2026-10-21)" },
+    { "kind": "file", "ref": "the engine's README (what it does today)" }
+  ],
+  "interview": [],
+  "product": {
+    "name": "Video Factory",
+    "description": "An AI video studio run from Claude Code: the creator directs and approves; the engine writes, casts, films, edits and checks UGC ads, AI influencer clips, mini-dramas, sitcom episodes and guided meditations.",
+    "category": "AI video production software",
+    "url": "https://videofactory-tv.vercel.app"
+  },
+  "icp": {
+    "role": "solo founders and marketers who need a steady flow of ads, creator content and short series",
+    "context": "they have more ideas than production time, and they juggle separate tools for scripts, images, voices, video and editing",
+    "pains": ["every video means rebuilding the same production chain by hand", "fragmented tools and surprise costs"],
+    "objection": "AI video looks fake and burns credits on bad takes"
+  },
+  "currentAlternative": "a different tool for each step, stitched together by hand, or hiring a crew",
+  "capabilities": [
+    { "id": "formats", "claim": "makes UGC ads, AI influencer clips and mini-dramas in one workflow", "source": "file" },
+    { "id": "gates", "claim": "the creator approves the concept, script, cast and Production Book before money is spent", "source": "file" },
+    { "id": "budget-lock", "claim": "the approved Production Book locks the budget; nothing is spent past it without a new yes", "source": "file" },
+    { "id": "evals", "claim": "every take is checked for identity, jumps and dialogue before it can be used", "source": "file" },
+    { "id": "delivery", "claim": "each finished video passes a final QC and is delivered with a receipt", "source": "file" }
+  ],
+  "artifact": "finished videos delivered with a QC receipt",
+  "tone": "warm, crafted, quietly confident; a little playful",
+  "cta": { "label": "Direct your next video", "destination": "https://videofactory-tv.vercel.app" },
+  "constraints": ["no performance numbers or customer counts: none are verified", "no named competitors"],
+  "unknowns": ["pricing (not decided)", "launch date"],
+  "assumptions": [
+    { "field": "tone", "value": "warm and crafted rather than techy", "confidence": "medium", "approved": false }
+  ],
+  "message": {
+    "icp": "a solo founder who markets their own product",
+    "pain": "every video idea needs a whole crew they don't have",
+    "consequence": "the ad, the influencer post and the series keep waiting while the idea goes stale",
+    "promise": "you direct; Video Factory runs the production",
+    "before": "one person juggling scripts, tools and takes",
+    "after": "one person approving finished videos",
+    "proof": "three different kinds of video arrive finished, checked and delivered",
+    "proofCapability": "delivery",
+    "differentiator": "it asks for your approval at every gate and never spends past the locked budget",
+    "differentiatorCapability": "budget-lock",
+    "emotion": "relief",
+    "cta": "Direct your next video"
+  }
+}

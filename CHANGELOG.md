@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.6.0, 2026-10-22: product launch films
+
+A new vertical: a 30–35 s product launch film from a landing page or launch context, built like a creative director would. Release 1 is 16:9, 24 fps, in an illustrated storybook style.
+
+- **Creative director first.** `studio.mjs new --format launch`, then an interview (one question at a time, ICP and whatever the page doesn't answer), a brief whose facts carry sources, and three concepts that really differ. Claims are tied to proven capabilities; no text or logo is ever asked of a model.
+- **One continuous story.** One narration recorded in one take with the picture cut to it, one world, one light, one thread. Shots of one place are drawn in one set, and a shot can end on the next shot's exact first frame so the cut disappears. No transition the creator didn't ask for.
+- **Choreographed shots.** Every animated shot names its drawn last frame (sent as the video model's last frame) and what must not move; vague verbs and unexplained falls are refused; world rules are restated in every shot that shows them.
+- **Deterministic editor** (`engine/launch.mjs build`): frame-exact cuts, composited titles, CTA and brand name, real footage keyed into green screens and graded into the drawn world, one look across shots, a voice compressor and a ducked lo-fi bed. Effects are measured and set about 21 dB under the voice. New transitions: `zoomInto` (fly into a screen), `ripple` (a ring of water opens the next shot) and a vertical tilt within one place.
+- **Frame-by-frame review gate.** `launch.mjs review` makes a 4 fps sheet of every take; the final refuses a take without a written verdict. Edit decisions rescue a take without a reroll when possible (`in`, `cutOut`, `retime`, `splice`, `cleanPatch`).
+- **Motion test before the book:** `gen.mjs clip --test --model <k>` films one shot in a chosen model so the creator picks the model with the videos in front of them.
+- **Standard character sheets.** One detailed sheet per character (`cast.mjs model-sheet`), never one for a group; the cast gate enforces it for every new project.
+- **Storyboard animatic** from drawn panels before any frame is paid for; `studio.mjs qc --no-judge` when the vision judge is down, recorded in the receipt with the creator's words.
+
 ## 2.5.0, 2026-10-20: universal guided meditations
 
 Guided meditation videos for YouTube: a voice-over, a soundtrack and a looping image that shows the meditation's premise. Shipped as the landing's *Midnight Lake* preview.

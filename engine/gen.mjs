@@ -206,7 +206,7 @@ async function recover(slug) {
 
 // One spoken line -> mp3. Kie's ElevenLabs first (cheapest, big preset library);
 // if it fails, the direct ElevenLabs API with the character's own-account voice.
-async function speak({ slug, c, lang, text, outBase, label }) {
+async function speak({ slug, c, lang, text, outBase, label, tts = {} }) {
   const kieVoice = c.voice?.[lang] || c.voice?.id;
   if (kieVoice && c.voice?.provider !== "elevenlabs") {
     try {
@@ -217,7 +217,7 @@ async function speak({ slug, c, lang, text, outBase, label }) {
 `);
     }
   }
-  const out = await eleven.tts({ text, voice: c.voice.eleven, out: outBase + ".mp3" });
+  const out = await eleven.tts({ text, voice: c.voice.eleven, out: outBase + ".mp3", ...tts });
   P.ledger(slug, { ok: true, label, model: "elevenlabs-direct", credits: 0, chars: text.length, files: [path.relative(ROOT, out)] });
   return out;
 }
@@ -315,7 +315,9 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const c = P.character(id);
     const text = flag("--text") || c.voice?.sampleText?.[lang];
     if (!text) throw new Error(`no sample text: pass --text or set voice.sampleText.${lang} in character.json`);
-    const files = [await speak({ slug: null, c, lang, text, outBase: path.join(c.dir, `voice-${lang}`), label: `${id} voice sample` })];
+    // --model / --speed: hear the voice as the film will use it (e.g. a launch film's narrator on multilingual v2).
+    const tts = { ...(flag("--model") ? { model: flag("--model") } : {}), ...(flag("--speed") || flag("--stability") ? { settings: { stability: Number(flag("--stability", 0.5)), similarity_boost: 0.8, style: flag("--stability") ? 0 : 0.15, use_speaker_boost: true, ...(flag("--speed") ? { speed: Number(flag("--speed")) } : {}) } } : {}) };
+    const files = [await speak({ slug: null, c, lang, text, outBase: path.join(c.dir, `voice-${lang}`), label: `${id} voice sample`, tts })];
     const cj = path.join(c.dir, "character.json");
     const data = JSON.parse(fs.readFileSync(cj, "utf8"));
     data.voice = { ...data.voice, sample: { ...(data.voice?.sample || {}), [lang]: path.basename(files[0]) }, sampleText: { ...(data.voice?.sampleText || {}), [lang]: text } };
@@ -503,16 +505,24 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
 
   // Clips formats, board step: a shot's first or last frame with GPT Image 2.5, references from the cast's sheets.
   // A shot can instead open on the previous shot's last frame: set "frame": "@A:last" in the shotlist.
+  // Launch films: --planned uses the frame prompt launch.mjs apply built from the plan and the style bible, and the
+  // shot's environment key art (shot.refs) goes with it as a reference.
   async frame() {
-    const [slug, id, which, prompt] = pos;
-    if (!slug || !id || !["first", "last"].includes(which) || !prompt) throw new Error('usage: frame <slug> <shot> first|last "<prompt>" [--ref file]...');
-    const sl = P.loadShotlist(slug);
+    const [slug, id, which] = pos;
+    const sl = P.loadShotlist(slug || "-");
+    const s0 = sl.shots?.find((x) => x.id === id);
+    const prompt = pos[3] || (has("--planned") ? (which === "last" ? s0?.lastPrompt : s0?.framePrompt) : null);
+    if (!slug || !id || !["first", "last"].includes(which) || !prompt) throw new Error('usage: frame <slug> <shot> first|last "<prompt>" | --planned [--ref file]...');
     requireStep(sl, "board", "gen frame");
     const s = P.shot(sl, id);
+    if (s.source === "card") throw new FlowStop(`${id} is a card: the editor draws it, it has no generated frame`);
     const miss = missingMarks(prompt, s.characters || castOf(sl, prompt));
     if (miss.length) throw new FlowStop(`PROMPT STOP: the ${which} frame of ${id} leaves out ${miss.join("; ")}`);
-    const refs = await Promise.all([...flags("--ref"), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [...(ch.refs || []), ...(ch.sheets || [])].slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(kie.asUrl));
-    const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt, refs, ar: sl.ar || "9:16", size: "2K" }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
+    // Each character's sheet in the project's style first (cast.mjs sheet --style writes looks.<style>.sheet; 2026-10-21,
+    // a launch film: only refs/sheets were read, so no storybook sheet reached the model and six frames drew strangers).
+    // A last frame is drawn from the shot's own first frame, so it is the same scene at its end state.
+    const refs = await Promise.all([...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(kie.asUrl));
+    const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[`${which}Prompt`] = prompt; });
     console.log(out);
   },
@@ -525,21 +535,29 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
   // re-runs the evals on take n for free. A take that fails is never used by cut.mjs.
   async clip() {
     const slug = pos[0], id = flag("--shot");
-    if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo] [--eval <take n>]");
+    if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo] [--eval <take n>] [--test --model <k> --said \"...\"]");
     await recover(slug);
     const sl = P.loadShotlist(slug);
-    requireStep(sl, "film", "gen clip");
+    // --test: a motion test of one shot in a given model before the book (2026-10-21, a launch film v4: Kling failed the
+    // same conveyor twice). Only with the creator's words and inside a budget they unlocked; the take is marked a test.
+    const test = has("--test") && !flag("--eval");
+    if (test && (!flag("--model") || !flag("--said"))) throw new FlowStop('clip --test needs --model <k> and --said "the creator exact words"');
+    if (test) requireStep(sl, "board", "gen clip --test");
+    else requireStep(sl, "film", "gen clip");
     if (kindOf(sl) !== "clips") throw new FlowStop(`gen clip is for clips formats; ${sl.format} films with ${kindOf(sl) === "scenes" ? "gen scenes" : "gen loops"}`);
     const s = P.shot(sl, id);
+    if (s.source && s.source !== "generate") throw new FlowStop(`${id} is a ${s.source}: launch.mjs build draws it, nothing to film`);
     const cast = s.characters || castOf(sl, s.prompt);
-    const model = s.model || sl.defaults?.videoModel || "veo";
+    const model = test ? flag("--model") : s.model || sl.defaults?.videoModel || "veo";
+    // A launch film never uses a take's own sound (voice-over, music and effects are mixed by launch.mjs).
+    const silent = sl.format === "launch";
     let n;
     if (flag("--eval")) {
       n = Number(flag("--eval"));
       if (!s.clips?.[n - 1]) throw new Error(`${id} has no take ${flag("--eval")}`);
     } else {
-      requirePilot(sl, [id]);
-      if (s.clip != null && takeOk(s.clips?.[s.clip]) && !has("--redo")) return console.log(`${id} already has a take that passes every eval (use --redo for another, inside the budget)`);
+      if (!test) requirePilot(sl, [id]);
+      if (!test && s.clip != null && takeOk(s.clips?.[s.clip]) && !has("--redo")) return console.log(`${id} already has a take that passes every eval (use --redo for another, inside the budget)`);
       let first = s.frame;
       const m = /^@(\w+):last$/.exec(first || "");
       if (m) {
@@ -550,14 +568,14 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         lastFrame(P.abs(slug, t.file), first);
       } else first = P.abs(slug, first);
       const req = {
-        prompt: P.clipPrompt(sl, s), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: s.duration,
-        frame: await kie.upload(first), lastFrame: s.last ? await kie.upload(P.abs(slug, s.last)) : undefined,
+        prompt: P.clipPrompt(sl, s), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: test && flag("--secs") ? Number(flag("--secs")) : s.duration,
+        frame: await kie.upload(first), lastFrame: s.last ? await kie.upload(P.abs(slug, s.last)) : undefined, ...(silent ? { sound: false } : {}),
       };
       const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} take`, ext: ".mp4" });
       console.log("filmed", P.rel(slug, out));
       P.updateShotlist(slug, (x) => {
         const t = P.shot(x, id);
-        t.clips = [...(t.clips || []), { file: P.rel(slug, out), model, prompt: req.prompt, at: new Date().toISOString(), evals: null }];
+        t.clips = [...(t.clips || []), { file: P.rel(slug, out), model, prompt: req.prompt, at: new Date().toISOString(), evals: null, ...(test ? { test: { said: flag("--said") } } : {}) }];
         n = t.clips.length;
       });
     }
@@ -567,7 +585,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       const identity = await identityCheck(file, cast);
       const jr = jumpCheck(file);
       const lines = (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${id}-${i + 1}`, text: l.text }));
-      const dialogue = dialogueCheck(file, lines, sl.lang);
+      const dialogue = silent ? { pass: true, issues: [], note: "launch film: the take is silent; the voice-over is checked in the final QC" } : dialogueCheck(file, lines, sl.lang);
       evals = { identity: { pass: identity.pass, issues: identity.issues, notes: identity.notes }, jumps: { internal: jr.jumps.filter((j) => j.kind === "internal jump").length, list: jr.jumps, trimAt: jr.trimAt ?? null }, dialogue };
       console.log([
         identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
@@ -583,7 +601,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       const t = P.shot(x, id), take = t.clips[n - 1];
       take.evals = evals;
       ok = takeOk(take);
-      if (ok && (t.clip == null || !takeOk(t.clips[t.clip]))) t.clip = n - 1;
+      if (ok && !take.test && (t.clip == null || !takeOk(t.clips[t.clip]))) t.clip = n - 1; // a motion test is never the chosen take
     });
     if (!evals.error) console.log(ok ? `${id}: take ${n} approved by the evals` : `${id}: take ${n} fails; one reroll fits only inside the locked budget, otherwise ask the creator`);
   },

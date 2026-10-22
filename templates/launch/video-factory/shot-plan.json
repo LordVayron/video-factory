@@ -1,0 +1,463 @@
+{
+  "conceptId": "tabletop-studio",
+  "durationSeconds": 30,
+  "fps": 24,
+  "musicPrompt": "light acoustic and pizzicato strings, curious and a little tired at first, building gentle momentum with glockenspiel and soft percussion from 8 seconds, warm resolve at 24 seconds and a short bright bell sting at the end, 100 bpm, instrumental, no vocals",
+  "sfx": {
+    "paper-shuffle": {
+      "prompt": "a small pile of paper cards shuffled and sliding on a wooden desk",
+      "seconds": 2
+    },
+    "pop-up": {
+      "prompt": "a cardboard pop-up book unfolding with soft paper creaks and a tiny flourish",
+      "seconds": 2
+    },
+    "mailbox": {
+      "prompt": "a tiny metal mailbox flap opening and closing, light and playful",
+      "seconds": 1
+    },
+    "clapper": {
+      "prompt": "a miniature film clapperboard snapping shut, small and crisp",
+      "seconds": 1
+    },
+    "bell": {
+      "prompt": "a single small desk bell ding, warm and clear",
+      "seconds": 2
+    }
+  },
+  "shots": [
+    {
+      "id": "S1",
+      "start": 0,
+      "duration": 3,
+      "role": "hook",
+      "beat": "too many tools, one pair of hands",
+      "takeaway": "making video alone is a juggling act",
+      "source": "generate",
+      "visual": "first-person view of an oversized hand juggling floating paper app windows above a wooden desk",
+      "subject": "sample-founder",
+      "action": "the hand tries to catch five drifting paper windows; one slips",
+      "shotType": "first-person close-up",
+      "camera": "static, slight drift",
+      "composition": "hand enters from bottom right, paper windows in an arc, clean space top left",
+      "layers": "desk foreground, paper windows middle, window far",
+      "vo": "You have the idea. You just don't have the crew.",
+      "sfx": [
+        {
+          "name": "paper-shuffle",
+          "at": 0.2,
+          "db": -10
+        }
+      ],
+      "music": "low",
+      "assets": [
+        "sample-founder",
+        "desk"
+      ],
+      "prompt": "First-person view of a large hand reaching up toward five blank paper cards shaped like app windows floating in an arc above a wooden desk, a coffee mug at right, a laptop at back left, late afternoon window light",
+      "motion": "the hand reaches for the floating paper windows as they drift apart; one window slips past the fingers and flutters down",
+      "risks": [
+        "hand anatomy"
+      ],
+      "end": "The last moment of the shot: the hand tries to catch five drifting paper windows; one slips, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S2",
+      "start": 3,
+      "duration": 3,
+      "role": "friction",
+      "beat": "the work piles up",
+      "takeaway": "ideas wait while one person does everything",
+      "source": "generate",
+      "visual": "the founder rests their chin on the desk beside a leaning tower of storyboard pages that topples",
+      "subject": "sample-founder",
+      "action": "the paper tower leans and slides over",
+      "shotType": "medium shot at desk level",
+      "camera": "slow push in",
+      "composition": "founder's tired face left third, paper tower right",
+      "layers": "desk foreground, founder middle, wall far",
+      "vo": "So the ad waits, and the idea goes stale.",
+      "music": "low",
+      "assets": [
+        "sample-founder",
+        "desk"
+      ],
+      "prompt": "A tired founder resting their chin on a wooden desk next to a tall leaning tower of blank storyboard pages, coffee mug, soft window light, eye level at desk height",
+      "motion": "the tower of pages leans slowly and slides over in a soft cascade; the founder blinks and sighs",
+      "risks": [],
+      "connect": {
+        "type": "same-place",
+        "how": "the hand drops the last card and the founder slumps at the same desk"
+      },
+      "end": "The last moment of the shot: the paper tower leans and slides over, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S3",
+      "start": 6,
+      "duration": 2.5,
+      "role": "possibility",
+      "beat": "a box on the desk unfolds",
+      "takeaway": "help shows up right where the work is",
+      "source": "generate",
+      "visual": "a small cardboard box on the desk unfolds like a pop-up book into a miniature film studio",
+      "action": "panels of the box fold open into three tiny stages",
+      "shotType": "wide shot of the desk",
+      "camera": "static",
+      "composition": "box centered on the desk, founder's mug at the edge for scale",
+      "layers": "desk foreground, studio middle, window far",
+      "sfx": [
+        {
+          "name": "pop-up",
+          "at": 0.1,
+          "db": -8
+        }
+      ],
+      "music": "mid",
+      "assets": [
+        "studio",
+        "desk"
+      ],
+      "prompt": "A small closed cardboard box sitting in the center of a wooden desk beside a coffee mug, warm afternoon window light, room around it for paper panels to unfold",
+      "motion": "the box flaps open and paper panels fold up like a pop-up book into three tiny film stages with little lights",
+      "risks": [
+        "complex transformation"
+      ],
+      "transitionIn": "fade",
+      "vo": "Then a little studio opens on your desk.",
+      "connect": {
+        "type": "object",
+        "how": "the box beside the founder unfolds into the studio"
+      },
+      "transitionSecs": 0.3,
+      "end": "The last moment of the shot: panels of the box fold open into three tiny stages, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S4",
+      "start": 8.5,
+      "duration": 3,
+      "role": "interaction",
+      "beat": "the founder hands over the script",
+      "takeaway": "you write and approve; the crew takes it from there",
+      "source": "generate",
+      "visual": "an oversized hand drops a script card into the studio's tiny mailbox; the crew catches it",
+      "subject": "sample-crew",
+      "action": "the hand lowers a card into the mailbox; three tiny crew members wave",
+      "shotType": "close shot on the mailbox",
+      "camera": "small push on the mailbox",
+      "composition": "mailbox center, hand from top right, crew lower left",
+      "layers": "mailbox foreground, crew middle, stages far",
+      "vo": "You write the idea and approve the script.",
+      "sfx": [
+        {
+          "name": "mailbox",
+          "at": 1.2,
+          "db": -9
+        }
+      ],
+      "music": "mid",
+      "assets": [
+        "sample-founder",
+        "sample-crew",
+        "studio"
+      ],
+      "prompt": "A large hand holding a blank paper card above a tiny red mailbox at the front of a miniature film studio, three thumb-sized crew members looking up, a director with a beret, a camera operator and a set builder",
+      "motion": "the hand lowers the card into the mailbox slot; the tiny crew cheer and run to pull it out",
+      "risks": [
+        "hand anatomy",
+        "small characters"
+      ],
+      "connect": {
+        "type": "push-in",
+        "how": "closer on the studio mailbox as the hand brings the card"
+      },
+      "end": "The last moment of the shot: the hand lowers a card into the mailbox; three tiny crew members wave, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S5",
+      "start": 11.5,
+      "duration": 3,
+      "role": "demo",
+      "beat": "the crew shoots a UGC ad",
+      "takeaway": "it makes ads",
+      "source": "generate",
+      "visual": "on the phone-sized bathroom set, a tiny creator holds up a product while the camera operator films",
+      "subject": "sample-crew",
+      "action": "the tiny camera operator films; the creator holds up a bottle and smiles",
+      "shotType": "medium shot of the first stage",
+      "camera": "gentle drift right",
+      "composition": "set left two thirds, space at the bottom for a label",
+      "layers": "camera foreground, set middle, studio wall far",
+      "vo": "The crew shoots your ad,",
+      "text": [
+        {
+          "text": "UGC ad",
+          "kind": "label",
+          "at": 0.3,
+          "position": "bottom"
+        }
+      ],
+      "sfx": [
+        {
+          "name": "clapper",
+          "at": 0.1,
+          "db": -10
+        }
+      ],
+      "music": "mid",
+      "assets": [
+        "sample-crew",
+        "studio"
+      ],
+      "prompt": "Inside a miniature bathroom set the size of a phone, a tiny creator holds up a small blank bottle toward a tiny camera operated by a thumb-sized crew member, soft light from a little lamp",
+      "motion": "the tiny creator lifts the bottle and smiles at the camera while the crew member steadies the tiny camera",
+      "risks": [
+        "small characters"
+      ],
+      "connect": {
+        "type": "object",
+        "how": "the card lands inside the first stage"
+      },
+      "end": "The last moment of the shot: the tiny camera operator films; the creator holds up a bottle and smiles, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S6",
+      "start": 14.5,
+      "duration": 2.5,
+      "role": "demo",
+      "beat": "an AI influencer goes live",
+      "takeaway": "it makes influencer clips",
+      "source": "generate",
+      "visual": "in the ring-light corner, a tiny influencer character waves to a little phone on a tripod",
+      "action": "the influencer waves and tilts their head; the ring light glows",
+      "shotType": "medium shot of the second stage",
+      "camera": "static",
+      "composition": "ring light center, influencer slightly left, space at bottom",
+      "layers": "tripod foreground, influencer middle, wall far",
+      "vo": "builds your AI influencer,",
+      "text": [
+        {
+          "text": "AI influencer",
+          "kind": "label",
+          "at": 0.3,
+          "position": "bottom"
+        }
+      ],
+      "music": "mid",
+      "assets": [
+        "studio"
+      ],
+      "prompt": "A miniature corner with a glowing ring light and a tiny phone on a tripod, a small cheerful influencer character with curly hair and a yellow sweater in front of it",
+      "motion": "the influencer waves at the tiny phone and tilts their head as the ring light glows softly",
+      "risks": [],
+      "connect": {
+        "type": "same-place",
+        "how": "the next stage of the same studio"
+      },
+      "end": "The last moment of the shot: the influencer waves and tilts their head; the ring light glows, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S7",
+      "start": 17,
+      "duration": 3,
+      "role": "demo",
+      "beat": "a mini-drama plays on the little stage",
+      "takeaway": "it makes short dramas",
+      "source": "generate",
+      "visual": "on the theatre stage, two tiny actors face each other in a dramatic moment; the director watches",
+      "subject": "sample-crew",
+      "action": "one actor turns away dramatically; the tiny director leans forward",
+      "shotType": "wide of the third stage",
+      "camera": "slow push in",
+      "composition": "stage center, director silhouette foreground left",
+      "layers": "director foreground, actors middle, curtain far",
+      "vo": "and stages tonight's mini-drama.",
+      "text": [
+        {
+          "text": "Mini-drama",
+          "kind": "label",
+          "at": 0.3,
+          "position": "bottom"
+        }
+      ],
+      "music": "high",
+      "assets": [
+        "sample-crew",
+        "studio"
+      ],
+      "prompt": "A tiny theatre stage with a red curtain, two small actors facing each other in a tense moment under a spotlight, a thumb-sized director with a beret watching from the front",
+      "motion": "one actor turns away slowly with a dramatic gesture while the director leans forward in excitement",
+      "risks": [
+        "two characters"
+      ],
+      "connect": {
+        "type": "same-place",
+        "how": "the third stage of the same studio"
+      },
+      "end": "The last moment of the shot: one actor turns away dramatically; the tiny director leans forward, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S8",
+      "start": 20,
+      "duration": 3.5,
+      "role": "proof",
+      "beat": "three finished videos arrive",
+      "takeaway": "checked, finished videos land in your hands",
+      "source": "generate",
+      "visual": "a clean delivery card on cream paper listing the three finished videos",
+      "action": "the card appears with the three deliveries",
+      "shotType": "graphic card",
+      "camera": "static",
+      "text": [
+        {
+          "text": "Delivered and checked: UGC ad · AI influencer · Mini-drama",
+          "kind": "ui",
+          "at": 0.2,
+          "position": "center"
+        }
+      ],
+      "sfx": [
+        {
+          "name": "bell",
+          "at": 0.2,
+          "db": -14
+        }
+      ],
+      "music": "high",
+      "claim": "delivery",
+      "assets": [
+        "desk"
+      ],
+      "prompt": "A clean cream paper desk surface in warm light with a few cassette tapes at the edges, open space in the center",
+      "motion": "the cassette tapes slide gently into place at the edges, warm light shifts softly; the camera is locked",
+      "transitionIn": "cut",
+      "vo": "Every take is checked before it reaches you.",
+      "connect": {
+        "type": "pull-out",
+        "how": "out from the stage to the finished deliveries on the desk"
+      },
+      "end": "The last moment of the shot: the card appears with the three deliveries, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S9",
+      "start": 23.5,
+      "duration": 3,
+      "role": "outcome",
+      "beat": "the founder smiles at three tiny screens",
+      "takeaway": "you direct, the factory produces",
+      "source": "generate",
+      "visual": "the founder leans in, smiling at three tiny screens glowing on the studio's front",
+      "subject": "sample-founder",
+      "action": "the founder smiles",
+      "shotType": "medium close-up",
+      "camera": "slow push in (editor)",
+      "composition": "founder's face right third, three tiny screens left",
+      "layers": "screens foreground, founder middle, window far",
+      "vo": "You direct. Video Factory makes it real.",
+      "music": "mid",
+      "assets": [
+        "sample-founder",
+        "studio"
+      ],
+      "prompt": "The founder leaning toward the miniature studio with a relaxed warm smile, three tiny glowing screens on the studio's front showing colorful abstract shapes, warm window light",
+      "motion": "the founder smiles and leans in toward the tiny screens, which flicker softly; a slow drift",
+      "connect": {
+        "type": "pull-out",
+        "how": "wider: the founder smiling over the studio"
+      },
+      "end": "The last moment of the shot: the founder smiles, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    },
+    {
+      "id": "S10",
+      "start": 26.5,
+      "duration": 3.5,
+      "role": "brand",
+      "beat": "the brand",
+      "takeaway": "remember Video Factory",
+      "source": "generate",
+      "visual": "brand card: Video Factory and the call to action",
+      "action": "the brand name and the CTA appear",
+      "shotType": "graphic card",
+      "camera": "static",
+      "logo": true,
+      "text": [
+        {
+          "text": "Direct your next video",
+          "kind": "cta",
+          "at": 0.8,
+          "position": "bottom"
+        }
+      ],
+      "sfx": [
+        {
+          "name": "bell",
+          "at": 0.05,
+          "db": -6
+        }
+      ],
+      "music": "high",
+      "assets": [
+        "sample-founder",
+        "studio"
+      ],
+      "prompt": "The tabletop studio seen wide in soft warm light, its little lights glowing, open space above for a title",
+      "motion": "the studio lights glow and the tiny screens flicker softly; the camera is locked",
+      "transitionIn": "fade",
+      "transitionSecs": 0.3,
+      "connect": {
+        "type": "action",
+        "how": "the founder closes the studio box like a lid"
+      },
+      "end": "The last moment of the shot: the brand name and the CTA appear, and everything rests in place on the desk.",
+      "still": [
+        "the desk",
+        "the window",
+        "the lamp"
+      ]
+    }
+  ]
+}

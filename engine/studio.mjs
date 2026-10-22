@@ -27,6 +27,7 @@ import { identityCheck } from "./lib/identity.mjs";
 import { backgroundCheck } from "./lib/backgrounds.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm } from "./lib/pricing.mjs";
+import * as L from "./lib/launch.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -36,7 +37,7 @@ const SERIES = path.join(ROOT, "series");
 const now = () => new Date().toISOString();
 
 // Default look per format until the concept picks one.
-const STYLE = { sitcom: "retro-sitcom", "micro-drama": "hyperreal", anime: "anime", influencer: "hyperreal", ugc: "ugc-phone", podcast: "podcast", cinematic: "hyperreal", fantasy: "hyperreal", other: "hyperreal", meditation: null };
+const STYLE = { sitcom: "retro-sitcom", "micro-drama": "hyperreal", anime: "anime", influencer: "hyperreal", ugc: "ugc-phone", podcast: "podcast", cinematic: "hyperreal", fantasy: "hyperreal", other: "hyperreal", meditation: null, launch: "storybook" };
 
 const CONCEPT = (sl, a) => `# Concept: ${sl.title}
 
@@ -95,6 +96,12 @@ const commands = {
     };
     if (!["script", "idea", "scratch"].includes(intake.start)) throw new F.FlowStop("--start: script | idea | scratch");
     if (!["existing", "new", "self", "mixed", "none"].includes(intake.cast)) throw new F.FlowStop("--cast: existing | new | self | mixed | none");
+    // Launch films, Release 1: only what the editor finishes today is offered (never a selector that doesn't work).
+    if (format === "launch") {
+      const R = L.RELEASE;
+      if (!R.ar.includes(intake.platform.ar) || !R.seconds.includes(intake.platform.seconds)) throw new F.FlowStop(`Product launch film: por ahora solo ${R.seconds.join("/")} s en ${R.ar.join("/")} a ${R.fps.join("/")} fps (Release 1). ${intake.platform.seconds} s en ${intake.platform.ar} todavía no está disponible.`);
+      if (flag("--style") && !R.styles.includes(flag("--style"))) throw new F.FlowStop(`Product launch film: por ahora solo el estilo ${R.styles.join(", ")} (Release 1)`);
+    }
     const chars = flag("--chars") ? flag("--chars").split(",") : [];
     for (const id of chars) if (!fs.existsSync(path.join(P.BIBLE, "characters", id, "character.json")) && intake.cast === "existing") throw new F.FlowStop(`el personaje ${id} no existe en la biblia`);
     const series = mode === "single" ? undefined : seriesId;
@@ -104,7 +111,8 @@ const commands = {
       const r = spawnSync(process.execPath, [path.join(ROOT, "engine", "longform.mjs"), "new", slug, "--title", flag("--title"), "--minutes", String(Math.max(1, Math.round(intake.platform.seconds / 60))), "--lang", intake.platform.lang, "--ar", intake.platform.ar], { encoding: "utf8" });
       if (r.status !== 0) throw new Error(r.stderr || r.stdout);
     } else {
-      P.writeJSON(path.join(dir, "shotlist.json"), { slug, title: flag("--title"), format, lang: intake.platform.lang, ar: intake.platform.ar, style: flag("--style") || sStyle || STYLE[format], shots: [], ...(F.FORMATS[format].kind === "scenes" ? { scenes: [], captions: { marginV: 0.16 }, sfx: {}, overlays: [] } : {}) });
+      P.writeJSON(path.join(dir, "shotlist.json"), { slug, title: flag("--title"), format, lang: intake.platform.lang, ar: intake.platform.ar, style: flag("--style") || sStyle || STYLE[format], shots: [], ...(F.FORMATS[format].kind === "scenes" ? { scenes: [], captions: { marginV: 0.16 }, sfx: {}, overlays: [] } : {}), ...(format === "launch" ? { fps: 24, launch: {} } : {}) });
+      if (format === "launch") fs.mkdirSync(path.join(dir, "launch"), { recursive: true });
     }
     P.updateShotlist(slug, (sl) => {
       Object.assign(sl, { format, series, cast: chars, intake, flow: { v: 5, created: now(), approved: {}, overrides: [], log: [{ at: now(), event: "intake" }] } });
@@ -146,7 +154,8 @@ const commands = {
     if (!c) throw new F.FlowStop(`no existe bible/characters/${id}`);
     if (!c.look?.trim()) throw new F.FlowStop(`${id}: escribe su look completo, con sus marcas (pecas, lunares, lentes, aretes...)`);
     const d = path.dirname(f);
-    if (![...(c.refs || []), ...(c.sheets || [])].some((x) => fs.existsSync(path.join(d, x)))) throw new F.FlowStop(`${id}: falta su model sheet o referencia`);
+    // In-style sheets (cast.mjs sheet --style) live under looks.<style>.sheet.
+    if (![...(c.refs || []), ...(c.sheets || []), ...Object.values(c.looks || {}).flatMap((l) => [l.modelSheet, l.sheet])].filter(Boolean).some((x) => fs.existsSync(path.join(d, x)))) throw new F.FlowStop(`${id}: falta su model sheet o referencia`);
     P.writeJSON(f, { ...c, approved: { said, at: now() } });
     console.log(`personaje aprobado: ${id}`);
   },
@@ -220,14 +229,15 @@ const commands = {
     const byShot = F.kindOf(sl) === "scenes" && sl.filmBy === "shot";
     const kind = byShot ? "clips" : F.kindOf(sl);
     const secs = byShot ? (sl.shots || []).reduce((n, s) => n + P.shotGenSecs(s), 0) : kind === "scenes" ? (sl.scenes || []).reduce((n, sc) => n + P.sceneSecs(P.sceneShots(sl, sc)), 0)
-      : kind === "clips" ? (sl.shots || []).reduce((n, s) => n + (s.duration || 8), 0) : (sl.longform?.scenes || []).filter((s) => s.motion !== "kenburns").reduce((n, s) => n + (s.seconds || 8), 0);
-    const clips = kind === "clips" ? (sl.shots || []).length : kind === "longform" ? (sl.longform?.scenes || []).length : (sl.scenes || []).length;
+      : kind === "clips" ? (sl.shots || []).filter(F.films).reduce((n, s) => n + (s.duration || 8), 0) : (sl.longform?.scenes || []).filter((s) => s.motion !== "kenburns").reduce((n, s) => n + (s.seconds || 8), 0);
+    const clips = kind === "clips" ? (sl.shots || []).filter(F.films).length : kind === "longform" ? (sl.longform?.scenes || []).length : (sl.scenes || []).length;
     const live = await livePrices();
     const options = videoOptions(live.rows, { format: sl.format, kind, seconds: secs, clips });
     if (!options.length) throw new F.FlowStop("ningún modelo del motor aparece en los precios en vivo; revisa engine/lib/pricing.mjs");
     const baseline = kind === "longform" ? sl.longform?.videoModel : (() => { try { return P.style(sl.style).models?.video; } catch { return null; } })();
     // Speaking formats outside the sitcom are held to the edit's 175 wpm: a model measured faster is not recommended.
-    const maxWpm = kind !== "longform" && sl.format !== "sitcom" ? 175 : null;
+    // A launch film's takes are silent (the voice-over is ElevenLabs), so the model's speaking rate doesn't apply.
+    const maxWpm = kind !== "longform" && !["sitcom", "launch"].includes(sl.format) ? 175 : null;
     const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm });
     const want = flag("--pick");
     const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
@@ -252,6 +262,12 @@ const commands = {
     let sl = P.loadShotlist(slug);
     F.requireStep(sl, "qc", "studio qc");
     const file = F.finalFile(sl), dir = P.projectDir(slug), issues = [], report = {};
+    // --no-judge --said "...": the creator's call when the vision judge is down (2026-10-21, a launch film v6: "You can't
+    // waste more time with the vision judge"). Identity and text read-back are skipped and say so in the receipt;
+    // every other check runs, and Claude has watched the whole final frame by frame.
+    const noJudge = process.argv.includes("--no-judge");
+    if (noJudge && !flag("--said")) throw new F.FlowStop('qc --no-judge necesita --said "palabras exactas del creador"');
+    if (noJudge) report.judgeSkipped = { said: flag("--said"), at: now() };
     const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,width,height,pix_fmt,codec_type:format=duration,size", "-of", "json", file]).toString());
     const v = probe.streams.find((s) => s.codec_type === "video"), a = probe.streams.find((s) => s.codec_type === "audio");
     const longform = F.kindOf(sl) === "longform";
@@ -272,12 +288,28 @@ const commands = {
       if (lines.length) { const d = dialogueCheck(file, lines, sl.lang); report.dialogue = d; issues.push(...d.issues.map((x) => `diálogo: ${x}`)); }
       // Faces and marks across every cut, against each character's locked anchor.
       const cast = F.castIds(sl).filter((id) => { try { return P.character(id).species !== "set"; } catch { return false; } });
-      if (cast.length) { const r = await identityCheck(file, cast); report.identity = { pass: r.pass, issues: r.issues, notes: r.notes }; issues.push(...r.issues); }
+      if (cast.length && !noJudge) { const r = await identityCheck(file, cast); report.identity = { pass: r.pass, issues: r.issues, notes: r.notes }; issues.push(...r.issues); }
       // Outside the sitcom: every close-up of a person keeps one background across all scenes (a past drama, 2026-10-20).
       if (sl.format !== "sitcom" && cast.length && (sl.scenes || []).length > 1) {
         try { const b = await backgroundCheck(file, sl, cast); report.backgrounds = b; issues.push(...b.issues); }
         catch (e) { issues.push(`no se pudo revisar los fondos entre escenas: ${e.message.slice(0, 120)}`); }
       }
+    }
+    // Launch films: the editor's own QC, the length to the frame at the plan's fps, the voice-over word for word, the
+    // composited text read back from the frames, and Claude's heuristic quality report on this exact file.
+    if (sl.format === "launch") {
+      const plan = L.read(slug, "plan"), fps = plan?.fps || 24;
+      if (!sl.finalQc?.pass) issues.push(`QC del editor: ${(sl.finalQc?.problems || ["no pasó"]).join("; ")}`);
+      const vs = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-select_streams", "v", "-count_frames", "-show_entries", "stream=r_frame_rate,nb_read_frames", "-of", "json", file]).toString()).streams[0];
+      report.frames = Number(vs.nb_read_frames);
+      if (vs.r_frame_rate !== `${fps}/1`) issues.push(`${vs.r_frame_rate} fps, se pide ${fps}`);
+      if (plan && Math.abs(report.frames - Math.round(plan.durationSeconds * fps)) > 1) issues.push(`${report.frames} cuadros; ${plan.durationSeconds} s a ${fps} fps son ${Math.round(plan.durationSeconds * fps)} (tolerancia 1 cuadro)`);
+      const vo = (plan?.shots || []).filter((s) => s.vo).map((s) => ({ id: s.id, text: s.vo }));
+      if (vo.length) { const d = dialogueCheck(file, vo, sl.lang); report.voiceover = d; issues.push(...d.issues.map((x) => `voz en off: ${x}`)); }
+      const overlays = (plan?.shots || []).flatMap((s) => (s.text || []).map((o) => ({ text: o.text, t: s.start + ((o.at || 0) + Math.min(o.until ?? s.duration, s.duration)) / 2 })));
+      if (!noJudge) try { const tc = await L.textCheck(file, overlays); report.text = tc.read; issues.push(...tc.issues); }
+      catch (e) { issues.push(`no se pudo leer el texto del final: ${e.message.slice(0, 120)}`); }
+      issues.push(...L.qualityRules(L.read(slug, "quality"), F.fileSha(file)));
     }
     // The 4 fps contact sheet (thumbnails for the whole cut). Identity is checked above at full resolution.
     const sheet = path.join(dir, "out", `${slug}-sheet.jpg`);
@@ -299,6 +331,12 @@ const commands = {
     const receipt = { file: P.rel(slug, file), sha: F.fileSha(file), at: now(), qc: sl.finalQc5.report, overrides: sl.flow.overrides || [] };
     P.writeJSON(path.join(P.projectDir(slug), "delivery.json"), receipt);
     P.updateShotlist(slug, (x) => { x.flow.log.push({ at: receipt.at, event: "deliver", sha: receipt.sha }); });
+    // Launch films ship with their source: brief, concepts, script, shot plan, style bible, QC, manifest, captions.
+    if (sl.format === "launch") {
+      const r = spawnSync(process.execPath, [path.join(ROOT, "engine", "launch.mjs"), "package", slug], { encoding: "utf8" });
+      process.stdout.write(r.stdout || "");
+      if (r.status !== 0) throw new Error(`launch.mjs package: ${r.stderr}`);
+    }
     const b = spawnSync(process.execPath, [path.join(ROOT, "engine", "book.mjs"), slug], { encoding: "utf8" });
     process.stdout.write(b.stdout || "");
     if (b.status !== 0) throw new Error(`book.mjs: ${b.stderr}`);

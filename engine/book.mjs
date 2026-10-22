@@ -22,7 +22,9 @@ const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
 const kind = F.kindOf(sl);
 const finalPath = F.finalFile(sl);
-const final = !!sl.finalQc5?.pass && sl.finalQc5.sha === F.fileSha(finalPath);
+// Final mode only while the delivered cut still is the current plan: a project reopened after delivery (a launch film v2,
+// 2026-10-21) builds a gate book again, or its approval would lock the old estimate.
+const final = !!sl.finalQc5?.pass && sl.finalQc5.sha === F.fileSha(finalPath) && F.stepStatus(sl, "edit").ok && F.stepStatus(sl, "book").ok; // a reopened book is a gate book again
 try { F.requireStep(sl, final ? "deliver" : "book", final ? "book (final)" : "book"); }
 catch (e) { if (e instanceof F.FlowStop) { console.error(`ALTO: ${e.message}`); process.exit(2); } throw e; }
 const out = path.join(dir, "book");
@@ -55,6 +57,30 @@ if (kind === "scenes") scriptHtml = (sl.scenes || []).map((sc) => `<div class="s
 if (kind === "clips") scriptHtml = (sl.shots || []).map((s) => `<div class="scene">Shot ${esc(s.id)} · ${esc(s.summary || "")} · ${s.duration ?? "?"} s</div><div class="action">${esc(s.action || s.motion || "")}</div>${(s.dialogue || []).map(cue).join("")}`).join("");
 if (kind === "longform") scriptHtml = (sl.longform?.script || []).map((s, i) => `<div class="cue"><span class="who">${String(i + 1).padStart(2, "0")}</span><span>${esc(s.text)}</span><span class="paren">[pause ${s.pauseAfter ?? 0} s]</span></div>`).join("") || `<p class="muted">Voice-free ambient.</p>`;
 
+// ---- Launch films: the creative brief, the concepts, the timed plan and the locked style (lib/launch.mjs)
+let strategyHtml = "";
+if (sl.format === "launch") {
+  const rd = (k) => P.readJSON(path.join(dir, "launch", { brief: "brief.json", concepts: "concepts.json", plan: "shot-plan.json", style: "style-bible.json" }[k]), null);
+  const b = rd("brief"), c = rd("concepts"), plan = rd("plan"), st2 = rd("style");
+  const m = b?.message || {};
+  const tc = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, "0")}`;
+  if (plan?.shots) scriptHtml = plan.shots.map((s) => `<div class="scene">${tc(s.start)}–${tc(s.start + s.duration)} · ${esc(s.id)} · ${esc(s.role)}</div><div class="action">${esc(s.visual)}</div>${s.vo ? `<div class="cue"><span class="who">VO</span><span>${esc(s.vo)}</span></div>` : ""}${(s.text || []).map((o) => `<div class="cue"><span class="who">On screen · ${esc(o.kind)}</span><span>${esc(o.text)}</span></div>`).join("")}${s.logo ? `<div class="cue"><span class="who">Logo</span></div>` : ""}`).join("");
+  const brief = b ? `<div class="note"><h3>Creative brief · ${esc(b.product?.name)}</h3><ul>${[["ICP", m.icp], ["Pain", m.pain], ["Consequence", m.consequence], ["Promise", m.promise], ["Before → after", `${m.before} → ${m.after}`], ["Proof", `${m.proof} (${m.proofCapability})`], ["Differentiator", m.differentiator || "none claimed"], ["Emotion", m.emotion], ["CTA", m.cta]].map(([k, v]) => `<li><b>${k}:</b> ${esc(v)}</li>`).join("")}</ul>
+    <p class="muted">Sources: ${(b.sources || []).map((s) => `${esc(s.kind)} ${esc(s.ref)}${s.retrievedAt ? ` (${esc(s.retrievedAt.slice(0, 10))})` : ""}`).join(" · ")}</p>
+    ${(b.assumptions || []).length ? `<p class="muted">Assumptions: ${b.assumptions.map((a) => `${esc(a.field)} = ${esc(a.value)} ${a.approved ? '<span class="ok">approved</span>' : '<span class="bad">not approved</span>'}`).join(" · ")}</p>` : ""}
+    <p class="muted">Proven capabilities: ${(b.capabilities || []).map((x) => `<b>${esc(x.id)}</b> ${esc(x.claim)} (${esc(x.source)})`).join(" · ")}</p></div>` : "";
+  const concepts = (c?.concepts || []).map((x) => `<div class="note"><h3>${esc(x.id)}${x.id === c.selected ? ' · <span class="ok">selected</span>' : ""}</h3><p><b>${esc(x.creativeThesis)}</b></p><p>Metaphor: ${esc(x.visualMetaphor)} (${esc(x.metaphorMapsTo)})</p><p>Hook: ${esc(x.openingHook)}</p><p class="muted">${esc(x.storyMode)} · arc: ${esc(x.storyArc.join(" → "))} · risk ${esc(x.risk)} · effort ${esc(x.effort)}</p><p class="muted">${esc(x.rationale)}</p></div>`).join("");
+  const cfg = c?.config;
+  const planRows = (plan?.shots || []).map((s) => `<tr><td class="num">${tc(s.start)}</td><td class="num">${s.duration} s</td><td>${esc(s.id)} <span class="tag">${esc(s.role)}</span></td><td>${esc(s.source)}</td><td>${esc(s.beat)}<br><span class="muted">${esc(s.takeaway)}</span></td><td>${s.vo ? `<q>${esc(s.vo)}</q>` : "—"}</td><td>${(s.text || []).map((o) => esc(o.text)).join("<br>") || (s.logo ? "logo" : "—")}</td><td>${esc(s.claim || "")}</td></tr>`).join("");
+  const look = sl.lookTest?.file ? jpg(abs(sl.lookTest.file), "look-lock.jpg", 900) : null;
+  const envs = (st2?.environments || []).map((e) => { const im = e.ref ? jpg(abs(e.ref), `env-${e.id}.jpg`, 600) : null; return `<figure>${im ? `<img src="${im}" alt="${esc(e.name)}" loading="lazy">` : ""}<figcaption><span class="tag">${esc(e.id)}</span> ${esc(e.name)} · ${esc(e.layout)}</figcaption></figure>`; }).join("");
+  const swatches = (st2?.palette || []).map((h) => `<span title="${esc(h)}" style="display:inline-block;width:36px;height:36px;border:1px solid var(--rule);background:${esc(h)}"></span>`).join(" ");
+  strategyHtml = `<section><div class="slate"><span class="no">00</span><h2>Strategy</h2><span class="muted">${cfg ? `${esc(cfg.intent)} launch film · ${esc(c.concepts.find((x) => x.id === c.selected)?.storyMode || cfg.storyMode)} · ${cfg.durationSeconds} s · ${esc(cfg.aspectRatio)} · ${cfg.fps} fps` : ""}</span></div>${brief}
+  ${c ? `<p class="muted">Story mode: ${esc(c.modeRationale)}</p><div class="cols">${concepts}</div>` : ""}
+  ${planRows ? `<div class="shots"><table><thead><tr><th class="num">At</th><th class="num">Length</th><th>Shot</th><th>Source</th><th>Beat · takeaway</th><th>Voice-over</th><th>On screen</th><th>Claim</th></tr></thead><tbody>${planRows}</tbody></table></div>` : ""}
+  ${st2 ? `<div class="note"><h3>Style bible · ${esc(st2.name)}${sl.lookTest?.said ? ' · <span class="ok">visual identity locked</span>' : ' · <span class="bad">not locked</span>'}</h3><p>${swatches}</p><p>${esc(st2.artStyle)} · ${esc(st2.line)} · ${esc(st2.texture)} · ${esc(st2.lighting)}</p><p class="muted">Never: ${esc((st2.negative || []).join(", "))}</p>${look ? `<figure style="max-width:560px"><img src="${look}" alt="Locked key art"><figcaption>Key art that locks the look${sl.lookTest?.said ? `: "${esc(sl.lookTest.said)}"` : ""}</figcaption></figure>` : ""}<div class="boards">${envs}</div></div>` : ""}</section>`;
+}
+
 // ---- Pacing (radio cut, scenes formats)
 const R = sl.radio || {};
 const rules = sl.paceRules || { minWpm: 140, maxGap: 0.6, maxDeadPct: 8, maxFirstLaugh: 6, maxSecondsPerLaugh: 7.5 };
@@ -75,7 +101,7 @@ const sceneNotes = kind === "scenes" ? (sl.scenes || []).map((sc) => `<div class
 const castHtml = F.castIds(sl).map((id) => {
   let c; try { c = P.character(id); } catch { return ""; }
   const lk = P.characterLook(c, sl.style);
-  const src = [lk.sheet, ...(c.sheets || []), ...(c.refs || [])].filter(Boolean).map((f) => path.join(c.dir, f)).find((f) => fs.existsSync(f));
+  const src = [lk.modelSheet, lk.sheet, ...(c.sheets || []), ...(c.refs || [])].filter(Boolean).map((f) => path.join(c.dir, f)).find((f) => fs.existsSync(f));
   const sheet = jpg(src, `sheet-${id}.jpg`, 1800);
   const anchor = c.faceAnchor ? jpg(path.join(c.dir, c.faceAnchor), `anchor-${id}.jpg`, 300) : null;
   const marks = marksOf(c.look);
@@ -98,6 +124,7 @@ if (kind === "scenes") {
 }
 if (kind === "clips") {
   boardsHtml = (sl.shots || []).map((s) => {
+    if (s.source === "card") return `<figure><p class="muted">Card drawn by the editor: exact text and logo, no generation.</p><figcaption><span class="tag">Shot ${esc(s.id)}</span> card · ${s.planned?.duration ?? s.duration} s</figcaption></figure>`;
     const a = /^@/.test(s.frame || "") ? null : jpg(abs(s.frame), `${s.id}-first.jpg`, 700);
     const b = s.last ? jpg(abs(s.last), `${s.id}-last.jpg`, 700) : null;
     return `<figure><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${a ? `<img src="${a}" alt="Shot ${esc(s.id)} first frame">` : `<p class="muted">Opens on ${esc(s.frame)}</p>`}${b ? `<img src="${b}" alt="Shot ${esc(s.id)} last frame">` : ""}</div><figcaption><span class="tag">Shot ${esc(s.id)}</span> first and last frame · ${s.duration} s</figcaption></figure>`;
@@ -108,6 +135,8 @@ if (kind === "longform") boardsHtml = (sl.longform?.scenes || []).map((sc) => { 
 // ---- Media
 const radio = R.file ? copy(abs(R.file), "radio-cut.mp3") : null;
 const animatic = copy(path.join(dir, "out", "animatic.mp4"), "animatic.mp4");
+// The book's copy stays under the publish limit, like the final's (a frame-exact launch animatic ran 17 MB).
+if (animatic && fs.statSync(path.join(out, animatic)).size > 14e6) execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", path.join(dir, "out", "animatic.mp4"), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "26", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", path.join(out, animatic)]);
 
 // ---- Prompts + estimate
 // Only what is still to film is estimated: a scene or shot with a chosen take costs nothing more. (2026-10-19: a
@@ -130,8 +159,13 @@ if (kind === "scenes") {
   estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : sl.filmBy === "shot" ? P.sceneShots(sl, sc).reduce((n, s) => n + vm.cost({ res: pick.res, duration: P.shotGenSecs(s, pick.video), sound: true }), 0) : vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "clips") {
-  promptsHtml = (sl.shots || []).map((s) => `<details><summary>Shot ${esc(s.id)} · ${esc(getModel(s.model || pick.video).label)} · ${s.duration} s</summary><pre>${esc(P.clipPrompt(sl, s))}</pre></details>`).join("");
-  estRows = (sl.shots || []).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration }); est += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  // Launch films: stills and cards cost no video (the editor moves or draws them); generated takes are silent.
+  const launch = sl.format === "launch";
+  promptsHtml = (sl.shots || []).filter((s) => s.source !== "card").map((s) => `<details><summary>Shot ${esc(s.id)} · ${F.films(s) ? `${esc(getModel(s.model || pick.video).label)} · ${s.duration} s` : "still, moved by the editor"}</summary>${s.framePrompt ? `<pre>First frame (GPT Image 2.5):\n${esc(s.framePrompt)}</pre>` : ""}${F.films(s) ? `<pre>${launch ? "Animation:\n" : ""}${esc(P.clipPrompt(sl, s))}</pre>` : ""}</details>`).join("");
+  estRows = (sl.shots || []).filter(F.films).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration, ...(launch ? { sound: false } : {}) }); est += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  // Frames still to draw (a changed end state drops its last frame) are part of the locked budget too (2026-10-21, a launch film v4).
+  if (launch) { const todo = (sl.shots || []).filter((s) => F.films(s) && !filmed(s)).reduce((n, s) => n + (s.frame ? 0 : 1) + (s.lastPrompt && !s.last ? 1 : 0), 0); if (todo) { const cr = todo * getModel("gpt2.5").cost({ size: "1K" }) * 1.15; est += cr; estRows += `<tr><td>Frames still to draw (GPT Image 2.5, 1K)</td><td class="num">${todo}</td><td class="num">${usd(cr)}</td></tr>`; } }
+  if (launch) { const vo = Object.values(sl.launch?.vo || {}); estRows += `<tr><td>Voice-over (ElevenLabs, recorded before the book)</td><td class="num">${vo.reduce((n, v) => n + v.text.length, 0)} chars</td><td class="num">plan</td></tr>`; }
 }
 // The score (gen.mjs music, Suno) is part of the locked budget when the project has one and it isn't made yet.
 if (kind !== "longform" && sl.music?.prompt && !sl.music.files?.length) { const cr = getModel("suno").cost({}); est += cr; estRows += `<tr><td>Score (Suno)</td><td></td><td class="num">${usd(cr)}</td></tr>`; }
@@ -151,6 +185,7 @@ const pricesHtml = !pc ? "" : `<div class="note"><h3>Video model · live Kie pri
 // ---- Evals that run (the same list every project gets)
 const evals = [
   ...(kind === "scenes" ? ["Radio cut pacing (before filming)", "Continuity plan: every change of place shown on screen", "Per take: visual QC, positions, physics, light, geography, dialogue, identity"] : []),
+  ...(sl.format === "launch" ? ["Before the book: brief facts with sources, 3+ distinct concepts, timing to ±0.25 s, every measurable claim tied to a proven capability, exact text never drawn by a model", "Final: length to the frame at 24 fps, voice-over word for word, every on-screen text read back from the frames, heuristic quality report on the exact file"] : []),
   ...(kind === "clips" ? ["Per take: identity (face and marks against the locked face anchor)", "Per take: jumps inside the shot (an end snap is trimmed)", "Per take: dialogue (missing, extra or repeated words)"] : []),
   ...(kind === "longform" ? ["Loops: first frame = last frame", "Final: duration, loudness, true peak, dead air"] : []),
   "Prompt check: no prompt may leave out a character's marks",
@@ -246,6 +281,8 @@ footer { font-size:.85rem; color:var(--muted); }
   <p class="muted">${kind === "longform" ? `${sl.longform?.minutes} min` : `${(sl.shots || []).length} shots`}${kind === "scenes" ? ` · ${(sl.scenes || []).length} scenes` : ""} · ${esc(sl.style || "")} · ${esc(sl.ar)} · video: ${esc(vm.label)} ${esc(kind === "longform" ? sl.longform?.res || "720p" : pick.res)} · images: GPT Image 2.5</p>
 </header>
 
+${strategyHtml}
+
 <section><div class="slate"><span class="no">01</span><h2>Script</h2></div><div class="script">${scriptHtml}</div></section>
 
 ${kind === "scenes" ? `<section><div class="slate"><span class="no">02</span><h2>Direction</h2><span class="muted">pacing checked against the vertical DNA, blocking and light per scene</span></div>${pacingHtml}${continuityHtml}<div class="cols">${sceneNotes}</div></section>` : ""}
@@ -258,7 +295,7 @@ ${setImg ? `<section><div class="slate"><span class="no">04</span><h2>Set</h2></
 ${shotRows ? `<div class="shots"><table><thead><tr><th>Shot</th><th>Board</th><th class="num">Time</th><th>Framing</th><th>Action</th><th>Lines</th></tr></thead><tbody>${shotRows}</tbody></table></div>` : ""}</section>
 
 ${radio || animatic ? `<section><div class="slate"><span class="no">06</span><h2>Radio cut and animatic</h2><span class="muted">the free draft: this timing is what gets filmed</span></div>
-<div class="media">${radio ? `<figure><audio src="${radio}" controls preload="metadata"></audio><figcaption>Radio cut · ${R.length} s</figcaption></figure>` : ""}${animatic ? `<figure><video src="${animatic}" controls playsinline preload="metadata"></video><figcaption>Animatic: boards cut to the radio cut</figcaption></figure>` : ""}</div></section>` : ""}
+<div class="media">${radio ? `<figure><audio src="${radio}" controls preload="metadata"></audio><figcaption>Radio cut · ${R.length} s</figcaption></figure>` : ""}${animatic ? `<figure><video src="${animatic}" controls playsinline preload="metadata"></video><figcaption>${sl.format === "launch" ? "Animatic: frames, voice-over and on-screen text at the exact timing" : "Animatic: boards cut to the radio cut"}</figcaption></figure>` : ""}</div></section>` : ""}
 
 <section><div class="slate"><span class="no">07</span><h2>Prompts</h2><span class="muted">exactly what the models receive</span></div>${promptsHtml}</section>
 

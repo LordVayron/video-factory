@@ -26,6 +26,7 @@ if (!slug) { console.error("usage: cut.mjs <slug> [--draft]"); process.exit(1); 
 try {
   const sl = P.loadShotlist(slug);
   requireStep(sl, draft ? "film" : "edit", draft ? "cut --draft" : "cut");
+  if (sl.format === "launch") throw new FlowStop("a launch film is edited by launch.mjs build (exact timing, text, voice-over, music)");
   if (kindOf(sl) !== "clips") throw new FlowStop(`cut.mjs is for clips formats; ${sl.format} uses ${kindOf(sl) === "scenes" ? "edit.mjs" : "longform.mjs build"}`);
   await cut(sl);
 } catch (e) { console.error(e instanceof FlowStop ? `ALTO: ${e.message}` : `ERROR: ${e.message}`); process.exit(e instanceof FlowStop ? 2 : 1); }

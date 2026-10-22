@@ -45,6 +45,7 @@ const leaks = files.filter((x) => /\.(mjs|js|json|md|py|txt|ps1|sh)$/.test(x) &&
 t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", ") || "clean"})`, !leaks.length);
 
 (await import("./check-flow.mjs")).default(t, ROOT);
+(await import("./check-launch.mjs")).default(t, ROOT);
 
 console.log(failed ? `\n${failed} check(s) failed.` : "\nAll checks passed.");
 process.exit(failed ? 1 : 0);

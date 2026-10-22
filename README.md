@@ -46,6 +46,7 @@ You need two accounts: [Kie.ai](https://kie.ai) (images, video, music) and [Elev
 | **Fantasy shorts** | 30–90 s | $2–6 | epic or cozy, style-locked |
 | **Meditation, sleep and ambient** | 10 min – 3 h, 16:9 | about $2 for 30 min | seamless looping scenes, music bed, voice-over with real pauses, plus an MP3 |
 | **AI influencer / clone me** | 15–60 s | $1–4 | your own face and voice only, with consent |
+| **Product launch films** | 30–35 s, 16:9 | $4–8 | from your landing page: interview, three concepts, one continuous storybook story, narration, composited brand and CTA |
 | **Anime, cinematic, podcast clips** | 15–60 s | $1–5 | per-vertical playbooks |
 
 Each format has a **playbook** (a "vertical DNA" file) with what makes it work, how to write it, pacing numbers, and a QC checklist. To make a different format, open a new conversation in the folder and say what you want: *"make a 20-minute sleep meditation"*, *"start a TikTok novela about a hidden inheritance"*, *"UGC ad for my coffee brand"*.

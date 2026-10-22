@@ -14,6 +14,8 @@ import * as P from "./project.mjs";
 import { meditationRules, intentOf } from "./meditation.mjs";
 import { missingMarks, castOf } from "./identity.mjs";
 import { planCheck } from "./state.mjs";
+import * as L from "./launch.mjs";
+import * as MS from "./modelsheet.mjs";
 
 // What each format films and how. "scenes": multi-shot generations from storyboard grids (sitcom pipeline).
 // "clips": one first/last-frame generation per shot (influencer, UGC, cinematic...). "longform": loops + narration.
@@ -27,6 +29,9 @@ export const FORMATS = {
   cinematic: { kind: "clips", label: "Cinematic", editMissing: "a music score and sound design (cut.mjs mixes only the takes' sound and an ambience bed)" },
   fantasy: { kind: "clips", label: "Fantasy", editMissing: "a music score and sound design (cut.mjs mixes only the takes' sound and an ambience bed)" },
   other: { kind: "clips", label: "Other" },
+  // Product launch films (2026-10-21): the creative director's brief, concepts, timecoded plan and style bible gate
+  // every step (lib/launch.mjs); shots are generated, stills or deterministic cards; launch.mjs composites the film.
+  launch: { kind: "clips", label: "Product launch film" },
   meditation: { kind: "longform", label: "Meditation / long-form" },
 };
 
@@ -47,24 +52,33 @@ export const fileSha = (f) => (fs.existsSync(f) ? crypto.createHash("sha1").upda
 const dir = (sl) => P.projectDir(sl.slug);
 const exists = (sl, f) => !!f && fs.existsSync(path.isAbsolute(f) ? f : path.join(dir(sl), f));
 export const finalFile = (sl) => path.join(dir(sl), "out", `${sl.slug}.mp4`);
+// Launch films mix generated shots with stills and cards the editor draws: only "generate" shots are filmed.
+export const films = (s) => !s.source || s.source === "generate";
+const launchFile = (sl, k) => { const f = path.join(dir(sl), "launch", L.FILES[k]); return fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null; };
+const launchJSON = (sl, k) => { const t = launchFile(sl, k); try { return t ? JSON.parse(t) : null; } catch { return null; } };
 
 export function castIds(sl) {
+  // A launch film's shots are generated from the plan (launch.mjs apply), so the cast is the project's list (the style
+  // bible's characters); a stale shotlist from before a cast change must not count.
+  if (sl.format === "launch") return [...new Set(sl.cast || [])];
   const ids = [...(sl.cast || []), ...(sl.shots || []).flatMap((s) => s.characters || [])];
   return [...new Set(ids)];
 }
 
 // Fingerprints: what an approval covers. Keys written by filming and evals are left out, so filming
 // does not reopen the plan; changing the script, the shots or the prompts does.
-const RUNTIME = new Set(["clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "qcFlag", "plate", "cutOut", "muteOut", "cues", "motionScore"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
+const RUNTIME = new Set(["cleanPatch", "clips", "clip", "qc", "continuity", "identity", "jumps", "evals", "queue", "queueNote", "qcFlag", "plate", "cutOut", "retime", "splice", "in", "muteOut", "cues", "motionScore"]); // cutOut: an edit decision on a filmed take, not a change to the approved plan
 const strip = (o) => JSON.parse(JSON.stringify(o ?? null, (k, v) => (RUNTIME.has(k) ? undefined : v)));
 export const FINGERPRINT = {
   // The series bible without its own approval stamp (approving writes `approved` into series.json, 2026-10-19),
   // the voice profiles (approved at the cast gate) and the episode list (grows every episode).
   series: (sl) => sha(sl.series ? (() => { try { const { approved, voices, episodes, ...bible } = JSON.parse(fs.readFileSync(path.join(P.PROJECTS, "..", "series", sl.series, "series.json"), "utf8")); return JSON.stringify(bible); } catch { return null; } })() : null),
-  concept: (sl) => sha(fs.existsSync(path.join(dir(sl), "concept.md")) ? fs.readFileSync(path.join(dir(sl), "concept.md"), "utf8") : null),
-  script: (sl) => sha(kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
-  cast: (sl) => sha(castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null])),
-  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res, ...(sl.angles ? { angles: sl.angles } : {}) }),
+  // A launch film's concept is its brief and concepts too; its script is the whole timecoded plan (voice-over and
+  // on-screen text are the script); its cast includes the style bible and the narrator's voice.
+  concept: (sl) => sha([fs.existsSync(path.join(dir(sl), "concept.md")) ? fs.readFileSync(path.join(dir(sl), "concept.md"), "utf8") : null, ...(sl.format === "launch" ? [launchFile(sl, "brief"), launchFile(sl, "concepts")] : [])]),
+  script: (sl) => sha(sl.format === "launch" ? launchFile(sl, "plan") : kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
+  cast: (sl) => sha([castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null]), ...(sl.format === "launch" ? [launchFile(sl, "style"), sl.launch?.voice ?? null] : [])]),
+  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res, ...(sl.angles ? { angles: sl.angles } : {}), ...(sl.format === "launch" ? { plan: launchFile(sl, "plan"), style: launchFile(sl, "style") } : {}) }),
   retro: () => "retro",
 };
 
@@ -81,6 +95,17 @@ function intakeCheck(sl) {
 }
 
 function castCheck(sl) {
+  if (sl.format !== "launch") return castCheckChars(sl);
+  // Launch films: the style bible is valid and its files exist, the narrator has a voice, any characters pass the
+  // usual cast gate, and the visual identity is locked: one key image of the world, approved in the creator's words.
+  const bad = [...L.styleRules(launchJSON(sl, "style"), { slug: sl.slug, cast: castIds(sl) })];
+  if (launchJSON(sl, "concepts")?.config?.voiceover && !sl.launch?.voice?.eleven) bad.push("la película lleva voz en off y el narrador no tiene voz (sl.launch.voice.eleven)");
+  if (castIds(sl).length) { const c = castCheckChars(sl); if (!c.ok) bad.push(c.detail); }
+  if (!(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('falta fijar la identidad visual: una imagen clave del mundo en el estilo (gen.mjs still --project), aprobada con studio.mjs approve-look <slug> --file <imagen> --said "..."');
+  return bad.length ? no(bad.join("; ")) : ok(`style bible "${launchJSON(sl, "style").name}" fijado`);
+}
+
+function castCheckChars(sl) {
   if (kindOf(sl) === "longform") {
     const v = sl.longform?.voice;
     const speaks = (sl.longform?.script || []).some((s) => s.text?.trim());
@@ -98,7 +123,13 @@ function castCheck(sl) {
     if (!approved) bad.push(`${id}: ficha sin aprobar (studio.mjs approve-character ${id} --said "...")`);
     if (speaking.has(id) && !c.voice?.eleven) bad.push(`${id}: habla y no tiene voz`);
     const d = path.join(P.BIBLE, "characters", id);
-    if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
+    if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet, P.characterLook(c, sl.style)?.modelSheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
+    // STANDARD SHEET (the creator, 2026-10-21): every project created from today, any vertical, needs one standard sheet per
+    // character in the project's style (cast.mjs model-sheet), and a character is one character, never a group.
+    if ((sl.flow?.created || "") >= "2026-10-21" && c.species !== "set") {
+      if (MS.isGroup(c.look)) bad.push(`${id}: su look describe a varios personajes; una ficha, un personaje (sepáralos en la biblia)`);
+      else if (!MS.hasStandard(c, sl.style)) bad.push(`${id}: sin ficha estándar en el estilo ${sl.style} (cast.mjs model-sheet ${id} --style ${sl.style})`);
+    }
   }
   // LOOK TEST (2026-10-19, a past drama: the realism problem was only seen after the video money was spent). A drama's
   // cast is complete only when the creator approved, in his words, one still of the leads in the set at the episode's light,
@@ -196,11 +227,15 @@ function boardCheck(sl) {
     bad.push(...dramaRules(sl));
   } else if (k === "clips") {
     if (!(sl.shots || []).length) bad.push("sin shots");
+    if (sl.format === "launch") bad.push(...launchBoard(sl));
     for (const s of sl.shots || []) {
+      if (s.source === "card") continue;
       const from = /^@(\w+):last$/.exec(s.frame || "");
       if (from) { const k = sl.shots.findIndex((x) => x.id === from[1]); if (k < 0 || k >= sl.shots.indexOf(s)) bad.push(`${s.id}: abre en ${from[1]}, que no es un shot anterior`); }
       else if (!exists(sl, s.frame)) bad.push(`${s.id}: sin cuadro inicial`);
       if (s.last && !exists(sl, s.last)) bad.push(`${s.id}: falta el cuadro final ${s.last}`);
+      if (s.lastPrompt && !s.last) bad.push(`${s.id}: sin cuadro final coreografiado (gen.mjs frame ${sl.slug} ${s.id} last --planned)`);
+      if (!films(s)) continue;
       if (!s.prompt?.trim()) bad.push(`${s.id}: sin prompt`);
       else {
         // The prompt checked is the one the model receives (P.clipPrompt: the shot's prompt plus its script).
@@ -217,6 +252,40 @@ function boardCheck(sl) {
   }
   return bad.length ? no(bad.join("; ")) : ok("storyboard y prompts revisados");
 }
+
+// Launch films before the book: the plan still passes, the shotlist is the plan applied (launch.mjs apply), every
+// voice-over line was recorded and fits its shot, and the animatic was built from the current frames and voice.
+function launchBoard(sl) {
+  const plan = launchJSON(sl, "plan");
+  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") });
+  if (!plan) return bad;
+  if (sl.launch?.applied !== sha(launchFile(sl, "plan"))) bad.push("la shotlist no es el plan actual (launch.mjs apply)");
+  for (const s of plan.shots || []) if (s.vo) {
+    const v = sl.launch?.vo?.[s.id];
+    if (!v || v.text !== s.vo || !fs.existsSync(path.join(dir(sl), v.file || "-"))) bad.push(`${s.id}: voz en off sin grabar (launch.mjs voice)`);
+    else if (v.secs > v.room + 0.05) bad.push(`${s.id}: la voz dura ${v.secs} s y solo cabe en ${v.room} s; acorta la línea`);
+  }
+  // The narration, measured on the recorded lines: no silence over 1.2 s between lines, and voice over most of the film.
+  if (launchJSON(sl, "concepts")?.config?.voiceover) {
+    const said = (plan.shots || []).filter((s) => s.vo && sl.launch?.vo?.[s.id]).map((s) => ({ id: s.id, a: s.start + (s.voAt ?? 0.15), b: s.start + (s.voAt ?? 0.15) + sl.launch.vo[s.id].secs }));
+    for (let i = 1; i < said.length; i++) if (said[i].a - said[i - 1].b > 1.2) bad.push(`${said[i].id}: ${(said[i].a - said[i - 1].b).toFixed(1)} s de silencio antes de su línea (máximo 1.2 s; la narración no se detiene)`);
+    const cover = said.length ? (said.at(-1).b - said[0].a) / plan.durationSeconds : 0;
+    if (said.length && cover < 0.75) bad.push(`la narración cubre ${Math.round(cover * 100)} % de la película (mínimo 75 %; Town: 98 %)`);
+  }
+  // Real footage inside a still: the files exist, and the frame has a green screen for each clip (detected by the
+  // animatic on this exact frame).
+  for (const s of sl.shots || []) if (s.inserts?.length) {
+    for (const i of s.inserts) if (!fs.existsSync(path.isAbsolute(i.file) ? i.file : path.join(dir(sl), i.file))) bad.push(`${s.id}: no existe el footage ${i.file}`);
+    const sc = sl.launch?.screens?.[s.id];
+    if (s.frame && sc?.frame === s.frame && sc.boxes.length < s.inserts.length) bad.push(`${s.id}: el cuadro tiene ${sc.boxes.length} pantallas verdes y lleva ${s.inserts.length} clips; rehaz el cuadro`);
+  }
+  const an = sl.launch?.animatic;
+  if (!an || !fs.existsSync(path.join(dir(sl), "out", "animatic.mp4")) || an.sig !== launchSig(sl)) bad.push("sin animatic del plan actual (launch.mjs animatic)");
+  return bad;
+}
+// What the animatic shows: the plan, the frames and the recorded voice. Changing any of them asks for a new one.
+export const launchSig = (sl) => sha([launchFile(sl, "plan"), launchFile(sl, "style"), (sl.shots || []).map((s) => [s.id, s.frame || null]), sl.launch?.vo || null, sl.launch?.screens || null]);
+export const planSha = (sl) => sha(launchFile(sl, "plan"));
 
 // FORMAT READINESS (2026-10-19, a past drama): a format whose editor can't finish it (a drama with no score,
 // no stings, no swell) was filmed anyway and came out as a dry, unusable cut. A format with `editMissing` stops here,
@@ -264,7 +333,12 @@ function filmCheck(sl) {
     }
   } else if (k === "clips") {
     if (!(sl.shots || []).length) bad.push("sin shots");
-    for (const s of sl.shots || []) if (!takeOk(s.clips?.[s.clip])) bad.push(`${s.id}: sin toma que pase identidad, saltos y diálogo`);
+    for (const s of (sl.shots || []).filter(films)) if (!takeOk(s.clips?.[s.clip])) bad.push(`${s.id}: sin toma que pase identidad, saltos y diálogo`);
+    if (sl.format === "launch") {
+      const plan = launchJSON(sl, "plan");
+      if (launchJSON(sl, "concepts")?.config?.music && !(sl.music?.files || []).length) bad.push("sin música (gen.mjs music)");
+      for (const n of Object.keys(plan?.sfx || {})) if (!fs.existsSync(path.join(dir(sl), "audio", `sfx-${n}.mp3`))) bad.push(`sin el efecto ${n} (gen.mjs sfx)`);
+    }
   } else {
     const L = sl.longform || {};
     if ((L.script || []).some((s, i) => s.text?.trim() && !fs.existsSync(path.join(dir(sl), "audio", "vo", `${String(i + 1).padStart(3, "0")}.mp3`)))) bad.push("narración incompleta");
@@ -278,7 +352,7 @@ export const takesSig = (sl) => sha(kindOf(sl) === "scenes" ? (sl.scenes || []).
 
 function editCheck(sl) {
   const f = finalFile(sl);
-  if (!fs.existsSync(f)) return no(`sin corte final (${kindOf(sl) === "scenes" ? "edit.mjs" : kindOf(sl) === "clips" ? "cut.mjs" : "longform.mjs build"})`);
+  if (!fs.existsSync(f)) return no(`sin corte final (${kindOf(sl) === "scenes" ? "edit.mjs" : sl.format === "launch" ? "launch.mjs build" : kindOf(sl) === "clips" ? "cut.mjs" : "longform.mjs build"})`);
   if (sl.cut?.sha !== fileSha(f)) return no("el corte final no lo hizo el motor o cambió después");
   if (sl.cut?.takes !== takesSig(sl)) return no("el corte usa tomas distintas de las aprobadas; vuelve a cortar");
   return ok(path.basename(f));
@@ -306,14 +380,25 @@ const approvedNow = (sl, id) => {
 };
 const both = (...rs) => rs.find((r) => !r.ok) || ok(rs.map((r) => r.detail).filter(Boolean).join(" · "));
 
+function launchConcept(sl) {
+  const c = launchJSON(sl, "concepts");
+  const bad = [...L.briefRules(launchJSON(sl, "brief")), ...L.conceptRules(c)];
+  return bad.length ? no(bad.join("; ")) : ok(`concepto ${c.selected} de ${c.concepts.length}`);
+}
+function launchScript(sl) {
+  const plan = launchJSON(sl, "plan");
+  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") });
+  return bad.length ? no(bad.join("; ")) : ok(`${plan.shots.length} tomas · ${plan.durationSeconds} s`);
+}
+
 // who: "creator" = his approval, "auto" = checks only.
 export const STEPS = {
   intake: { name: "Intake", who: "auto", check: intakeCheck, next: "studio.mjs new (las 7 preguntas)" },
   series: { name: "Biblia de la serie", who: "creator", check: (sl) => (fs.existsSync(path.join(P.PROJECTS, "..", "series", sl.series || "-", "series.json")) ? ok() : no("sin series.json")), next: "studio.mjs series new, luego approve series" },
-  concept: { name: "Concepto", who: "creator", check: (sl) => (fs.existsSync(path.join(dir(sl), "concept.md")) ? ok() : no("sin concept.md")), next: "escribe concept.md, luego approve concept" },
+  concept: { name: "Concepto", who: "creator", check: (sl) => (!fs.existsSync(path.join(dir(sl), "concept.md")) ? no("sin concept.md") : sl.format === "launch" ? launchConcept(sl) : ok()), next: "escribe concept.md (launch: también launch/brief.json y launch/concepts.json; launch.mjs check), luego approve concept" },
   // Meditations: the intention's rules (pace, pauses, voice share, music tempo, picture, safety) block the script
   // gate (2026-10-20: one universal engine for guided meditations, the intention only changes the numbers).
-  script: { name: "Guion", who: "creator", check: (sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("sin guion") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), next: "escribe el guion en la shotlist, luego approve script" },
+  script: { name: "Guion", who: "creator", check: (sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("sin guion") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), next: "escribe el guion en la shotlist, luego approve script" },
   cast: { name: "Casting y sets", who: "creator", check: castCheck, next: "cast.mjs sheet / approve-character, luego approve cast" },
   radio: { name: "Radio cut", who: "auto", check: radioCheck, next: "radio.mjs" },
   board: { name: "Storyboard y prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (escenas) o gen.mjs frame (clips)" },
@@ -378,7 +463,8 @@ export function requireStep(sl, step, what = step) {
 // the timing, the sound and a wardrobe bug only showed up after every credit was spent). After the book, only the
 // first scene (scenes formats) or first shot (clips formats) can be filmed. the creator watches it and approves it in his
 // words (studio.mjs approve-pilot) before anything else is filmed. A bad pilot costs one scene, not the episode.
-export const pilotId = (sl) => (kindOf(sl) === "scenes" ? sl.scenes?.[0]?.id : kindOf(sl) === "clips" ? sl.shots?.[0]?.id : null);
+// Clips formats: the first shot that is filmed (a launch film can open on a still or a card, which never is).
+export const pilotId = (sl) => (kindOf(sl) === "scenes" ? sl.scenes?.[0]?.id : kindOf(sl) === "clips" ? (sl.shots || []).find(films)?.id : null);
 export function requirePilot(sl, ids) {
   // The pilot is approved for one video model: switching models (Wan to Kling) re-arms the gate.
   const ok = sl.flow?.approved?.pilot && (sl.flow.approved.pilot.model ?? null) === (sl.defaults?.videoModel ?? null);

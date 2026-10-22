@@ -80,7 +80,7 @@ export const styleOf = (sl, s) => style((s && s.style) || sl.style);
 // A character's look in a given style: its approved in-style sheet split into angle views.
 export function characterLook(c, styleId) {
   const lk = c.looks?.[styleId];
-  return { status: lk?.status || "missing", views: lk?.views || {}, sheet: lk?.sheet, look: lk?.look || c.look, dir: c.dir };
+  return { status: lk?.status || "missing", views: lk?.views || {}, sheet: lk?.sheet, modelSheet: lk?.modelSheet, look: lk?.look || c.look, dir: c.dir };
 }
 
 const existing = (dir, files = []) => files.map((f) => path.join(dir, f)).filter((f) => fs.existsSync(f));

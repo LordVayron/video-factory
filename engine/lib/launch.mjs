@@ -1,0 +1,422 @@
+// Product launch films (2026-10-21): the creative director's plan, checked in code before any spend.
+// Claude writes these files with the creator, in projects/<slug>/launch/; the rules below decide whether a gate can be
+// approved (lib/flow.mjs). Nothing in this file spends.
+//   brief.json        product facts with their sources, the interview, assumptions, the message map
+//   concepts.json     the film config, three or more distinct concepts, the pick and why
+//   shot-plan.json    the timecoded shots: role, beat, takeaway, picture, voice-over, on-screen text, claims, prompts
+//   style-bible.json  the locked look: palette, line, texture, text treatment, characters, environments, brand
+//   quality-report.json  editorial heuristic scores on the final (not evidence of performance)
+// Why: a launch film is a story about one product for one audience. A pile of pretty clips with invented claims is
+// the failure this vertical exists to prevent, so strategy, timing and claims are locked before the first image.
+import fs from "node:fs";
+import path from "node:path";
+import { z } from "zod";
+import * as P from "./project.mjs";
+import { judgeJSON } from "./judge.mjs";
+
+export const dirOf = (slug) => path.join(P.projectDir(slug), "launch");
+export const FILES = { brief: "brief.json", concepts: "concepts.json", plan: "shot-plan.json", style: "style-bible.json", quality: "quality-report.json", reference: "reference.json" };
+export const fileOf = (slug, k) => path.join(dirOf(slug), FILES[k]);
+export const read = (slug, k) => P.readJSON(fileOf(slug, k), null);
+
+// Release 1: what the editor finishes today. Anything else is refused at the intake, never offered half-working.
+// 30 s, plus up to 5 s so the brand ending can breathe (the creator, 2026-10-21: the ending felt rushed).
+export const RELEASE = { seconds: [30, 30.5, 31, 31.5, 32, 32.5, 33, 33.5, 34, 34.5, 35], ar: ["16:9"], fps: [24], styles: ["storybook"] };
+export const MODES = ["story-driven", "explainer", "motion-graphics", "cinematic", "performance"];
+export const ROLES = ["hook", "friction", "problem", "possibility", "interaction", "demo", "proof", "outcome", "brand", "cta"];
+export const CONNECT = ["action", "object", "push-in", "pull-out", "same-place", "pov"];
+export const TRANSITIONS = ["cut", "fade", "ripple", "dissolve", "fadeblack", "slideleft", "slideright", "slideup", "slidedown", "smoothleft", "smoothright", "circleopen", "circleclose", "wipeleft", "wiperight"];
+const EMOTIONS = ["relief", "excitement", "confidence", "empowerment", "curiosity", "delight"];
+
+// ---- contracts (zod at the boundary where Claude's writing becomes engine input)
+const str = z.string().trim().min(2);
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "color en hex #RRGGBB");
+const Source = z.object({ kind: z.enum(["url", "creator", "file"]), ref: str, retrievedAt: z.string().optional() });
+const Capability = z.object({ id: z.string().regex(/^[\w-]+$/), claim: str, source: z.enum(["url", "creator", "file"]), evidence: z.string().optional() });
+const Assumption = z.object({ field: str, value: str, confidence: z.enum(["high", "medium", "low"]), approved: z.boolean() });
+export const MessageMap = z.object({
+  icp: str, pain: str, consequence: str, promise: str, before: str, after: str,
+  proof: str, proofCapability: z.string(), differentiator: z.string().optional(), differentiatorCapability: z.string().optional(),
+  emotion: z.enum(EMOTIONS), cta: str,
+});
+export const ProductBrief = z.object({
+  sources: z.array(Source).min(1),
+  interview: z.array(z.object({ q: str, a: str })).default([]),
+  product: z.object({ name: z.string().trim().min(1), description: z.string().trim().min(10), category: z.string().optional(), url: z.string().optional() }),
+  icp: z.object({ role: str, context: z.string().optional(), pains: z.array(z.string()).optional(), objection: z.string().optional() }),
+  currentAlternative: z.string().optional(),
+  capabilities: z.array(Capability).min(1),
+  artifact: z.string().optional(),
+  tone: z.string().optional(),
+  cta: z.object({ label: str, destination: z.string().optional() }),
+  constraints: z.array(z.string()).default([]),
+  unknowns: z.array(z.string()).default([]),
+  assumptions: z.array(Assumption).default([]),
+  message: MessageMap,
+});
+export const LaunchFilmConfig = z.object({
+  intent: z.enum(["brand", "conversion"]),
+  storyMode: z.enum(["auto", ...MODES]),
+  visualStyle: z.string(),
+  durationSeconds: z.number(),
+  aspectRatio: z.enum(["16:9", "9:16", "1:1"]),
+  fps: z.union([z.literal(24), z.literal(30)]),
+  language: z.string(),
+  voiceover: z.boolean(), captions: z.boolean(), music: z.boolean(),
+  conceptCount: z.number().int().min(3).default(3),
+});
+export const CreativeConcept = z.object({
+  id: z.string().regex(/^[\w-]+$/), storyMode: z.enum(MODES),
+  audienceInsight: str, pain: str, promise: str, emotionalGoal: str,
+  creativeThesis: str, visualMetaphor: str, metaphorMapsTo: str, productProof: str,
+  openingHook: str, objection: str, storyArc: z.array(str).min(4), brandReveal: str, cta: z.string().optional(),
+  risk: z.enum(["low", "medium", "high"]), effort: z.enum(["low", "medium", "high"]), rationale: str,
+});
+export const Concepts = z.object({ config: LaunchFilmConfig, concepts: z.array(CreativeConcept).min(3), selected: z.string(), modeRationale: str, picked: z.enum(["creator", "recommended"]) });
+const Overlay = z.object({ text: z.string().trim().min(1), kind: z.enum(["title", "label", "cta", "ui"]), at: z.number().min(0).default(0), until: z.number().optional(), position: z.enum(["top", "center", "bottom", "lower-third"]).default("bottom") });
+const Sfx = z.union([z.string(), z.object({ name: z.string(), at: z.number().min(0).default(0), db: z.number().default(-8), gain: z.number().optional() })]);
+export const PlannedShot = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]+$/), start: z.number().min(0), duration: z.number().positive(),
+  role: z.enum(ROLES), beat: str, takeaway: str,
+  source: z.enum(["generate", "still", "card"]),
+  visual: str, subject: z.string().optional(), action: str, shotType: str, camera: str,
+  composition: z.string().optional(), layers: z.string().optional(), continuity: z.array(z.string()).default([]),
+  vo: z.string().optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
+  sfx: z.array(Sfx).default([]), music: z.enum(["low", "mid", "high"]).default("mid"),
+  // The transition into this shot from the previous one (xfade names; "cut" or none is a hard cut).
+  rippleAt: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(), zoomInto: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0.1).max(0.9), secs: z.number().min(0.3).max(2).default(0.9) }).optional(), transitionIn: z.enum(TRANSITIONS).optional(), transitionSecs: z.number().min(0.15).max(0.8).default(0.4), transitionOut: z.string().optional(),
+  claim: z.string().optional(), brand: z.string().optional(),
+  // Real footage played inside the shot's screens (drawn solid bright green), in reading order: the proof.
+  // treatment "storybook" (default in illustrated styles) grades it into the film's world; "none" keeps it raw.
+  inserts: z.array(z.object({ file: z.string(), from: z.number().min(0).default(0), label: z.string().optional(), treatment: z.enum(["storybook", "none"]).optional(), onAt: z.number().min(0).optional() })).default([]),
+  // How this shot follows the previous one (2026-10-21, Town vs a launch film: every Town cut is motivated by an action,
+  // an object, or the same place seen closer or wider; ours jumped between five places).
+  connect: z.object({ type: z.enum(CONNECT), how: str }).optional(),
+  assets: z.array(z.string()).default([]),
+  prompt: z.string().default(""), negative: z.string().optional(), motion: z.string().optional(), compositing: z.string().optional(),
+  // CHOREOGRAPHY (2026-10-21, a launch film v2: the model invented papers falling from nowhere, people popping into a
+  // screen, tapes sinking into the ground). `end` is the shot's last moment, drawn as the last frame the video model
+  // must land on; `still` lists what must not move, appear or disappear.
+  end: z.string().optional(), still: z.array(z.string()).default([]),
+  risks: z.array(z.string()).default([]),
+});
+export const ShotPlan = z.object({
+  conceptId: z.string(), durationSeconds: z.number(), fps: z.number(), shots: z.array(PlannedShot).min(1),
+  musicPrompt: z.string().optional(),
+  // The creator can waive the thread closing the film, in his words (2026-10-21, a launch film v6: the hand idling over the factory made no sense).
+  threadCloseWaived: z.object({ said: z.string().trim().min(2), reason: z.string().trim().min(2) }).optional(),
+  // A narrated film is cut to its narration: one take, every line placed where it falls in that take.
+  narrationStart: z.number().min(0).default(0.2),
+  sfx: z.record(z.string(), z.object({ prompt: str, seconds: z.number().positive() })).default({}),
+});
+export const StyleBible = z.object({
+  name: str, preset: z.string(), artStyle: str, palette: z.array(hex).min(3), line: str, texture: str, lighting: str, colorTemp: z.string().optional(),
+  depth: str, camera: str, transitions: z.string().optional(),
+  text: z.object({ font: str, fontFile: z.string().optional(), color: hex, box: hex.optional(), accent: hex.optional(), uiBox: hex.optional() }),
+  negative: z.array(z.string()).min(3),
+  characters: z.array(z.object({ id: z.string(), role: str, scale: z.string().optional(), props: z.array(z.string()).default([]) })).default([]),
+  environments: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), name: str, layout: str, props: z.array(z.string()).default([]), ref: z.string().optional() })).min(1),
+  brand: z.object({ name: z.string().trim().min(1), logo: z.string().optional(), safeMargin: z.number().min(0.03).max(0.15).default(0.06), uiLabels: z.array(z.string()).default([]) }),
+  // One world and one thread (Town: one town, and the user's giant hand in most shots, leading every cut).
+  world: z.string().optional(),
+  thread: z.string().optional(),
+  // The look every shot is graded to in the edit (mean brightness 0-255, mean saturation); omitted: the film's median.
+  grade: z.object({ brightness: z.number().min(60).max(235), saturation: z.number().min(4).max(60) }).optional(),
+  // World continuity: how a recurring thing always behaves (a launch film v2: the conveyor ran out of the factory in one
+  // shot and into it in the next). Every shot that shows the subject restates the rule in its prompt or motion.
+  continuity: z.array(z.object({ subject: z.string(), rule: z.string() })).default([]),
+});
+const SCORE_KEYS = ["icpPain", "comprehension", "narrative", "continuity", "proof", "motion", "brand", "cta", "sound", "format"];
+const Finding = z.object({ severity: z.enum(["info", "warning", "blocker"]), shotId: z.string().optional(), timestampSeconds: z.number().optional(), category: z.string(), detail: str, suggestedFix: z.string().optional() });
+export const QualityReport = z.object({
+  sha: z.string(), heuristic: z.literal(true),
+  scores: z.object(Object.fromEntries(SCORE_KEYS.map((k) => [k, z.number().int().min(1).max(5)]))),
+  reasons: z.record(z.string(), z.string()),
+  findings: z.array(Finding).default([]),
+});
+
+// zod's issues as short Spanish lines with the field path.
+const parse = (schema, v, name) => {
+  if (v == null) return { data: null, problems: [`falta ${name}`] };
+  const r = schema.safeParse(v);
+  return r.success ? { data: r.data, problems: [] } : { data: null, problems: r.error.issues.slice(0, 8).map((i) => `${name}: ${i.path.join(".") || "(raíz)"} ${i.message}`) };
+};
+
+// ---- brief: facts with sources, assumptions only with the creator's yes
+export function briefRules(raw) {
+  const { data: b, problems } = parse(ProductBrief, raw, "brief.json");
+  if (!b) return problems;
+  const out = [];
+  const caps = new Set(b.capabilities.map((c) => c.id));
+  for (const a of b.assumptions) if (!a.approved) out.push(`suposición sin aprobar por the creator: ${a.field} = "${a.value}"`);
+  if (b.capabilities.some((c) => c.source === "url") && !b.sources.some((s) => s.kind === "url")) out.push("hay capacidades tomadas de una URL, pero el brief no registra la URL como fuente");
+  for (const s of b.sources) if (s.kind === "url" && !s.retrievedAt) out.push(`la fuente ${s.ref} no tiene fecha de lectura (retrievedAt)`);
+  if (!caps.has(b.message.proofCapability)) out.push(`la prueba (message.proofCapability "${b.message.proofCapability}") no es una capacidad del brief`);
+  if (b.message.differentiator && !caps.has(b.message.differentiatorCapability || "-")) out.push("el diferenciador no apunta a una capacidad comprobada (message.differentiatorCapability); quítalo o compruébalo");
+  // One audience: a film for everyone speaks to no one.
+  if (/\b(everyone|anyone|everybody|all (?:businesses|teams|people)|todos|cualquiera|todo el mundo)\b/i.test(b.message.icp)) out.push(`el ICP "${b.message.icp}" no es uno solo; elige un cliente ideal concreto`);
+  if (!b.interview.length && !b.sources.some((s) => s.kind === "creator")) out.push("sin entrevista: confirma con the creator al menos el ICP, el dolor y el CTA (brief.interview)");
+  return out;
+}
+
+// ---- concepts: three meaningfully different angles, one picked
+const words = (s) => new Set(String(s).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 3));
+const overlap = (a, b) => { const A = words(a), B = words(b); if (!A.size || !B.size) return 0; let n = 0; for (const w of A) if (B.has(w)) n++; return n / Math.min(A.size, B.size); };
+export function conceptRules(raw) {
+  const { data: c, problems } = parse(Concepts, raw, "concepts.json");
+  if (!c) return problems;
+  const out = [], cfg = c.config;
+  if (!RELEASE.seconds.includes(cfg.durationSeconds)) out.push(`duración ${cfg.durationSeconds} s: todavía no disponible (Release 1: ${RELEASE.seconds.join(", ")} s)`);
+  if (!RELEASE.ar.includes(cfg.aspectRatio)) out.push(`formato ${cfg.aspectRatio}: todavía no disponible (Release 1: ${RELEASE.ar.join(", ")})`);
+  if (!RELEASE.fps.includes(cfg.fps)) out.push(`${cfg.fps} fps: todavía no disponible (Release 1: ${RELEASE.fps.join(", ")})`);
+  if (!RELEASE.styles.includes(cfg.visualStyle)) out.push(`estilo "${cfg.visualStyle}": todavía no disponible (Release 1: ${RELEASE.styles.join(", ")})`);
+  if (c.concepts.length < cfg.conceptCount) out.push(`${c.concepts.length} conceptos; se pidieron ${cfg.conceptCount}`);
+  const ids = c.concepts.map((x) => x.id);
+  if (new Set(ids).size !== ids.length) out.push("dos conceptos con el mismo id");
+  for (let i = 0; i < c.concepts.length; i++) for (let j = i + 1; j < c.concepts.length; j++) {
+    const a = c.concepts[i], b = c.concepts[j];
+    if (overlap(a.visualMetaphor, b.visualMetaphor) > 0.5 || overlap(a.creativeThesis, b.creativeThesis) > 0.6) out.push(`los conceptos ${a.id} y ${b.id} se parecen demasiado (misma metáfora o tesis); tienen que ser ángulos distintos, no paráfrasis`);
+  }
+  if (!ids.includes(c.selected)) out.push(`el concepto elegido "${c.selected}" no existe`);
+  return out;
+}
+
+// ---- shot plan: timing, story, claims, text
+const CLAIMY = /\d|%|\b(faster|fastest|best|#1|number one|only|guarantee[sd]?|proven|saves?|saved|instant(?:ly)?|never|always|x times|veces|más rápido|mejor|único|garantiza|ahorra|al instante|nunca|siempre)\b/i;
+const wc = (s) => (String(s || "").trim().match(/\S+/g) || []).length;
+const near = (a, b, tol) => Math.abs(a - b) <= tol;
+export const planEnd = (plan) => plan.shots.reduce((n, s) => Math.max(n, s.start + s.duration), 0);
+
+export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
+  const { data: plan, problems } = parse(ShotPlan, rawPlan, "shot-plan.json");
+  if (!plan) return problems;
+  const out = [];
+  const cfg = concepts?.config, msg = brief?.message;
+  const caps = new Set((brief?.capabilities || []).map((c) => c.id));
+  const dur = cfg?.durationSeconds ?? plan.durationSeconds;
+  if (concepts && plan.conceptId !== concepts.selected) out.push(`el plan es del concepto ${plan.conceptId}, pero el elegido es ${concepts.selected}`);
+  if (plan.durationSeconds !== dur) out.push(`el plan dice ${plan.durationSeconds} s y la película se pidió de ${dur} s`);
+  if (cfg && plan.fps !== cfg.fps) out.push(`el plan dice ${plan.fps} fps y la película se pidió a ${cfg.fps}`);
+  // Timing: contiguous, positive, and the sum within ±0.25 s of the length (the edit then lands it to the frame).
+  let t = 0;
+  for (const s of plan.shots) {
+    if (!near(s.start, t, 0.05)) out.push(`${s.id}: empieza en ${s.start} s y el anterior termina en ${+t.toFixed(2)} s (sin huecos ni encimados)`);
+    if (s.duration < 1) out.push(`${s.id}: dura ${s.duration} s (mínimo 1 s; menos no se lee)`);
+    if (s.duration > 8) out.push(`${s.id}: dura ${s.duration} s (máximo 8 s por toma; divídela)`);
+    t = s.start + s.duration;
+  }
+  const sum = plan.shots.reduce((n, s) => n + s.duration, 0);
+  if (!near(sum, dur, 0.25)) out.push(`las tomas suman ${+sum.toFixed(2)} s y la película dura ${dur} s (tolerancia ±0.25 s)`);
+  const ids = plan.shots.map((s) => s.id);
+  if (new Set(ids).size !== ids.length) out.push("dos tomas con el mismo id");
+  // Beats: about 8-12 for 30 s, most of them in the 2-5 s band (the reference rhythm), adjusted by length.
+  const [lo, hi] = [Math.round(dur / 5), Math.round(dur / 2.2)];
+  if (plan.shots.length < lo || plan.shots.length > hi) out.push(`${plan.shots.length} tomas para ${dur} s (rango ${lo}-${hi})`);
+  const band = plan.shots.filter((s) => s.duration >= 1.5 && s.duration <= 5.5).length;
+  if (band < Math.ceil(plan.shots.length * 0.6)) out.push(`solo ${band} de ${plan.shots.length} tomas duran entre 2 y 5 s; el ritmo de referencia necesita la mayoría en esa banda`);
+  // Voice-over: short lines that fit their shot, about 45-65 words for 30 s, measured later on the real audio.
+  const voWords = plan.shots.reduce((n, s) => n + wc(s.vo), 0);
+  if (cfg && !cfg.voiceover && voWords) out.push("el plan tiene voz en off y la película se pidió sin voz");
+  if (cfg?.voiceover && !voWords) out.push("la película se pidió con voz en off y el plan no tiene ninguna línea");
+  // NARRATION SPINE (2026-10-21, Town: 83 words, 2.8 words per second of film, voice over 98 % of it, no gap over
+  // 1 s; a launch film had 48 words in one-line fragments and felt disconnected). A narrated film is carried by one
+  // continuous narration: every shot but the brand ending speaks, and the density sits near the reference's.
+  if (cfg?.voiceover) {
+    const cinematic = concepts?.concepts?.find((c) => c.id === plan.conceptId)?.storyMode === "cinematic";
+    const ref = reference?.narration?.wordsPerSecondOfFilm;
+    const [lo, hi] = ref ? [ref * 0.75, ref * 1.2] : cinematic ? [1.0, 2.0] : [2.0, 3.0];
+    const wps = voWords / dur;
+    if (wps < lo || wps > hi) out.push(`${voWords} palabras de narración en ${dur} s (${wps.toFixed(2)} por segundo; el rango es ${lo.toFixed(2)}-${hi.toFixed(2)}${ref ? `, la referencia tiene ${ref}` : ""})`);
+    for (const s of plan.shots.slice(0, -1)) if (!s.vo) out.push(`${s.id}: sin narración; en un film narrado la voz no se detiene (solo el cierre de marca puede ir sin voz)`);
+    for (const s of plan.shots) if (s.vo && wc(s.vo) > Math.floor(s.duration * 3.3) + 2) out.push(`${s.id}: ${wc(s.vo)} palabras en ${s.duration} s de toma (máximo ~3.3 por segundo)`);
+  }
+  // Every cut has a reason, inside one world, along one thread, under one light.
+  for (const [i, s] of plan.shots.entries()) {
+    if (!i) continue;
+    const prev = plan.shots[i - 1];
+    if (!s.connect) { out.push(`${s.id}: no dice cómo sigue de ${prev.id} (connect: action, object, push-in, pull-out, same-place o pov, y cómo)`); continue; }
+    const envs = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));
+    const a = envs(prev), b = envs(s);
+    if (s.connect.type === "same-place" && a.size && b.size && ![...b].some((e) => a.has(e))) out.push(`${s.id}: dice "same-place" pero cambia de escenario; une los lugares con action, object, push-in, pull-out o pov`);
+  }
+  // slideup / slidedown read as one camera tilt between two heights of the same place (2026-10-21, a launch film v5: the
+  // board and the laptop below it); circles, wipes and sideways slides stay out of this style.
+  for (const s of plan.shots) if (s.transitionIn && !["cut", "fade", "ripple", "slideup", "slidedown"].includes(s.transitionIn)) out.push(`${s.id}: transición "${s.transitionIn}"; en este estilo se corta por acción, con un fundido corto (≤ 0.35 s) o con un paneo vertical entre dos alturas del mismo lugar (slideup/slidedown), no con círculos ni barridos`);
+  for (const s of plan.shots) if (["slideup", "slidedown"].includes(s.transitionIn) && s.connect?.type !== "same-place") out.push(`${s.id}: ${s.transitionIn} es un paneo vertical: solo entre dos alturas del mismo lugar (connect same-place)`);
+  // zoomInto: the camera flies into a screen at the end of a shot and the next shot is what the screen showed.
+  for (const [i, s] of plan.shots.entries()) if (s.zoomInto && !["fade", "ripple"].includes(plan.shots[i + 1]?.transitionIn)) out.push(`${s.id}: zoomInto entra a la pantalla; la toma siguiente debe entrar con fade`);
+  for (const s of plan.shots) if (s.transitionIn === "fade" && s.transitionSecs > 0.35) out.push(`${s.id}: fundido de ${s.transitionSecs} s (máximo 0.35 s)`);
+  if (style) {
+    if (!style.thread) out.push("el style bible no tiene hilo conductor (thread: el personaje u objeto que guía los cortes, como la mano del usuario en Town)");
+    else {
+      const has = plan.shots.map((s) => s.assets.includes(style.thread));
+      const third = Math.ceil(has.length / 3);
+      if (has.filter(Boolean).length < Math.ceil(has.length * 0.4)) out.push(`el hilo ${style.thread} aparece en ${has.filter(Boolean).length} de ${has.length} tomas (mínimo 40 %)`);
+      if (!has.slice(0, third).some(Boolean) || (!has.slice(-third).some(Boolean) && !plan.threadCloseWaived)) out.push(`el hilo ${style.thread} tiene que abrir y cerrar la película (primer y último tercio)`);
+    }
+    const TIME = /\b(dawn|sunrise|morning|noon|midday|afternoon|golden hour|late afternoon|sunset|dusk|evening|twilight|night|moonlit)\b/gi;
+    const flat = (x) => String(x).toLowerCase().replace(/-/g, " ");
+    const allowed = new Set((flat(style.lighting).match(TIME) || []).map(flat));
+    for (const s of plan.shots) for (const w of flat(`${s.prompt} ${s.motion || ""}`).match(TIME) || []) if (!allowed.has(w) && ![...allowed].some((x) => x.includes(w))) out.push(`${s.id}: "${w}" cambia la hora del día; todo el film va con la luz del style bible (${style.lighting})`);
+  }
+  for (const c of style?.continuity || []) for (const s of plan.shots) {
+    const text = `${s.prompt} ${s.motion || ""}`.toLowerCase();
+    if (text.includes(c.subject.toLowerCase()) && !text.includes(c.rule.toLowerCase())) out.push(`${s.id}: muestra "${c.subject}" y no repite su regla de continuidad ("${c.rule}")`);
+  }
+  // The brand ending breathes: at least 3.5 s on screen.
+  const end = plan.shots.at(-1);
+  if (end.role === "brand" && end.duration < 3.5) out.push(`${end.id}: el cierre de marca dura ${end.duration.toFixed(2)} s (mínimo 3.5 s para que respire)`);
+  if (cfg?.voiceover && cfg?.music && /\b(drums?|kick|snare|hi-?hats?|beat|hip hop|trap|breakbeat)\b/i.test(plan.musicPrompt || "") && !/\bno (drums|percussion|beat)\b/i.test(plan.musicPrompt || "")) out.push("la música lleva batería o beat y compite con la narración; pide la misma vibra sin batería (no drums)");
+  // Exact text is composited by the engine, never drawn by the video or image model.
+  for (const s of plan.shots) {
+    if (/"[^"]{2,}"|“[^”]{2,}”/.test(s.prompt)) out.push(`${s.id}: el prompt pide texto entre comillas; el texto exacto lo compone el motor (shot.text), no el modelo`);
+    if (/\b(logo|lettering|caption|subtitle|headline|the words|that reads|reading)\b/i.test(s.prompt)) out.push(`${s.id}: el prompt pide letras o logo al modelo; van en shot.text / shot.logo`);
+    if (s.source !== "card" && !s.prompt.trim()) out.push(`${s.id}: sin prompt de imagen`);
+    if (s.source === "generate" && !s.motion?.trim()) out.push(`${s.id}: sin dirección de animación (shot.motion)`);
+    if (s.source === "generate") {
+      // The animation is choreographed here, never left to the video model: a physical action with a cause, an end
+      // state drawn as the last frame, and what stays still.
+      const locked = /\blocked\b/i.test(s.camera);
+      if (!locked && wc(s.end) < 8) out.push(`${s.id}: sin final coreografiado (shot.end: qué muestra el último cuadro, al menos 8 palabras)`);
+      if (!s.still.length) out.push(`${s.id}: no dice qué se queda quieto (shot.still)`);
+      const m = s.motion || "";
+      const vague = m.match(/\b(comes? alive|bustles?|bustling|magically|magic|sparkles?|swirls?|faster and faster|keeps? (?:fluttering|falling|coming)|out of nowhere)\b/i);
+      if (vague) out.push(`${s.id}: "${vague[0]}" deja que el modelo invente; describe la acción física exacta`);
+      if (/\b(from above|from the top of the frame|from the sky)\b/i.test(m) && !/\b(hand|held|holding)\b/i.test(m)) out.push(`${s.id}: algo cae "desde arriba" sin causa visible; di qué lo mueve`);
+      if (/\b(falls?|drops?|rolls?|slides?|flutters?|tumbles?|pours?|tips?)\b/i.test(m) && !/\b(into|onto|on|in|inside|lands?)\b/i.test(s.end || "")) out.push(`${s.id}: algo cae o rueda y el final no dice dónde termina (into/onto ...)`);
+    }
+    // EVERYTHING MOVES (the creator, 2026-10-21): no still with a zoom, no flat card. Every shot is an animated generation;
+    // exact text and the logo are composited over moving picture.
+    if (s.source !== "generate") out.push(`${s.id}: es "${s.source}"; en un launch film todas las tomas van animadas (source generate), nunca una imagen fija con zoom ni una tarjeta plana`);
+    if (s.inserts.length && !/\b(locked|static camera|camera (?:does not|doesn't|never) move|tripod)\b/i.test(`${s.camera} ${s.motion || ""}`)) out.push(`${s.id}: lleva footage real dentro de pantallas; la cámara tiene que quedar fija (camera "locked") para que los clips no se salgan de las pantallas`);
+    if (s.inserts.length && !/\b(?:solid |pure )?bright green\b/i.test(s.prompt)) out.push(`${s.id}: lleva footage real; el prompt tiene que pedir las pantallas en verde brillante sólido (ahí entra el clip)`);
+    for (const o of s.text) {
+      const n = wc(o.text), max = o.kind === "ui" ? 14 : 8;
+      if (n > max) out.push(`${s.id}: el texto "${o.text}" tiene ${n} palabras (máximo ${max} para ${o.kind})`);
+      const on = Math.min(o.until ?? s.duration, s.duration) - o.at;
+      if (on < 0.6 + 0.25 * n) out.push(`${s.id}: "${o.text}" queda ${+on.toFixed(2)} s en pantalla (necesita ${+(0.6 + 0.25 * n).toFixed(2)} s para leerse)`);
+    }
+    // Claims: a number, a superlative or a promise of speed needs a capability from the brief behind it.
+    const said = [s.vo, ...s.text.map((o) => o.text)].filter(Boolean).join(" ");
+    if (s.claim && brief && !caps.has(s.claim)) out.push(`${s.id}: la afirmación apunta a "${s.claim}", que no es una capacidad del brief`);
+    if (CLAIMY.test(said) && !s.claim) out.push(`${s.id}: "${said.slice(0, 60)}" afirma algo medible; apúntalo a una capacidad comprobada (shot.claim) o quítalo`);
+    // Continuity: every drawn shot lives in an environment of the style bible, and its assets exist there.
+    if (style && s.source !== "card") {
+      const known = new Set([...(style.characters || []).map((c) => c.id), ...(style.environments || []).map((e) => e.id)]);
+      for (const a of s.assets) if (!known.has(a)) out.push(`${s.id}: el asset "${a}" no está en el style bible`);
+      if (!s.assets.some((a) => (style.environments || []).some((e) => e.id === a))) out.push(`${s.id}: no dice en qué escenario del style bible pasa (assets)`);
+    }
+  }
+  // Story by intent. Brand: curiosity → friction → possibility → behavior → better reality → branded ending.
+  // Conversion: pain → consequence → solution → demo → proof → a direct next step.
+  const roles = plan.shots.map((s) => s.role), last = plan.shots.at(-1), first = plan.shots[0];
+  const proofShot = plan.shots.find((s) => s.role === "proof" || s.claim === msg?.proofCapability);
+  if (!proofShot) out.push("ninguna toma muestra la prueba (role proof, o shot.claim = message.proofCapability)");
+  else if (msg && proofShot.claim !== msg.proofCapability) out.push(`la toma de prueba ${proofShot.id} no apunta a la capacidad de la prueba (${msg.proofCapability})`);
+  if (!roles.some((r) => ["interaction", "demo"].includes(r))) out.push("ninguna toma muestra el producto en acción (role interaction o demo)");
+  const name = brief?.product?.name || style?.brand?.name;
+  const named = (s) => s.logo || (name && s.text.some((o) => o.text.toLowerCase().includes(name.toLowerCase())));
+  const tail = plan.shots.filter((s) => s.start + s.duration > dur - 4.01);
+  if (!tail.some(named)) out.push(`la marca no aparece en los últimos 4 s (logo o "${name || "el nombre"}" en pantalla)`);
+  if (cfg?.intent === "conversion" || concepts?.concepts?.find((c) => c.id === plan.conceptId)?.storyMode === "performance") {
+    if (!["hook", "problem", "friction"].includes(first.role)) out.push(`conversion: la primera toma tiene que abrir en el dolor (role hook, problem o friction), no en ${first.role}`);
+    if (!(first.vo || first.text.length) && !(plan.shots[1] && plan.shots[1].start < 3 && (plan.shots[1].vo || plan.shots[1].text.length))) out.push("conversion: el dolor tiene que decirse o leerse antes de 3 s");
+    const cta = brief?.cta?.label;
+    if (!(last.role === "cta" && last.text.some((o) => o.kind === "cta" && (!cta || o.text.toLowerCase().includes(cta.toLowerCase()))))) out.push(`conversion: la última toma es el CTA visible ("${cta || "CTA"}" como texto kind cta)`);
+  } else if (!["brand", "cta"].includes(last.role)) out.push(`brand: la película termina en la marca (role brand o cta), no en ${last.role}`);
+  // Outcome before the brand, proof before the outcome: show the result before explaining it is fine, but the
+  // ending pays it off.
+  const at = (r) => roles.lastIndexOf(r);
+  if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("el resultado (outcome) llega después de la marca; la marca cierra");
+  if (cfg?.music && !plan.musicPrompt?.trim()) out.push("la película lleva música y el plan no tiene musicPrompt");
+  for (const s of plan.shots) for (const x of s.sfx) { const n = typeof x === "string" ? x : x.name; if (!plan.sfx[n]) out.push(`${s.id}: el efecto "${n}" no está definido en plan.sfx`); }
+  return out;
+}
+
+// ---- style bible: locked look, real files
+export function styleRules(raw, { slug, cast = [] } = {}) {
+  const { data: st, problems } = parse(StyleBible, raw, "style-bible.json");
+  if (!st) return problems;
+  const out = [];
+  const abs = (f) => (path.isAbsolute(f) ? f : path.join(P.projectDir(slug), f));
+  if (st.brand.logo && slug && !fs.existsSync(abs(st.brand.logo))) out.push(`no existe el logo ${st.brand.logo}`);
+  if (st.text.fontFile && slug && !fs.existsSync(abs(st.text.fontFile))) out.push(`no existe la fuente ${st.text.fontFile}`);
+  for (const e of st.environments) if (e.ref && slug && !fs.existsSync(abs(e.ref))) out.push(`no existe la imagen del escenario ${e.id}: ${e.ref}`);
+  for (const c of st.characters) {
+    try { P.character(c.id); } catch { out.push(`el personaje ${c.id} no está en la biblia (bible/characters/${c.id}); créalo con cast.mjs`); }
+    if (cast.length && !cast.includes(c.id)) out.push(`el personaje ${c.id} está en el style bible pero no en el cast del proyecto`);
+  }
+  return out;
+}
+
+// ---- the plan becomes the shotlist the engine films (lib/flow.mjs, gen.mjs frame/clip)
+// generate: a first frame + an animated clip. still: a first frame moved by the editor (slow push). card: a
+// deterministic graphic (brand, UI, CTA) the editor draws. Generated shots are filmed a little longer than planned;
+// the edit cuts each one to its exact frame count.
+const genSecs = (d) => Math.min(8, Math.max(4, Math.ceil(d + 0.5)));
+// cast: [{ name, look }] of the bible characters in the shot. Their locked look goes into the prompt with their sheet
+// as the reference, and nobody else may appear (2026-10-21, a launch film: frames drew strangers, villagers and a dog).
+export function framePrompt(st, look, s, cast = []) {
+  const pal = st.palette.join(", ");
+  const who = cast.length ? `Characters, exactly as in the reference sheet${cast.length > 1 ? "s" : ""} (same faces, hair, clothes and colors): ${cast.map((c) => `${c.name}: ${c.look}`).join("; ")}. No other people and no animals anywhere in the frame.` : "No people and no animals anywhere in the frame.";
+  return [look, s.prompt.trim().replace(/\.?$/, "."), who, `Art direction: ${st.artStyle}; ${st.line}; ${st.texture}; ${st.lighting}${st.colorTemp ? `, ${st.colorTemp}` : ""}; depth: ${st.depth}. Palette: ${pal}.`,
+    s.composition ? `Composition: ${s.composition}.` : "", s.layers ? `Layers: ${s.layers}.` : "",
+    `Never: ${[...st.negative, s.negative].filter(Boolean).join(", ")}.`, "No text, no letters, no numbers, no logos anywhere in the frame.",
+    s.inserts?.length ? `Exactly ${s.inserts.length} screen${s.inserts.length > 1 ? "s" : ""}, each filled edge to edge with one flat solid bright green (#00FF00), no reflections, no glare, nothing drawn on ${s.inserts.length > 1 ? "them" : "it"}; nothing else in the picture is green.` : ""].filter(Boolean).join(" ");
+}
+export function clipPromptOf(st, motionRule, s) {
+  return [s.motion.trim().replace(/\.?$/, "."), s.end ? `The shot ends exactly on the last frame image: ${s.end.trim().replace(/\.?$/, ".")}` : "",
+    `Camera: ${s.camera}.`, s.still?.length ? `These stay exactly as they are and do not move: ${s.still.join("; ")}.` : "",
+    "Only what is described moves. Nobody and nothing appears, disappears, multiplies, sinks into the ground or slides out of the frame unless described; no people, hands or creatures that are not described.",
+    motionRule || "", `Keep the exact drawing style, line, palette and characters of the first frame; ${st.camera}.`,
+    "No text, no letters, no logos. No cuts inside the shot. No dialogue: nobody speaks."].filter(Boolean).join(" ");
+}
+export function toShots(plan, st, styleDef, cast = []) {
+  const chars = new Set(cast);
+  const envRef = (s) => s.assets.map((a) => st.environments.find((e) => e.id === a)?.ref).filter(Boolean);
+  return plan.shots.map((s) => ({
+    id: s.id, source: s.source, role: s.role, summary: s.beat, planned: { start: s.start, duration: s.duration },
+    duration: s.source === "generate" ? genSecs(s.duration) : s.duration,
+    characters: s.assets.filter((a) => chars.has(a)),
+    refs: envRef(s),
+    ...(s.inserts.length ? { inserts: s.inserts } : {}),
+    ...(s.source !== "card" ? { framePrompt: framePrompt(st, styleDef?.look || "", s, s.assets.filter((a) => chars.has(a)).map((id) => { const c = P.character(id); return { name: c.name, look: c.look }; })) } : {}),
+    ...(s.source === "generate" ? { prompt: clipPromptOf(st, styleDef?.motion, s), audioMode: "silent" } : {}),
+    // The last frame: the same scene and characters at the shot's end state (drawn with the first frame as reference).
+    ...(s.source === "generate" && s.end && !/\blocked\b/i.test(s.camera) ? { lastPrompt: framePrompt(st, styleDef?.look || "", { ...s, prompt: `The same scene a few seconds later, the same framing${/push|pull/i.test(s.camera) ? ` after the camera's ${s.camera}` : ""}: ${s.end}` }, s.assets.filter((a) => chars.has(a)).map((id) => { const c = P.character(id); return { name: c.name, look: c.look }; })) } : {}),
+    dialogue: [],
+  }));
+}
+
+// ---- final QC: the composited text, read back from the frames (the engine draws it; this proves it landed)
+const norm = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+export async function textCheck(file, overlays) {
+  if (!overlays.length) return { pass: true, issues: [], read: [] };
+  const { execFileSync } = await import("node:child_process");
+  const grab = (t) => execFileSync("ffmpeg", ["-v", "error", "-ss", t.toFixed(2), "-i", file, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", "-f", "image2", "-c:v", "mjpeg", "-"]).toString("base64");
+  const { json } = await judgeJSON([
+    { type: "text", text: `These are ${overlays.length} frames of a video. Each one should show overlaid text. For each frame, transcribe exactly the overlaid text you can read (titles, labels, buttons, a call to action), character by character, and say whether it is fully legible. JSON only: {"frames":[{"frame":1,"text":"...","legible":true}]}` },
+    ...overlays.flatMap((o, k) => [{ type: "text", text: `Frame ${k + 1}` }, { type: "image", source: { type: "base64", media_type: "image/jpeg", data: grab(o.t) } }]),
+  ], { maxTokens: 3000 });
+  const issues = [], read = [];
+  overlays.forEach((o, k) => {
+    const r = (json.frames || []).find((x) => x.frame === k + 1) || {};
+    read.push({ t: o.t, want: o.text, got: r.text || "", legible: !!r.legible });
+    if (!norm(r.text).includes(norm(o.text))) issues.push(`texto en ${o.t.toFixed(2)} s: se pidió "${o.text}", se lee "${r.text || "nada"}"`);
+    else if (r.legible === false) issues.push(`texto en ${o.t.toFixed(2)} s: "${o.text}" no se lee bien`);
+  });
+  return { pass: !issues.length, issues, read };
+}
+
+// ---- quality report: editorial heuristics, tied to the exact final file
+export function qualityRules(raw, sha) {
+  const { data: q, problems } = parse(QualityReport, raw, "quality-report.json");
+  if (!q) return problems;
+  const out = [];
+  if (q.sha !== sha) out.push("el reporte de calidad es de otra versión del final; mira el final y vuelve a escribirlo");
+  for (const k of SCORE_KEYS) if (!q.reasons[k]?.trim()) out.push(`reporte de calidad: falta la razón de ${k}`);
+  for (const k of SCORE_KEYS) if (q.scores[k] <= 2) out.push(`reporte de calidad: ${k} ${q.scores[k]}/5 (${q.reasons[k] || "sin razón"})`);
+  for (const f of q.findings.filter((x) => x.severity === "blocker")) out.push(`bloqueo${f.timestampSeconds != null ? ` en ${f.timestampSeconds} s` : ""}${f.shotId ? ` (${f.shotId})` : ""}: ${f.detail}`);
+  return out;
+}
+export { SCORE_KEYS };

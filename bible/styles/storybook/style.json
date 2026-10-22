@@ -1,0 +1,35 @@
+{
+  "id": "storybook",
+  "name": "Whimsical Illustrated World (hand-drawn storybook)",
+  "kind": "illustrated",
+  "status": "draft",
+  "description": "Product launch films that turn abstract work into a tiny, physical, hand-drawn world where small characters do the product's job. An original world per product; never a copy of a reference film's characters, town or layout.",
+  "look": "A hand-drawn 2D storybook illustration: organic, slightly imperfect ink outlines, soft watercolor and gouache fills, a restrained pastel palette, faint paper grain, flat layered cut-out depth like a paper theatre, warm soft daylight with gentle shadows. Small expressive characters with simple shapes. Reads as a frame from a crafted animated short, made by hand.",
+  "imageRules": "One clear focal action per frame. Consistent line weight and the same palette in every frame. Characters keep their exact shapes, colors and props. Backgrounds are layered (foreground, middle, far) so the editor can move them gently. Plenty of clean space where the editor will place text.",
+  "negative": "3D render, CGI gloss, plastic surfaces, photorealism, airbrushed gradients, neon, heavy lens effects, morphing characters, inconsistent outlines, extra fingers, written text, letters, logos, watermarks",
+  "palette": [],
+  "camera": "Gentle, purposeful camera: a slow drift or a small push on the action, a rare tilt to reveal the world; no constant zooms, no whip pans, no handheld shake. Mostly eye level on the miniature world, a few first-person views with an oversized hand to show the user's agency.",
+  "motion": "Small, purposeful character actions with clear arcs (carry, sort, deliver, wave, assemble), soft secondary motion on paper and cloth, background layers moving very slightly for depth. Keep the exact hand-drawn line, palette and texture of the first frame for the whole shot.",
+  "audio": {
+    "dialogue": "none",
+    "laughTrack": false,
+    "music": "light orchestral or acoustic, curious opening, momentum in the middle, warm resolve and a short brand sting",
+    "sfx": "diegetic and tactile: paper, small clicks, footsteps of tiny characters, a bell on delivery"
+  },
+  "characterSheet": {
+    "layout": "2x2",
+    "views": ["front", "threeQuarter", "profile", "full"],
+    "prompt": "A 2x2 character model sheet of the same {who}, hand-drawn storybook illustration on a plain warm paper background: top-left front view, top-right three-quarter view, bottom-left side profile, bottom-right full body with its props. {look}. Identical shapes, colors, outfit and props in all four, neutral reference pose. Thin gutters between panels. No text, no labels."
+  },
+  "refPolicy": "sheet",
+  "setRef": false,
+  "finish": "none",
+  "models": {
+    "storyboard": "gpt2.5",
+    "keyframe": "gpt2.5",
+    "imageSize": "2K",
+    "video": "kling3",
+    "res": "720p",
+    "storyboardGrid": "gpt2.5"
+  }
+}

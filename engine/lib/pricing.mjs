@@ -52,7 +52,7 @@ const CAN = {
 };
 // The lowest quality each format accepts. Photoreal talking humans need the top tier: in the 2026-10-19 A/B only
 // Veo 3.1 Quality read as real.
-const FLOOR = { influencer: 10, ugc: 8, cinematic: 8, fantasy: 7, podcast: 7, "micro-drama": 7, anime: 6, sitcom: 6, other: 7, meditation: 5 };
+const FLOOR = { influencer: 10, ugc: 8, cinematic: 8, fantasy: 7, podcast: 7, "micro-drama": 7, anime: 6, sitcom: 6, other: 7, meditation: 5, launch: 7 };
 // Resolution each format delivers at (sitcom can film at 480p: the broadcast finish downsamples).
 const RES = { sitcom: ["480p", "720p"], meditation: ["720p"] };
 

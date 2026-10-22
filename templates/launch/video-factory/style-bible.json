@@ -1,0 +1,90 @@
+{
+  "name": "Tabletop studio",
+  "preset": "storybook",
+  "artStyle": "hand-drawn 2D storybook illustration of a miniature film studio world on a wooden desk",
+  "palette": [
+    "#F4EBDD",
+    "#2E2A3B",
+    "#E8735A",
+    "#5FA8A0",
+    "#F2C66D",
+    "#A79BD0"
+  ],
+  "line": "warm dark-plum ink outlines, slightly uneven, medium weight",
+  "texture": "soft watercolor fills on cream paper with faint grain",
+  "lighting": "soft late-afternoon window light from the left",
+  "colorTemp": "warm",
+  "depth": "three paper layers: desk foreground, studio middle, window and wall far",
+  "camera": "gentle drift and small pushes only, eye level on the miniature world, first-person views for the founder's hand",
+  "transitions": "hard cuts on action; the brand card cuts in on a bell",
+  "text": {
+    "font": "Georgia",
+    "color": "#2E2A3B",
+    "box": "#F4EBDD",
+    "accent": "#E8735A"
+  },
+  "negative": [
+    "3D render",
+    "glossy plastic",
+    "photorealism",
+    "neon",
+    "dark night scenes",
+    "written words or letters",
+    "morphing characters"
+  ],
+  "characters": [
+    {
+      "id": "sample-founder",
+      "role": "the overworked founder; mostly seen as an oversized hand and a tired, then smiling face",
+      "scale": "human, oversized next to the studio",
+      "props": [
+        "coffee mug",
+        "script card"
+      ]
+    },
+    {
+      "id": "sample-crew",
+      "role": "the tiny crew of three (director with a beret, camera operator, set builder)",
+      "scale": "thumb-sized",
+      "props": [
+        "clapperboard",
+        "tiny camera",
+        "hammer"
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "id": "desk",
+      "name": "the founder's desk",
+      "layout": "wooden desk under a window; laptop at back left, mug at right, clear space in the center",
+      "props": [
+        "paper app windows",
+        "sticky notes without writing",
+        "coffee mug"
+      ]
+    },
+    {
+      "id": "studio",
+      "name": "the pop-up tabletop studio",
+      "layout": "a box unfolded into three small stages side by side: a phone-sized bathroom set, a ring-light corner, a little theatre stage; a mailbox at the front",
+      "props": [
+        "mailbox",
+        "ring light",
+        "clapperboard",
+        "three tiny screens"
+      ]
+    }
+  ],
+  "brand": {
+    "name": "Video Factory",
+    "safeMargin": 0.06,
+    "uiLabels": [
+      "UGC ad",
+      "AI influencer",
+      "Mini-drama"
+    ]
+  },
+  "world": "one wooden desk under a window, where a pop-up tabletop studio unfolds",
+  "thread": "sample-founder"
+}
