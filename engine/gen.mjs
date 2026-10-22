@@ -31,6 +31,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { ROOT } from "./lib/env.mjs";
 import * as kie from "./lib/kie.mjs";
 import * as PV from "./lib/providers.mjs";
+import * as CAM from "./lib/camera.mjs";
 import { MODELS, getModel, usd } from "./lib/models.mjs";
 import * as P from "./lib/project.mjs";
 import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
@@ -324,8 +325,12 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
   },
 
   async still() {
-    const [prompt, out] = pos;
-    if (!prompt || !out) throw new Error('usage: still "<prompt>" <out.png> [--model gpt2.5] [--ref f]...');
+    const [prompt0, out] = pos;
+    if (!prompt0 || !out) throw new Error('usage: still "<prompt>" <out.png> [--model gpt2.5] [--ref f]... [--kit <camera kit>]');
+    // --kit: the still is shot with a camera kit's optics (camera tests, look tests).
+    const kit = flag("--kit");
+    if (kit && !CAM.KITS[kit]) throw new Error(`unknown camera kit "${kit}" (${Object.keys(CAM.KITS).join(", ")})`);
+    const prompt = kit ? `${prompt0} ${CAM.opticsFor({ camera: { kit } }, {}, { kind: "realistic", id: "still" })}` : prompt0;
     const refs = await Promise.all(flags("--ref").map(PV.asUrl));
     const outBase = out.replace(/\.(png|jpe?g)$/i, "");
     const files = await job({ slug: flag("--project"), modelKey: flag("--model", "gpt2.5"), req: { prompt, refs, ar: flag("--ar", "9:16"), size: flag("--size", "1K") }, outBase, label: path.basename(out), ext: ".png" });
@@ -559,7 +564,8 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     // A last frame is drawn from the shot's own first frame, so it is the same scene at its end state.
     const stRefs = (() => { try { const st = P.style(sl.style); return (st.refs || []).map((f) => path.join(st.dir, f)); } catch { return []; } })(); // a style made from the creator's references
     const refs = await Promise.all([...setRef, ...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...stRefs, ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(PV.asUrl));
-    const sent = setRef.length ? `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}` : prompt;
+    const optics = (() => { try { return CAM.opticsFor(sl, s, P.style(sl.style)); } catch { return ""; } })();
+    const sent = [setRef.length ? `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}` : prompt, optics].filter(Boolean).join(" ");
     const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt: sent, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[`${which}Prompt`] = prompt; });
     console.log(out);

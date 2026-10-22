@@ -30,6 +30,7 @@ import { backgroundCheck } from "./lib/backgrounds.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm } from "./lib/pricing.mjs";
 import * as L from "./lib/launch.mjs";
+import * as CAM from "./lib/camera.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -113,7 +114,7 @@ const commands = {
       const r = spawnSync(process.execPath, [path.join(ROOT, "engine", "longform.mjs"), "new", slug, "--title", flag("--title"), "--minutes", String(Math.max(1, Math.round(intake.platform.seconds / 60))), "--lang", intake.platform.lang, "--ar", intake.platform.ar], { encoding: "utf8" });
       if (r.status !== 0) throw new Error(r.stderr || r.stdout);
     } else {
-      P.writeJSON(path.join(dir, "shotlist.json"), { slug, title: flag("--title"), format, lang: intake.platform.lang, ar: intake.platform.ar, style: flag("--style") || sStyle || STYLE[format], shots: [], ...(F.FORMATS[format].kind === "scenes" ? { scenes: [], captions: { marginV: 0.16 }, sfx: {}, overlays: [] } : {}), ...(format === "launch" ? { fps: 24, launch: {} } : {}) });
+      P.writeJSON(path.join(dir, "shotlist.json"), { slug, title: flag("--title"), format, lang: intake.platform.lang, ar: intake.platform.ar, style: flag("--style") || sStyle || STYLE[format], shots: [], ...(F.FORMATS[format].kind === "scenes" ? { scenes: [], captions: { marginV: 0.16 }, sfx: {}, overlays: [] } : {}), ...(format === "launch" ? { fps: 24, launch: {} } : {}), cameraRequired: true });
       if (format === "launch") fs.mkdirSync(path.join(dir, "launch"), { recursive: true });
     }
     P.updateShotlist(slug, (sl) => {
@@ -126,6 +127,7 @@ const commands = {
     fs.writeFileSync(path.join(dir, "concept.md"), CONCEPT(sl, intake));
     console.log(`created projects/${slug}/ · ${F.FORMATS[format].label} · recipe: ${F.recipe(sl).join(" → ")}`);
     const bankIds = RF.approved(format);
+    { const rec = CAM.recommendedKit(format); console.log(rec ? `camera kit recommended for ${format}: ${rec} (${CAM.KITS[rec].label}). Offer it and the alternatives (studio.mjs camera ${slug} --list); the cast gate waits for the creator's choice.` : `camera: the ${format} style owns the look; only framing and moves apply.`); }
     if (bankIds.length) console.log(`approved ${format} references: ${bankIds.join(", ")}. Offer them to the creator (studio.mjs refs ${slug} --use ... | --none); the concept waits for their choice.`);
     commands.status([slug]);
   },
@@ -177,6 +179,30 @@ const commands = {
 
   // The intake's fixed budget is a hard cap (gen.mjs job, book, phase budget). Only the creator's words raise it.
   // Which approved references this production follows (or none), in the creator's words. Claude offers them from the
+  // The camera kit: the format's recommended kit or any other, whole or with parts changed, in the creator's words.
+  // Offer the recommendation and the alternatives with buttons; the creator never types this.
+  //   camera <slug> --list | --kit <id> [--body <id>] [--lens <id>] [--focal <mm>] [--aperture <f>] --said "..."
+  camera() {
+    const slug = pos[0];
+    const sl0 = slug ? P.loadShotlist(slug) : null;
+    if (!slug || process.argv.includes("--list")) {
+      const rec = sl0 ? CAM.recommendedKit(sl0.format) : null;
+      console.log(`Camera kits${sl0 ? ` (recommended for ${sl0.format}: ${rec || "none, the style owns the look"})` : ""}:`);
+      for (const [id, k] of Object.entries(CAM.KITS)) console.log(`${id === rec ? " →" : "  "} ${id.padEnd(15)} ${k.label.padEnd(30)} ${k.focal}mm f/${k.aperture} · ${k.for}${k.tested.length ? "" : " (not tested side by side yet)"}`);
+      console.log(`\nParts: bodies ${Object.keys(CAM.BODIES).join(", ")}; lenses ${Object.keys(CAM.LENSES).join(", ")}; focal ${Object.keys(CAM.FOCALS).join("/")}mm; aperture f/${Object.keys(CAM.APERTURES).sort((a, b) => a - b).join(", f/")}`);
+      console.log(`Moves (shot.move): ${Object.entries(CAM.MOVES).map(([id, m]) => id + (m.bold ? "*" : "")).join(", ")}  (* bold: once per film)`);
+      return;
+    }
+    const kit = flag("--kit"), said = flag("--said");
+    if (!kit || !said?.trim()) throw new F.FlowStop('camera <slug> --kit <id> [--body] [--lens] [--focal] [--aperture] --said "the creator\'s exact words"');
+    const parts = Object.fromEntries(["body", "lens", "focal", "aperture"].filter((k) => flag(`--${k}`) != null).map((k) => [k, ["focal", "aperture"].includes(k) ? Number(flag(`--${k}`)) : flag(`--${k}`)]));
+    const bad = CAM.cameraRules({ camera: { kit, ...parts }, shots: [] });
+    if (bad.length) throw new F.FlowStop(bad.join("; "));
+    P.updateShotlist(slug, (sl) => { sl.camera = { kit, ...parts, said, at: now() }; sl.flow.log.push({ at: now(), event: `camera ${kit}${Object.keys(parts).length ? " " + JSON.stringify(parts) : ""}`, said }); });
+    const r = CAM.rigOf({ camera: { kit, ...parts } });
+    console.log(`camera kit: ${CAM.KITS[kit].label} · ${CAM.BODIES[r.body].label} · ${CAM.LENSES[r.lens].label} · ${r.focal}mm · f/${r.aperture} (the creator's words recorded). Shots can change it with shot.rig and set shot.move.`);
+  },
+
   // bank with buttons; The creator never types this.
   refs() {
     const slug = pos[0], said = flag("--said"), use = flag("--use"), none = process.argv.includes("--none");

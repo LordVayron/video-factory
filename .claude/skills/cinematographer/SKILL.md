@@ -33,6 +33,7 @@ For every scene: each character's **position** (which chair, left/right of frame
 - **Singles show the geography:** a close shot of one character keeps the table and the other's shoulder or edge in frame (over-the-shoulder), against the same background wall every time.
 - **180° rule:** screen sides never flip. Write "Milo frame left, Rex frame right" in every shot that has both.
 - **Name the camera in every shot** ("fixed camera", "slow push-in"). Unnamed cameras make Wan cut on its own.
+- **Moves come from the catalog:** set `shot.move` to one of `engine/lib/camera.mjs` MOVES (static, push-in, pull-out, truck, pan, tilt, orbit, crane, handheld, follow, rack-focus, overhead; bold: crash-zoom, dolly-zoom, whip-pan, fpv-drone). One move per shot, at most one bold move per film. The project's camera kit sets the optics; a shot can change it with `shot.rig` (`{ "kit": "vintage-16" }` for a flashback, `{ "focal": 85 }` for a close-up). Close-ups of faces at 50-85mm, never under 24mm unless the creator asks.
 - **Physical comedy in the wide,** so the whole action reads.
 - **Cut on action or on the punchline word;** keep the reaction beat (0.5–1 s) after the line.
 - **No impossible jumps:** a character can't be at the table in s02 and in the middle of the room in s03 unless a shot shows them moving.

@@ -15,6 +15,7 @@ import { getModel } from "./lib/models.mjs";
 import { planCheck } from "./lib/state.mjs";
 import * as F from "./lib/flow.mjs";
 import { marksOf } from "./lib/identity.mjs";
+import * as CAM from "./lib/camera.mjs";
 
 const slug = process.argv[2];
 if (!slug) { console.error("usage: book.mjs <slug>"); process.exit(1); }
@@ -180,6 +181,10 @@ const spent = ledger.reduce((n, j) => n + (j.ok !== false ? j.credits || 0 : 0),
 
 // ---- Live prices: the options the model was picked from
 const pc = sl.priceCheck;
+// ---- Camera: the kit the creator chose, and each shot's own move or rig
+const camRig = CAM.rigOf(sl);
+const camShots = (sl.shots || []).filter((s) => s.move || s.rig);
+const cameraHtml = !camRig ? "" : `<div class="note"><h3>Camera · ${esc(CAM.KITS[camRig.kit].label)}</h3><p>${esc(CAM.BODIES[camRig.body]?.label || camRig.body)} · ${esc(CAM.LENSES[camRig.lens]?.label || camRig.lens)} · ${camRig.focal}mm · f/${camRig.aperture}${sl.camera?.said ? ` · chosen in the creator's words: <q>${esc(sl.camera.said)}</q>` : ""}</p>${camShots.length ? `<ul>${camShots.map((s) => `<li><b>${esc(s.id)}</b>: ${s.move ? esc(CAM.MOVES[s.move]?.label || s.move) : "kit move"}${s.rig ? ` · ${esc(Object.entries(s.rig).map(([k, v]) => `${k} ${v}`).join(", "))}` : ""}</li>`).join("")}</ul>` : ""}</div>`;
 const pricesHtml = !pc ? "" : `<div class="note"><h3>Video model · live APIMart and Kie prices ${esc(pc.at.slice(0, 10))}</h3><div class="shots"><table class="narrow"><thead><tr><th>Model</th><th class="num">Quality</th><th class="num">${pc.seconds} s</th><th>Best for</th></tr></thead><tbody>${pc.options.map((o) => `<tr><td>${o.key === pc.pick.key && o.res === pc.pick.res ? "<b>→ " : ""}${esc(o.label)} ${esc(o.res)}${o.key === pc.pick.key && o.res === pc.pick.res ? "</b>" : ""}${o.key === pc.recommended?.key && o.res === pc.recommended?.res ? ' <span class="tag">recommended</span>' : ""}</td><td class="num">${o.q}/10</td><td class="num">$${o.usd.toFixed(2)}<br><small>${esc(o.provider || "kie")}${o.alt ? ` · ${esc(o.alt.provider)} $${o.alt.usd.toFixed(2)}` : ""}</small></td><td>${esc(o.note)}</td></tr>`).join("")}</tbody></table></div>${pc.newOnKie?.length ? `<p class="muted">Also on Kie, not in the engine yet: ${esc(pc.newOnKie.join(", "))}.</p>` : ""}</div>`;
 
 // ---- Evals that run (the same list every project gets)
@@ -302,7 +307,7 @@ ${radio || animatic ? `<section><div class="slate"><span class="no">06</span><h2
 <section><div class="slate"><span class="no">08</span><h2>Cost and checks</h2><span class="muted">${final ? "estimate before filming" : "what approving this book locks as the budget"}</span></div>
 <div class="shots"><table class="narrow"><thead><tr><th>Item</th><th class="num">Length</th><th class="num">Cost</th></tr></thead><tbody>${estRows}<tr><td>Already spent</td><td></td><td class="num">${usd(spent)}</td></tr></tbody>
 <tfoot><tr><td>${final ? "Total (real)" : "Total (no rerolls)"}</td><td></td><td class="num">${usd(spent + (final ? 0 : est))}</td></tr></tfoot></table></div>
-${pricesHtml}<div class="note"><h3>Evals that run on this video</h3><ul>${evals.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></section>
+${cameraHtml}${pricesHtml}<div class="note"><h3>Evals that run on this video</h3><ul>${evals.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></section>
 
 <section><div class="slate"><span class="no">09</span><h2>Approvals</h2><span class="muted">in the creator's words</span></div>
 ${flowLog ? `<div class="shots"><table class="narrow"><thead><tr><th>When</th><th>Step</th><th>Creator</th></tr></thead><tbody>${flowLog}</tbody></table></div>` : `<p class="muted">Nothing approved yet.</p>`}
