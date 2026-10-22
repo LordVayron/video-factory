@@ -17,6 +17,16 @@ export function unquote(s) {
     .replace(new RegExp(String.raw`\b${WHO} (${D}):`, "g"), "$1:");                 // 2026-10-21: ...
 }
 
+// Commit subjects and PR titles in the factory's repos follow Conventional Commits: a type, an optional scope, a short
+// summary. A PR title stays shorter because the squash merge appends " (#123)".
+export const TYPES = ["feat", "fix", "docs", "refactor", "perf", "test", "ci", "chore", "release"];
+export function subjectProblems(subject, { max = 72 } = {}) {
+  const s = String(subject || "").trim(), out = [];
+  if (!new RegExp(String.raw`^(${TYPES.join("|")})(\([a-z0-9-]+\))?!?: \S`).test(s)) out.push(`start with a type and a colon (${TYPES.join(", ")}), e.g. "fix: keep the pauses on a re-cut"`);
+  if (s.length > max) out.push(`${s.length} characters; keep it under ${max}`);
+  return out;
+}
+
 // A commit message or log entry that carries instructions: the owner's name, or a quoted passage of 3+ words.
 export function carriesInstructions(text) {
   const out = [];

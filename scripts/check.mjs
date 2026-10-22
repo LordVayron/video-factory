@@ -62,11 +62,15 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
   const { FACTORY } = await import("./hooks/guard.mjs");
   if (FACTORY.length) {
     const on = (b, c) => !!decide({ tool_name: "Bash", tool_input: { command: c } }, { branchOf: () => b });
-    t("main changes only through a PR: the guard refuses a commit or push straight to main and allows branches and tags", on("main", 'git commit -m "x"') && on("feat", "git push origin main") && on("main", "git push") && !on("feat", 'git commit -m "x"') && !on("feat", "git push -u origin feat") && !on("main", "git push origin v1.2.3"));
+    t("main changes only through a PR: the guard refuses a commit or push straight to main and allows branches and tags", on("main", 'git commit -m "x"') && on("feat", "git push origin main") && on("main", "git push") && !on("feat", 'git commit -m "feat: x"') && !on("feat", "git push -u origin feat") && !on("main", "git push origin v1.2.3"));
     const pub = fs.readFileSync(path.join(ROOT, "scripts", "publish-public.mjs"), "utf8");
     t("publishing goes through a PR in the public repo (branch, PR with the file list, squash-merge after approval)", pub.includes('gh("pr", "create"') && pub.includes('"--squash", "--delete-branch"') && pub.includes("carriesInstructions(`${prTitle}"));
   }
-  t("the guard refuses a commit message that names or quotes the owner and lets a plain one through", commit("Providers (asked by the creator)") && commit('Providers: \\"put the main provider first please\\"') && !commit("APIMart is the main provider"));
+  const { subjectProblems } = await import("./unquote.mjs");
+  t("commit subjects and PR titles follow Conventional Commits (type: summary, short)", !subjectProblems("ci: run the offline checks on every PR").length && subjectProblems("Add CI").length && subjectProblems(`feat: ${"x".repeat(80)}`).length && subjectProblems("feat(guard): x", { max: 64 }).length === 0);
+  if (FACTORY.length) t("the guard refuses a commit subject without a type in the factory's repos", !!decide({ tool_name: "Bash", tool_input: { command: 'git commit -m "Add CI"' } }, { branchOf: () => "feat" }) && !decide({ tool_name: "Bash", tool_input: { command: 'git commit -m "ci: add CI"' } }, { branchOf: () => "feat" }));
+  t("the offline checks run on GitHub for every PR (workflow + npm test)", fs.existsSync(path.join(ROOT, ".github", "workflows", "check.yml")) && /npm test/.test(fs.readFileSync(path.join(ROOT, ".github", "workflows", "check.yml"), "utf8")) && !!JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).scripts?.test);
+  t("the guard refuses a commit message that names or quotes the owner and lets a plain one through", commit("Providers (asked by the creator)") && commit('Providers: \\"put the main provider first please\\"') && !commit("feat: APIMart is the main provider"));
 }
 
 console.log(failed ? `\n${failed} check(s) failed.` : "\nAll checks passed.");

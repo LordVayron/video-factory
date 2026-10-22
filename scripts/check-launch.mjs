@@ -181,6 +181,7 @@ export default function checkLaunch(t, ROOT) {
     const an = node(["launch.mjs", "animatic", slug]);
     const anFrames = an.status === 0 ? Number(probe(path.join(d, "out", "animatic.mp4"), "stream=nb_read_frames").streams[0].nb_read_frames) : -1;
     t(`launch: the animatic lands on 720 frames (30 s at 24 fps; got ${anFrames})`, anFrames === 720);
+    if (an.status !== 0) console.log(`       animatic failed: ${(an.stderr || an.stdout || "").trim().split("\n").slice(-4).join(" | ").slice(0, 400)}`);
     t("launch: the board waits for the creator to approve this plan's animatic", /no aprobó el animatic/.test(F.stepStatus(P.loadShotlist(slug), "board").why || JSON.stringify(F.stepStatus(P.loadShotlist(slug), "board"))));
     node(["launch.mjs", "animatic", slug, "--approve", "--said", "check"]);
     t("launch: the board step passes with the plan applied, the voice measured and a current animatic", F.stepStatus(P.loadShotlist(slug), "board").ok);

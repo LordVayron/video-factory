@@ -11,7 +11,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { carriesInstructions } from "../unquote.mjs";
+import { carriesInstructions, subjectProblems } from "../unquote.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 // APIMart (2026-10-22, the main provider) counts like Kie; its public price list (/api/pricing) is free to read.
@@ -30,6 +30,22 @@ const allowedCode = (f) => inside(f, "engine") || inside(f, "scripts");
 // Only in the owner's private checkout (the one with the publish script); a public install works as it likes.
 export const FACTORY = fs.existsSync(path.join(ROOT, "scripts", "publish-public.mjs")) ? [ROOT, path.resolve(ROOT, "..", "ai-video-factory-public")] : [];
 const branchIn = (dir) => spawnSync("git", ["-C", dir, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).stdout?.trim();
+
+// The subject (first line) of a commit: from -m, from -F <file> (or the printf/heredoc that writes it in the same
+// command), or null when it can't be told (an editor would open; the agent never does that).
+function subjectOf(args, raw, dir) {
+  const first = (t) => String(t).replace(/\\n/g, "\n").split("\n")[0].trim();
+  const m = /(?:^|\s)(?:-m|--message)\s+("((?:[^"\\]|\\.)*)"|'([^']*)')/.exec(args);
+  if (m) return first(m[2] ?? m[3]);
+  const f = /(?:^|\s)(?:-F|--file)\s+("[^"]+"|'[^']+'|\S+)/.exec(args);
+  if (!f) return null;
+  const name = f[1].replace(/^["']|["']$/g, "");
+  if (name === "-") { const h = /<<-?\s*['"]?(\w+)['"]?\n([\s\S]*?)\n\1\b/.exec(raw); return h ? first(h[2]) : null; }
+  const w = new RegExp(String.raw`(?:printf|echo)\s+("((?:[^"\\]|\\.)*)"|'([^']*)')\s*>\s*["']?[^\s"']*${path.basename(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).exec(raw);
+  if (w) return first(w[2] ?? w[3]);
+  const abs = path.isAbsolute(name) ? name : path.resolve(dir, name.replace(/^\$\{?TEMP\}?/, process.env.TEMP || ""));
+  return fs.existsSync(abs) ? first(fs.readFileSync(abs, "utf8")) : null;
+}
 
 export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf = branchIn } = {}) {
   // Rule 1: commands.
@@ -60,6 +76,18 @@ export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf =
       const onMain = branchOf(repo) === "main";
       const toMain = m[2] === "push" && (/(^|\s|:)main\b/.test(m[3]) || (onMain && !/\s(-u\s+)?origin\s+\S/.test(m[3]) && !/\bv\d+\.\d+\.\d+\b|--tags/.test(m[3])));
       if ((m[2] === "commit" && onMain) || toMain) return deny(`no ${m[2]} straight to main in ${path.basename(repo)}: work on a branch and open a PR (routine step 0). Merging is done with gh pr merge after the owner approves.`);
+      // Rule 5: commit subjects follow Conventional Commits (type: summary, under 72 characters).
+      if (m[2] === "commit") {
+        const sub = subjectOf(m[3], raw, dir);
+        const bad = sub == null ? [] : subjectProblems(sub);
+        if (bad.length) return deny(`commit subject "${sub}": ${bad.join("; ")}.`);
+      }
+    }
+    // Rule 5 for PR titles in the factory's repos (the squash merge turns the title into the commit subject).
+    const prT = /\bgh\s+pr\s+(?:create|edit)\b.*?(?:--title|-t)\s+("((?:[^"\\]|\\.)*)"|'([^']*)')/.exec(raw);
+    if (prT && FACTORY.length && (/ai-video-factory|video-factory/.test(raw) || FACTORY.some((r) => path.resolve(input.cwd || ROOT).startsWith(r)))) {
+      const bad = subjectProblems(prT[2] ?? prT[3], { max: 64 });
+      if (bad.length) return deny(`PR title "${prT[2] ?? prT[3]}": ${bad.join("; ")}.`);
     }
     // Rule 3: commit messages, tags and release notes say what changed, never the owner's instructions (2026-10-22).
     if (/\bgit\s+(commit|tag)\b|\bgh\s+(release|pr)\s+(create|edit)\b/.test(raw)) {
