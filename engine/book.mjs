@@ -305,7 +305,7 @@ ${radio || animatic ? `<section><div class="slate"><span class="no">06</span><h2
 ${pricesHtml}<div class="note"><h3>Evals that run on this video</h3><ul>${evals.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></section>
 
 <section><div class="slate"><span class="no">09</span><h2>Approvals</h2><span class="muted">in the creator's words</span></div>
-${flowLog ? `<div class="shots"><table class="narrow"><thead><tr><th>When</th><th>Step</th><th>the creator</th></tr></thead><tbody>${flowLog}</tbody></table></div>` : `<p class="muted">Nothing approved yet.</p>`}
+${flowLog ? `<div class="shots"><table class="narrow"><thead><tr><th>When</th><th>Step</th><th>Creator</th></tr></thead><tbody>${flowLog}</tbody></table></div>` : `<p class="muted">Nothing approved yet.</p>`}
 ${overrides.length ? `<div class="note"><h3 class="bad">Overrides</h3><ul>${overrides.map((o) => `<li><b>${esc(o.step)}</b>: <q>${esc(o.said)}</q> · ${esc(o.reason)}</li>`).join("")}</ul></div>` : ""}</section>
 ${finalHtml}
 <footer>AI Video Factory · flow v5 · ${new Date().toISOString().slice(0, 10)}</footer>

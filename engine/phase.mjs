@@ -44,7 +44,7 @@ const CONCEPT = `# Concept: {title}
 
 const commands = {
   new() {
-    throw new Error("flujo v5: los proyectos se crean con node engine/studio.mjs new (las 7 preguntas del intake)");
+    throw new Error("flow v5: projects are created with node engine/studio.mjs new (the 7 intake questions)");
     const style = flag("--style");
     if (!slug || !style) throw new Error('usage: new <slug> --style <id> --title "..."');
     P.style(style); // must exist
@@ -75,7 +75,7 @@ const commands = {
     if (next) console.log(`\nNext: ${next.name} — ${next.what}`);
   },
   approve() {
-    throw new Error(`flujo v5: node engine/studio.mjs approve ${slug} <paso> --said "palabras exactas del creador"`);
+    throw new Error(`flow v5: node engine/studio.mjs approve ${slug} <step> --said "the creator's exact words"`);
     if (!["concept", "storyboard", "post", "retro"].includes(which)) {
       throw new Error("approve concept|storyboard|post|retro here. Style: style.mjs approve; cast/sets: cast.mjs approve / approve-set; look test: style.mjs winner.");
     }
@@ -108,10 +108,10 @@ const commands = {
     const sl = P.loadShotlist(slug);
     const add = flag("--usd") ? Number(flag("--usd")) / 0.005 : Number(flag("--add", "0"));
     if (!add || !flag("--said")) throw new Error('usage: budget <slug> --add <credits> | --usd <dollars> --said "the creator\'s exact words"');
-    if (!sl.flow?.v || sl.flow.archived) throw new Error(`${slug} no es un proyecto activo del flujo v5`);
-    if (!sl.budget) throw new Error("no hay presupuesto todavía: se fija al aprobar el Production Book (studio.mjs approve <slug> book)");
+    if (!sl.flow?.v || sl.flow.archived) throw new Error(`${slug} is not an active flow v5 project`);
+    if (!sl.budget) throw new Error("no budget yet: it is set when the Production Book is approved (studio.mjs approve <slug> book)");
     const hard = sl.intake?.budget?.mode === "fixed" && sl.intake.budget.usd ? sl.intake.budget.usd / 0.005 : null;
-    if (hard != null && sl.budget.approvedCredits + Math.ceil(add) > hard) throw new Error(`el tope fijo del proyecto es ${sl.intake.budget.usd}: un aumento lo pasaría (cambia el tope en el intake solo si the creator lo dice)`);
+    if (hard != null && sl.budget.approvedCredits + Math.ceil(add) > hard) throw new Error(`the project's fixed cap is ${sl.intake.budget.usd}: a top-up would pass it (change the cap in the intake only if the creator says so)`);
     sl.budget.approvedCredits += Math.ceil(add);
     sl.budget.history.push({ add, said: flag("--said"), at: new Date().toISOString() });
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `budget +${add}`, said: flag("--said") }];

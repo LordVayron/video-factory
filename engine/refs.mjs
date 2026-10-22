@@ -21,12 +21,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 function summary(id) {
   const p = R.profileOf(id), m = R.metaOf(id);
   return `${id} · ${m.status}${m.format ? ` · ${m.format}` : ""}
-  ${p.duration} s · ${p.size} (${p.orientation}) · ${p.shotList.length} tomas (promedio ${p.avgShot} s, ${p.cutsPerMin} cortes/min)
-  voz: ${p.narration.words} palabras, ${p.narration.wpm} ppm, cubre ${Math.round(p.narration.coverage * 100)} %, primera palabra a ${p.hook.firstWordAt ?? "—"} s
-  hook (3 s): "${p.hook.text3s}" · ${p.hook.cutsIn3s} cortes
-  bajo la voz: ${p.bed ? `${p.bed.db} dB (${p.bed.music ? "música/ambiente" : "silencio"})` : "—"} · mezcla ${p.loudness.spread} dB · brillo ${p.picture.brightness}, saturación ${p.picture.saturation}, movimiento ${p.motion.mean}
-  música: ${p.sound?.tempo ? `${p.sound.tempo.bpm} bpm ${p.sound.tempo.steady ? "(pulso marcado)" : "(sin pulso marcado)"}` : "—"} · efectos fuera de la voz: ${p.sound?.sfx?.length ? p.sound.sfx.map((e) => `${e.at} s`).join(", ") : "ninguno"}
-  texto en pantalla: ${p.onScreenText?.length ? p.onScreenText.slice(0, 6).map((x) => `"${x.text}" (${x.from}–${x.to} s)`).join(" · ") : "ninguno"}
+  ${p.duration} s · ${p.size} (${p.orientation}) · ${p.shotList.length} shots (average ${p.avgShot} s, ${p.cutsPerMin} cuts/min)
+  voice: ${p.narration.words} words, ${p.narration.wpm} wpm, covers ${Math.round(p.narration.coverage * 100)} %, first word at ${p.hook.firstWordAt ?? "—"} s
+  hook (3 s): "${p.hook.text3s}" · ${p.hook.cutsIn3s} cuts
+  under the voice: ${p.bed ? `${p.bed.db} dB (${p.bed.music ? "music/ambience" : "silence"})` : "—"} · mix ${p.loudness.spread} dB · brightness ${p.picture.brightness}, saturation ${p.picture.saturation}, movimiento ${p.motion.mean}
+  music: ${p.sound?.tempo ? `${p.sound.tempo.bpm} bpm ${p.sound.tempo.steady ? "(steady beat)" : "(no steady beat)"}` : "—"} · effects outside the voice: ${p.sound?.sfx?.length ? p.sound.sfx.map((e) => `${e.at} s`).join(", ") : "none"}
+  on-screen text: ${p.onScreenText?.length ? p.onScreenText.slice(0, 6).map((x) => `"${x.text}" (${x.from}–${x.to} s)`).join(" · ") : "none"}
   formato sugerido: ${p.guess.format} (${Math.round(p.guess.confidence * 100)} %): ${p.guess.why.join("; ")}
   hojas: ${path.join(R.dirOf(id), "sheets")} (overview, shot-NN, join-NN)`;
 }
@@ -38,7 +38,7 @@ const cmds = {
     const id = R.ingest(src, { note: flag("--note", "") });
     R.measure(id, { lang: flag("--lang", "en") });
     console.log(summary(id));
-    console.log(`\nSiguiente: mira overview.jpg, cada shot-NN.jpg y cada join-NN.jpg, escribe el desglose y guárdalo con refs.mjs breakdown ${id} --file <json>`);
+    console.log(`\nNext: look at overview.jpg, every shot-NN.jpg and every join-NN.jpg, write the breakdown and save it with refs.mjs breakdown ${id} --file <json>`);
   },
   measure() { R.measure(pos[0], { lang: flag("--lang", R.profileOf(pos[0])?.lang || "en") }); console.log(summary(pos[0])); },
   show() { console.log(summary(pos[0])); },
@@ -46,17 +46,17 @@ const cmds = {
     const id = pos[0], f = flag("--file");
     if (!id || !f) throw new Error("breakdown <id> --file breakdown.json");
     const b = JSON.parse(fs.readFileSync(f, "utf8")), bad = R.breakdownRules(b, R.profileOf(id));
-    if (bad.length) { console.error(`El desglose no pasa:\n - ${bad.join("\n - ")}`); process.exit(2); }
+    if (bad.length) { console.error(`The breakdown doesn't pass:\n - ${bad.join("\n - ")}`); process.exit(2); }
     fs.writeFileSync(path.join(R.dirOf(id), "breakdown.json"), JSON.stringify(b, null, 2) + "\n");
     const m = R.metaOf(id); fs.writeFileSync(path.join(R.dirOf(id), "meta.json"), JSON.stringify({ ...m, status: m.status === "approved" ? "approved" : "broken-down" }, null, 2) + "\n");
-    console.log(`desglose de ${id} guardado; arma la página (refs.mjs page ${id}) y enséñasela al creador`);
+    console.log(`breakdown of ${id} saved; build the page (refs.mjs page ${id}) and show it to the creator`);
   },
   page() {
     const id = pos[0], p = R.profileOf(id), b = R.breakdownOf(id), m = R.metaOf(id);
-    if (!b) throw new Error(`${id}: sin desglose`);
+    if (!b) throw new Error(`${id}: no breakdown`);
     const shot = (s) => { const x = p.shotList.find((y) => y.n === s.n) || {}; const pad = String(s.n).padStart(2, "0");
-      return `<article class="shot"><img src="sheets/shot-${pad}.jpg" alt="Toma ${s.n}" loading="lazy"><div><h3>${s.n} · ${x.start ?? "?"}–${x.end ?? "?"} s</h3><p><b>${esc(s.what)}</b></p><p>${esc(s.framing)} · ${esc(s.camera)}</p><p>${esc(s.action)}</p>${s.transitionOut ? `<p class="join">→ ${esc(s.transitionOut.type)}: ${esc(s.transitionOut.how)}</p>` : ""}</div></article>`; };
-    const html = `<title>${esc(m.note || id)} · referencia</title>
+      return `<article class="shot"><img src="sheets/shot-${pad}.jpg" alt="Shot ${s.n}" loading="lazy"><div><h3>${s.n} · ${x.start ?? "?"}–${x.end ?? "?"} s</h3><p><b>${esc(s.what)}</b></p><p>${esc(s.framing)} · ${esc(s.camera)}</p><p>${esc(s.action)}</p>${s.transitionOut ? `<p class="join">→ ${esc(s.transitionOut.type)}: ${esc(s.transitionOut.how)}</p>` : ""}</div></article>`; };
+    const html = `<title>${esc(m.note || id)} · reference</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root{--bg:#f6f3ee;--fg:#1d1b18;--muted:#6b655c;--line:#ddd5c8;--accent:#b5482f}
@@ -72,24 +72,24 @@ h1,h2,h3{font-family:system-ui,sans-serif;margin:0;text-wrap:balance}h1{font-siz
 @media(max-width:640px){.shot{grid-template-columns:1fr}}
 </style>
 <main>
-<header><span class="k">Referencia · ${esc(b.format)}</span><h1>${esc(m.note || id)}</h1><p>${esc(b.summary)}</p></header>
-<img src="sheets/overview.jpg" alt="El video completo, cuadro por cuadro">
+<header><span class="k">Reference · ${esc(b.format)}</span><h1>${esc(m.note || id)}</h1><p>${esc(b.summary)}</p></header>
+<img src="sheets/overview.jpg" alt="The whole video, frame by frame">
 <section class="grid">
-<div><b>Duración</b><br>${p.duration} s, ${esc(p.size)}</div><div><b>Tomas</b><br>${p.shotList.length} (promedio ${p.avgShot} s, ${p.cutsPerMin}/min)</div>
-<div><b>Voz</b><br>${p.narration.words} palabras · ${p.narration.wpm} ppm · ${Math.round(p.narration.coverage * 100)} % del video</div><div><b>Mezcla</b><br>varía ${p.loudness.spread} dB · bajo la voz ${p.bed ? `${p.bed.db} dB` : "—"}</div>
+<div><b>Length</b><br>${p.duration} s, ${esc(p.size)}</div><div><b>Shots</b><br>${p.shotList.length} (average ${p.avgShot} s, ${p.cutsPerMin}/min)</div>
+<div><b>Voice</b><br>${p.narration.words} words · ${p.narration.wpm} wpm · ${Math.round(p.narration.coverage * 100)} % of the video</div><div><b>Mix</b><br>varies ${p.loudness.spread} dB · bajo la voz ${p.bed ? `${p.bed.db} dB` : "—"}</div>
 </section>
 <section><h2>Hook (${b.hook.seconds} s · ${esc(b.hook.type)})</h2><p>"${esc(b.hook.text)}"</p><p>${esc(b.hook.why)}</p></section>
-<section><h2>Estructura</h2><ul>${b.structure.map((x) => `<li>${x.from}–${x.to} s · ${esc(x.beat)}</li>`).join("")}</ul></section>
-<section><h2>Voz, música y efectos</h2><p><b>Voz:</b> ${esc(b.voice.who)}. ${esc(b.voice.delivery)}</p><p><b>Música:</b> ${b.music.present ? `${esc(b.music.style)} — ${esc(b.music.role)}` : "no"}</p>${b.sfx.length ? `<ul>${b.sfx.map((x) => `<li>${x.at} s · ${esc(x.what)}</li>`).join("")}</ul>` : ""}${b.onScreenText.style ? `<p><b>Texto en pantalla:</b> ${esc(b.onScreenText.style)}</p>` : ""}<p><b>Look:</b> ${esc(b.look)}</p></section>
-<section><h2>Toma por toma</h2>${b.shots.map(shot).join("")}</section>
-<section class="grid"><div><h2>Lo que aprendemos</h2><ul>${b.takeaways.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div><div><h2>Lo que nunca copiamos</h2><ul>${b.neverCopy.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div></section>
-<p><a href="#"></a>${esc(p.narration.text ? `Transcripción: ${p.narration.text}` : "Sin voz")}</p>
+<section><h2>Structure</h2><ul>${b.structure.map((x) => `<li>${x.from}–${x.to} s · ${esc(x.beat)}</li>`).join("")}</ul></section>
+<section><h2>Voice, music and effects</h2><p><b>Voice:</b> ${esc(b.voice.who)}. ${esc(b.voice.delivery)}</p><p><b>Music:</b> ${b.music.present ? `${esc(b.music.style)} — ${esc(b.music.role)}` : "no"}</p>${b.sfx.length ? `<ul>${b.sfx.map((x) => `<li>${x.at} s · ${esc(x.what)}</li>`).join("")}</ul>` : ""}${b.onScreenText.style ? `<p><b>On-screen text:</b> ${esc(b.onScreenText.style)}</p>` : ""}<p><b>Look:</b> ${esc(b.look)}</p></section>
+<section><h2>Shot by shot</h2>${b.shots.map(shot).join("")}</section>
+<section class="grid"><div><h2>What we learn</h2><ul>${b.takeaways.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div><div><h2>What we never copy</h2><ul>${b.neverCopy.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div></section>
+<p><a href="#"></a>${esc(p.narration.text ? `Transcript: ${p.narration.text}` : "No voice")}</p>
 </main>`;
     const out = path.join(R.dirOf(id), "page.html"); fs.writeFileSync(out, html); console.log(out);
   },
   approve() {
     const id = pos[0], f = R.approve(id, { said: flag("--said"), formatSaid: flag("--format-said") });
-    console.log(`${id} aprobada: entra al banco de ${f} (${R.approved(f).length} referencia(s) de ${f})`);
+    console.log(`${id} approved: it joins the ${f} bank (${R.approved(f).length} ${f} reference(s))`);
   },
   bank() { console.log(JSON.stringify(R.bank(flag("--format")), null, 2)); },
   list() { for (const id of R.list()) { const m = R.metaOf(id); console.log(`${id.padEnd(32)} ${m.status.padEnd(12)} ${m.format || R.profileOf(id)?.guess?.format || ""}`); } },

@@ -22,6 +22,6 @@ export async function backgroundCheck(file, sl, cast) {
   ];
   const { json } = await judgeJSON(content, { maxTokens: 4000 });
   const issues = (json.mismatches || []).filter((m) => m.person && !/^none$/i.test(m.person))
-    .map((m) => `fondo distinto en los close-ups de ${m.person} (frames ${(m.frames || []).join(", ")} = ${(m.frames || []).map((k) => times[k - 1]?.toFixed(1) + " s").join(", ")}): ${m.detail}`);
+    .map((m) => `different background in ${m.person}'s close-ups (frames ${(m.frames || []).join(", ")} = ${(m.frames || []).map((k) => times[k - 1]?.toFixed(1) + " s").join(", ")}): ${m.detail}`);
   return { pass: !issues.length, issues, frames: json.frames || [] };
 }

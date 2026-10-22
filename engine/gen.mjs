@@ -540,15 +540,15 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const s = P.shot(sl, id);
     if (s.source === "card") throw new FlowStop(`${id} is a card: the editor draws it, it has no generated frame`);
     // Launch films: no frame is paid for before the creator approved the storyboard animatic of this plan.
-    if (sl.format === "launch" && has("--planned") && sl.launch?.animaticApproved?.plan !== planSha(sl)) throw new FlowStop(`${id}: el creador no ha aprobado el animatic de este plan (launch.mjs animatic ${slug} --approve --said "...")`);
+    if (sl.format === "launch" && has("--planned") && sl.launch?.animaticApproved?.plan !== planSha(sl)) throw new FlowStop(`${id}: the creator hasn't approved this plan's animatic (launch.mjs animatic ${slug} --approve --said "...")`);
     // chain "exact": the first frame IS the previous shot's drawn last frame (copied, free), so the cut disappears.
     const i0 = sl.shots.indexOf(s), prev = sl.shots[i0 - 1];
     if (sl.format === "launch" && which === "first" && s.chain === "exact") {
-      if (!prev?.last) throw new FlowStop(`${id} empieza en el último cuadro de ${prev?.id}; dibuja primero ese cuadro (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
+      if (!prev?.last) throw new FlowStop(`${id} starts on ${prev?.id}'s last frame; draw that frame first (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
       const out = nextName(P.abs(slug, "frames"), `${id}-first`, ".png");
       fs.copyFileSync(P.abs(slug, prev.last), out);
       P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.frame = P.rel(slug, out); t.firstPrompt = prompt; t.frameFrom = `${prev.id}:last`; });
-      return console.log(`${out} (el último cuadro de ${prev.id}, sin costo)`);
+      return console.log(`${out} (${prev.id}'s last frame, free)`);
     }
     // chain "same-set": drawn from the previous shot's frame with the same framing (GPT Image reframes unless told).
     const setRef = sl.format === "launch" && which === "first" && s.chain === "same-set" && (prev?.last || prev?.frame) ? [P.abs(slug, prev.last || prev.frame)] : [];
@@ -590,7 +590,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     // A launch film never uses a take's own sound (voice-over, music and effects are mixed by launch.mjs).
     const silent = sl.format === "launch";
     // Its shots are choreographed to a drawn last frame: the video model must take one (any model that does).
-    if (silent && !getModel(model).lastFrame) throw new FlowStop(`${model} no acepta cuadro final; un launch film necesita un modelo con cuadro inicial y final (studio.mjs prices los muestra)`);
+    if (silent && !getModel(model).lastFrame) throw new FlowStop(`${model} doesn't take a last frame; a launch film needs a model with a first and a last frame (studio.mjs prices lists them)`);
     let n;
     if (flag("--eval")) {
       n = Number(flag("--eval"));
@@ -629,7 +629,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       evals = { identity: { pass: identity.pass, issues: identity.issues, notes: identity.notes }, jumps: { internal: jr.jumps.filter((j) => j.kind === "internal jump").length, list: jr.jumps, trimAt: jr.trimAt ?? null }, dialogue };
       console.log([
         identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
-        ...jumpLines(jr), evals.jumps.internal ? "JUMPS FAIL: an internal jump reads as a jump cut; the creator decides (studio.mjs override, or a reroll with his sí)" : "JUMPS PASS",
+        ...jumpLines(jr), evals.jumps.internal ? "JUMPS FAIL: an internal jump reads as a jump cut; the creator decides (studio.mjs override, or a reroll with their yes)" : "JUMPS PASS",
         dialogue.pass ? "DIALOGUE PASS" : `DIALOGUE FAIL\n - ${dialogue.issues.join("\n - ")}`,
       ].join("\n"));
     } catch (e) {
@@ -808,12 +808,12 @@ function voiceRefFiles(sl, speakers, slug) {
     if (!fs.existsSync(txt) || fs.statSync(txt).mtimeMs < fs.statSync(v.file).mtimeMs) {
       const py = "import sys; from faster_whisper import WhisperModel; m = WhisperModel('base', device='cpu', compute_type='int8'); print(' '.join(s.text for s in m.transcribe(sys.argv[1], language=sys.argv[2])[0]))";
       const r = spawnSync("python", ["-c", py, v.file, lang], { encoding: "utf8" });
-      if (r.status !== 0) throw new Error(`VOICE REF STOP: no pude transcribir la muestra de ${v.char} para revisar que no diga el guion`);
+      if (r.status !== 0) throw new Error(`VOICE REF STOP: couldn't transcribe ${v.char}'s sample to check it doesn't speak the script`);
       fs.writeFileSync(txt, r.stdout.trim());
     }
     const heard = norm(fs.readFileSync(txt, "utf8"));
     const said = scriptLines.find((t) => heard.includes(norm(t)));
-    if (said) throw new Error(`VOICE REF STOP: la muestra de voz de ${P.character(v.char).name} dice la línea del guion "${said}"; el modelo la repetiría. Rehaz la muestra con texto neutro: node engine/gen.mjs sample ${v.char} --text "..."`);
+    if (said) throw new Error(`VOICE REF STOP: ${P.character(v.char).name}'s voice sample says the script line "${said}"; the model would repeat it. Remake the sample with neutral text: node engine/gen.mjs sample ${v.char} --text "..."`);
   }
   const each = found.length ? Math.floor((14 / found.length) * 10) / 10 : 0;
   return found.map((v) => {

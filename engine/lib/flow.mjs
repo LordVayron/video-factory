@@ -37,13 +37,13 @@ export const FORMATS = {
 
 // The intake (Phase 0). Every answer is required; the project does not exist without all of them.
 export const INTAKE = [
-  { id: "series", q: "¿Video individual o serie?", options: ["single", "episode", "new"] },
-  { id: "format", q: "¿Qué tipo de video?", options: Object.keys(FORMATS) },
-  { id: "start", q: "¿Tienes una idea o empezamos desde cero?", options: ["script", "idea", "scratch"] },
-  { id: "platform", q: "¿Dónde se publica y en qué medida?", fields: ["platform", "ar", "seconds", "lang"] },
-  { id: "cast", q: "¿Quién sale en pantalla?", options: ["existing", "new", "self", "mixed", "none"] },
-  { id: "budget", q: "¿Cuál es el techo de gasto?", fields: ["mode", "usd"] },
-  { id: "refs", q: "¿Referencias o tono?", fields: ["text"] },
+  { id: "series", q: "A single video or a series?", options: ["single", "episode", "new"] },
+  { id: "format", q: "What kind of video?", options: Object.keys(FORMATS) },
+  { id: "start", q: "Do you have an idea, or do we start from scratch?", options: ["script", "idea", "scratch"] },
+  { id: "platform", q: "Where will it be published, and in what size?", fields: ["platform", "ar", "seconds", "lang"] },
+  { id: "cast", q: "Who appears on screen?", options: ["existing", "new", "self", "mixed", "none"] },
+  { id: "budget", q: "What is the spending cap?", fields: ["mode", "usd"] },
+  { id: "refs", q: "References or tone?", fields: ["text"] },
 ];
 
 export const kindOf = (sl) => FORMATS[sl.format]?.kind || "scenes";
@@ -90,7 +90,7 @@ function intakeCheck(sl) {
   const a = sl.intake || {};
   const missing = INTAKE.filter((q) => a[q.id] == null).map((q) => q.id);
   if (missing.length) return no(`intake incompleto: ${missing.join(", ")}`);
-  if (a.series !== "single" && !sl.series) return no("el intake dice serie pero el proyecto no tiene serie");
+  if (a.series !== "single" && !sl.series) return no("the intake says series but the project has no series");
   return ok(`${FORMATS[sl.format]?.label} · ${a.series}`);
 }
 
@@ -99,9 +99,9 @@ function castCheck(sl) {
   // Launch films: the style bible is valid and its files exist, the narrator has a voice, any characters pass the
   // usual cast gate, and the visual identity is locked: one key image of the world, approved in the creator's words.
   const bad = [...L.styleRules(launchJSON(sl, "style"), { slug: sl.slug, cast: castIds(sl) })];
-  if (launchJSON(sl, "concepts")?.config?.voiceover && !sl.launch?.voice?.eleven) bad.push("la película lleva voz en off y el narrador no tiene voz (sl.launch.voice.eleven)");
+  if (launchJSON(sl, "concepts")?.config?.voiceover && !sl.launch?.voice?.eleven) bad.push("the film has a voice-over and the narrator has no voice (sl.launch.voice.eleven)");
   if (castIds(sl).length) { const c = castCheckChars(sl); if (!c.ok) bad.push(c.detail); }
-  if (!(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('falta fijar la identidad visual: una imagen clave del mundo en el estilo (gen.mjs still --project), aprobada con studio.mjs approve-look <slug> --file <imagen> --said "..."');
+  if (!(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('the visual identity is not locked yet: one key image of the world in the style (gen.mjs still --project), approved with studio.mjs approve-look <slug> --file <image> --said "..."');
   return bad.length ? no(bad.join("; ")) : ok(`style bible "${launchJSON(sl, "style").name}" fijado`);
 }
 
@@ -109,40 +109,40 @@ function castCheckChars(sl) {
   if (kindOf(sl) === "longform") {
     const v = sl.longform?.voice;
     const speaks = (sl.longform?.script || []).some((s) => s.text?.trim());
-    return speaks && !v?.eleven ? no("falta la voz de la narración (longform.voice.eleven)") : ok(speaks ? `voz ${v.eleven}` : "sin voz");
+    return speaks && !v?.eleven ? no("the narration has no voice (longform.voice.eleven)") : ok(speaks ? `voice ${v.eleven}` : "no voice");
   }
   const ids = castIds(sl);
-  if (!ids.length) return sl.intake?.cast === "none" ? ok("sin personajes") : no("ningún personaje en el proyecto (shotlist.cast)");
+  if (!ids.length) return sl.intake?.cast === "none" ? ok("no characters") : no("no character in the project (shotlist.cast)");
   const speaking = new Set((sl.shots || []).flatMap((s) => (s.dialogue || []).map((l) => l.char)));
   const bad = [];
   for (const id of ids) {
     let c;
-    try { c = P.character(id); } catch { bad.push(`${id}: no existe en la biblia`); continue; }
-    if (!c.look?.trim()) bad.push(`${id}: sin look escrito`);
+    try { c = P.character(id); } catch { bad.push(`${id}: not in the bible`); continue; }
+    if (!c.look?.trim()) bad.push(`${id}: no written look`);
     const approved = c.approved || P.characterLook(c, sl.style)?.status === "approved";
-    if (!approved) bad.push(`${id}: ficha sin aprobar (studio.mjs approve-character ${id} --said "...")`);
-    if (speaking.has(id) && !c.voice?.eleven) bad.push(`${id}: habla y no tiene voz`);
+    if (!approved) bad.push(`${id}: sheet not approved (studio.mjs approve-character ${id} --said "...")`);
+    if (speaking.has(id) && !c.voice?.eleven) bad.push(`${id}: speaks but has no voice`);
     // LIKENESS: a character made from a real person other than the creator goes ahead on the creator's
     // statement that the person authorized it, recorded in their words (cast.mjs likeness <id> --kind real-person --said).
-    if (c.likeness?.kind === "real-person" && !c.likeness.authorized?.said?.trim()) bad.push(`${id}: está basado en una persona real; falta tu declaración de que te autorizó (cast.mjs likeness ${id} --kind real-person --said "...")`);
+    if (c.likeness?.kind === "real-person" && !c.likeness.authorized?.said?.trim()) bad.push(`${id}: based on a real person; the creator's statement that the person authorized it is missing (cast.mjs likeness ${id} --kind real-person --said "...")`);
     const d = path.join(P.BIBLE, "characters", id);
-    if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet, P.characterLook(c, sl.style)?.modelSheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: sin model sheet ni referencia`);
+    if (![...(c.refs || []), ...(c.sheets || []), P.characterLook(c, sl.style)?.sheet, P.characterLook(c, sl.style)?.modelSheet].filter(Boolean).some((f) => fs.existsSync(path.join(d, f)))) bad.push(`${id}: no model sheet or reference`);
     // STANDARD SHEET: every project created from today, any vertical, needs one standard sheet per
     // character in the project's style (cast.mjs model-sheet), and a character is one character, never a group.
     if ((sl.flow?.created || "") >= "2026-10-21" && c.species !== "set") {
-      if (MS.isGroup(c.look)) bad.push(`${id}: su look describe a varios personajes; una ficha, un personaje (sepáralos en la biblia)`);
-      else if (!MS.hasStandard(c, sl.style)) bad.push(`${id}: sin ficha estándar en el estilo ${sl.style} (cast.mjs model-sheet ${id} --style ${sl.style})`);
+      if (MS.isGroup(c.look)) bad.push(`${id}: the look describes several characters; one sheet, one character (split them in the bible)`);
+      else if (!MS.hasStandard(c, sl.style)) bad.push(`${id}: no standard sheet in the ${sl.style} style (cast.mjs model-sheet ${id} --style ${sl.style})`);
     }
   }
   // LOOK TEST (a realism problem must show up before the video money is spent). A drama's
   // cast is complete only when the creator approved, in their words, one still of the leads in the set at the episode's light,
   // before any storyboard or video: studio.mjs approve-look <slug> --file <image> --said "...".
-  if (FORMATS[sl.format]?.needsScore && !(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('falta la prueba de look: una foto de los protagonistas en el set con la luz del episodio (gen.mjs still --project), aprobada con studio.mjs approve-look <slug> --file <imagen> --said "..."');
+  if (FORMATS[sl.format]?.needsScore && !(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('the look test is missing: one still of the leads in the set at the episode\'s light (gen.mjs still --project), approved with studio.mjs approve-look <slug> --file <image> --said "..."');
   return bad.length ? no(bad.join("; ")) : ok(ids.join(", "));
 }
 
 function radioCheck(sl) {
-  return sl.radio?.pass ? ok(`radio cut ${sl.radio.length ?? ""} s`) : no(sl.radio ? `ritmo: ${(sl.radio.problems || []).join("; ")}` : "sin radio cut (radio.mjs)");
+  return sl.radio?.pass ? ok(`radio cut ${sl.radio.length ?? ""} s`) : no(sl.radio ? `ritmo: ${(sl.radio.problems || []).join("; ")}` : "no radio cut (radio.mjs)");
 }
 
 // DRAMA RULES (from AI micro-drama production research and the productions that came out realistic). What reliably
@@ -161,39 +161,39 @@ export function dramaRules(sl) {
   const out = [];
   for (const sc of sl.scenes || []) {
     const shots = P.sceneShots(sl, sc);
-    if (shots.length > 3) out.push(`escena ${sc.id}: ${shots.length} planos en una generación (máximo 3)`);
-    if (!sl.lowLightOk && DARK.test(`${sc.lighting || ""} ${sc.summary || ""}`)) out.push(`escena ${sc.id}: luz baja o de noche (se ve "IA"); usa luz natural brillante, o sl.lowLightOk con la palabra del creador`);
+    if (shots.length > 3) out.push(`scene ${sc.id}: ${shots.length} shots in one generation (max 3)`);
+    if (!sl.lowLightOk && DARK.test(`${sc.lighting || ""} ${sc.summary || ""}`)) out.push(`scene ${sc.id}: low or night light (reads as "AI"); use bright natural light, or sl.lowLightOk with the creator's word`);
     for (const s of shots) {
       const inFrame = (s.inFrame || s.characters || []).length;
-      if (inFrame > 2) out.push(`${s.id}: ${inFrame} personajes en cuadro (máximo 2; usa plano/contraplano)`);
+      if (inFrame > 2) out.push(`${s.id}: ${inFrame} characters in frame (max 2; use shot/reverse shot)`);
       const words = (s.dialogue || []).reduce((n, l) => n + l.text.split(/\s+/).length, 0);
-      if (words > Math.max(4, Math.floor(P.shotSecs(s) * 3))) out.push(`${s.id}: ${words} palabras en ${P.shotSecs(s)} s (máximo ~3 por segundo)`);
-      if (HANDS.test(s.motion || "")) out.push(`${s.id}: acción con manos y objetos ("${(s.motion.match(HANDS) || [])[0]}"), falla seguido: muestra el objeto ya en la mano y corta`);
-      if (FAST.test(s.motion || "")) out.push(`${s.id}: movimiento rápido ("${(s.motion.match(FAST) || [])[0]}"), falla seguido: sugiérelo con cortes`);
+      if (words > Math.max(4, Math.floor(P.shotSecs(s) * 3))) out.push(`${s.id}: ${words} words in ${P.shotSecs(s)} s (max ~3 per second)`);
+      if (HANDS.test(s.motion || "")) out.push(`${s.id}: hand-and-object action ("${(s.motion.match(HANDS) || [])[0]}") often fails: show the object already in hand and cut`);
+      if (FAST.test(s.motion || "")) out.push(`${s.id}: fast motion ("${(s.motion.match(FAST) || [])[0]}") often fails: suggest it with cuts`);
       // Cut rhythm: a spoken shot runs at most 6 s, a silent reaction at most 2.5 s (held to its peak, not past it).
       const speaks = (s.dialogue || []).length > 0;
-      if (speaks && P.shotSecs(s) > 6) out.push(`${s.id}: plano hablado de ${P.shotSecs(s)} s (máximo 6; divídelo en plano/contraplano)`);
-      if (!speaks && P.shotSecs(s) > 2.5) out.push(`${s.id}: reacción de ${P.shotSecs(s)} s (máximo 2.5; corta en el pico)`);
+      if (speaks && P.shotSecs(s) > 6) out.push(`${s.id}: ${P.shotSecs(s)} s talking shot (max 6; split it into shot/reverse shot)`);
+      if (!speaks && P.shotSecs(s) > 2.5) out.push(`${s.id}: ${P.shotSecs(s)} s reaction (max 2.5; cut at the peak)`);
       // Empty mood words give the model nothing to film and push the glossy "AI" look.
       const vague = `${s.image || ""} ${s.motion || ""}`.match(VAGUE);
-      if (vague) out.push(`${s.id}: palabra vacía "${vague[0]}" en la descripción (usa verbos y detalles concretos)`);
+      if (vague) out.push(`${s.id}: vague word "${vague[0]}" in the description (use concrete verbs and details)`);
       // Eye-level camera on dialogue: extreme angles are where faces drift.
-      if (speaks && EXTREME.test(`${s.framing || ""} ${s.camera || ""}`)) out.push(`${s.id}: ángulo extremo en un plano con diálogo (mantén la cámara a la altura de los ojos)`);
+      if (speaks && EXTREME.test(`${s.framing || ""} ${s.camera || ""}`)) out.push(`${s.id}: extreme angle on a dialogue shot (keep the camera at eye level)`);
     }
     // Dialogue filmed one shot per generation re-invents the voice, light and gestures every shot.
-    if (sl.filmBy === "shot" && !sl.filmByShotOk && shots.filter((s) => (s.dialogue || []).length).length > 1) out.push(`escena ${sc.id}: varios planos con diálogo filmados uno por uno (la voz y la luz cambian entre planos); fílmala como una sola generación multi-plano`);
+    if (sl.filmBy === "shot" && !sl.filmByShotOk && shots.filter((s) => (s.dialogue || []).length).length > 1) out.push(`scene ${sc.id}: several dialogue shots filmed one at a time (voice and light change between shots); film it as one multi-shot generation`);
   }
   // The hook: the first line is heard by 3 s, and the episode never opens on an establishing shot.
   let t = 0;
   for (const s of (sl.scenes || []).flatMap((sc) => P.sceneShots(sl, sc))) { if ((s.dialogue || []).length) break; t += P.shotSecs(s); }
-  if (t > 3) out.push(`el primer diálogo llega a los ${t} s (el conflicto tiene que oírse antes de 3 s)`);
+  if (t > 3) out.push(`the first line comes at ${t} s (the conflict must be heard within 3 s)`);
   const first = P.sceneShots(sl, (sl.scenes || [])[0] || { shots: [] })[0];
-  if (first && /establishing/i.test(`${first.framing || ""} ${first.image || ""}`)) out.push(`${first.id}: el episodio abre con un plano de ubicación (abre en el conflicto)`);
+  if (first && /establishing/i.test(`${first.framing || ""} ${first.image || ""}`)) out.push(`${first.id}: the episode opens on an establishing shot (open on the conflict)`);
   // Length (measured on the radio cut): within 20% of the length the creator asked for in the intake, never under 15 s or
   // over 90 s (AI episodes hold up best short). Without an intake length: 25-90 s.
   const want = sl.intake?.platform?.seconds;
   const [lo, hi] = want ? [Math.max(15, want * 0.8), Math.min(90, want * 1.25)] : [25, 90];
-  if (sl.radio?.length && (sl.radio.length < lo || sl.radio.length > hi)) out.push(`episodio de ${sl.radio.length} s en el radio cut (rango ${Math.round(lo)}-${Math.round(hi)} s${want ? `, pedido ${want} s` : ""})`);
+  if (sl.radio?.length && (sl.radio.length < lo || sl.radio.length > hi)) out.push(`${sl.radio.length} s episode in the radio cut (range ${Math.round(lo)}-${Math.round(hi)} s${want ? `, asked for ${want} s` : ""})`);
   return out;
 }
 const VAGUE = /\b(cinematic|stunning|epic|8k|4k|masterpiece|breathtaking|gorgeous|award[- ]winning|ultra[- ]realistic|hyper[- ]detailed)\b/i;
@@ -202,55 +202,55 @@ const EXTREME = /\b(low[- ]angle|high[- ]angle|overhead|bird'?s[- ]eye|worm'?s[-
 function boardCheck(sl) {
   const k = kindOf(sl), bad = [];
   if (k === "scenes") {
-    for (const sc of sl.scenes || []) if (!exists(sl, sc.grid)) bad.push(`escena ${sc.id} sin storyboard`);
+    for (const sc of sl.scenes || []) if (!exists(sl, sc.grid)) bad.push(`scene ${sc.id} has no storyboard`);
     // One locked close-up angle per person with singles in more than one scene, made before the grids
     // (otherwise a person's background changes from scene to scene).
     const angles = P.anglesNeeded(sl);
-    for (const id of angles) if (!fs.existsSync(P.angleFile(sl, id) || "")) bad.push(`${P.character(id).name} sin plano de ángulo fijo para sus close-ups (gen.mjs angles)`);
+    for (const id of angles) if (!fs.existsSync(P.angleFile(sl, id) || "")) bad.push(`${P.character(id).name} has no locked angle frame for their close-ups (gen.mjs angles)`);
     if (angles.length && angles.every((id) => fs.existsSync(P.angleFile(sl, id) || "")))
-      for (const sc of sl.scenes || []) if (sc.grid && sc.gridAngles !== JSON.stringify(sl.angles || {})) bad.push(`storyboard de la escena ${sc.id} hecho sin los planos de ángulo actuales (gen.mjs storyboard --scenes ${sc.id})`);
-    if (!(sl.scenes || []).length) bad.push("sin escenas");
+      for (const sc of sl.scenes || []) if (sc.grid && sc.gridAngles !== JSON.stringify(sl.angles || {})) bad.push(`scene ${sc.id}'s storyboard was made without the current angle frames (gen.mjs storyboard --scenes ${sc.id})`);
+    if (!(sl.scenes || []).length) bad.push("no scenes");
     const pc = planCheck(sl);
     if (pc.problems.length) bad.push(`plan de continuidad: ${pc.problems.join("; ")}`);
     for (const sc of sl.scenes || []) {
       // Marks are checked on the same cast job() checks at filming: the scene's cast plus anyone its prompt names.
-      try { const pr = P.scenePrompt(sl, sc, P.sceneRefs(sl, sc)); const prText = typeof pr === "string" ? pr : JSON.stringify(pr); const miss = missingMarks(prText, [...new Set([...P.sceneCast(sl, sc), ...castOf(sl, prText)])]); if (miss.length) bad.push(`prompt de ${sc.id} sin ${miss.join(", ")}`); } catch {}
+      try { const pr = P.scenePrompt(sl, sc, P.sceneRefs(sl, sc)); const prText = typeof pr === "string" ? pr : JSON.stringify(pr); const miss = missingMarks(prText, [...new Set([...P.sceneCast(sl, sc), ...castOf(sl, prText)])]); if (miss.length) bad.push(`${sc.id}'s prompt is missing ${miss.join(", ")}`); } catch {}
       // REFERENCE CHECK (without references, wardrobe changes color between shots): every character in a scene must reach
       // the model with a face view AND a full-body view (the wardrobe), or the book can't be built.
       try {
         const refs = P.sceneRefs(sl, sc);
         for (const id of P.sceneCast(sl, sc)) {
           const mine = refs.filter((r) => r.id === id);
-          if (!mine.length) bad.push(`escena ${sc.id}: ${id} no lleva ninguna imagen de referencia`);
-          else if (!mine.some((r) => /full body/.test(r.name))) bad.push(`escena ${sc.id}: ${id} no lleva su vista de cuerpo completo (vestuario); genera su hoja con cast.mjs sheet`);
+          if (!mine.length) bad.push(`scene ${sc.id}: ${id} carries no reference image`);
+          else if (!mine.some((r) => /full body/.test(r.name))) bad.push(`scene ${sc.id}: ${id} carries no full-body view (wardrobe); make their sheet with cast.mjs sheet`);
         }
-      } catch (e) { bad.push(`escena ${sc.id}: referencias: ${e.message}`); }
+      } catch (e) { bad.push(`scene ${sc.id}: references: ${e.message}`); }
     }
-    if (!fs.existsSync(path.join(dir(sl), "out", "animatic.mp4"))) bad.push("sin animatic (animatic.mjs)");
+    if (!fs.existsSync(path.join(dir(sl), "out", "animatic.mp4"))) bad.push("no animatic (animatic.mjs)");
     bad.push(...dramaRules(sl));
   } else if (k === "clips") {
-    if (!(sl.shots || []).length) bad.push("sin shots");
+    if (!(sl.shots || []).length) bad.push("no shots");
     if (sl.format === "launch") bad.push(...launchBoard(sl));
     for (const s of sl.shots || []) {
       if (s.source === "card") continue;
       const from = /^@(\w+):last$/.exec(s.frame || "");
-      if (from) { const k = sl.shots.findIndex((x) => x.id === from[1]); if (k < 0 || k >= sl.shots.indexOf(s)) bad.push(`${s.id}: abre en ${from[1]}, que no es un shot anterior`); }
-      else if (!exists(sl, s.frame)) bad.push(`${s.id}: sin cuadro inicial`);
-      if (s.last && !exists(sl, s.last)) bad.push(`${s.id}: falta el cuadro final ${s.last}`);
-      if (s.lastPrompt && !s.last) bad.push(`${s.id}: sin cuadro final coreografiado (gen.mjs frame ${sl.slug} ${s.id} last --planned)`);
+      if (from) { const k = sl.shots.findIndex((x) => x.id === from[1]); if (k < 0 || k >= sl.shots.indexOf(s)) bad.push(`${s.id}: opens on ${from[1]}, which is not an earlier shot`); }
+      else if (!exists(sl, s.frame)) bad.push(`${s.id}: no first frame`);
+      if (s.last && !exists(sl, s.last)) bad.push(`${s.id}: the last frame ${s.last} is missing`);
+      if (s.lastPrompt && !s.last) bad.push(`${s.id}: no choreographed last frame (gen.mjs frame ${sl.slug} ${s.id} last --planned)`);
       if (!films(s)) continue;
-      if (!s.prompt?.trim()) bad.push(`${s.id}: sin prompt`);
+      if (!s.prompt?.trim()) bad.push(`${s.id}: no prompt`);
       else {
         // The prompt checked is the one the model receives (P.clipPrompt: the shot's prompt plus its script).
         try {
           const pr = P.clipPrompt(sl, s);
           const miss = missingMarks(pr, s.characters || castIds(sl));
-          if (miss.length) bad.push(`${s.id}: el prompt omite ${miss.join(", ")}`);
+          if (miss.length) bad.push(`${s.id}: the prompt leaves out ${miss.join(", ")}`);
           const gone = P.linesMissing(pr, s.dialogue || []);
-          if (gone.length) bad.push(`${s.id}: el prompt omite el diálogo ${gone.map((l) => `"${l.text}"`).join(", ")}`);
+          if (gone.length) bad.push(`${s.id}: the prompt leaves out the dialogue ${gone.map((l) => `"${l.text}"`).join(", ")}`);
         } catch (e) { bad.push(`${s.id}: ${e.message}`); } // e.g. a character not in the bible yet: report it, don't crash status
       }
-      if (!s.duration) bad.push(`${s.id}: sin duración`);
+      if (!s.duration) bad.push(`${s.id}: no duration`);
     }
   }
   return bad.length ? no(bad.join("; ")) : ok("storyboard y prompts revisados");
@@ -262,32 +262,32 @@ function launchBoard(sl) {
   const plan = launchJSON(sl, "plan");
   const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
   if (!plan) return bad;
-  if (sl.launch?.applied !== sha(launchFile(sl, "plan"))) bad.push("la shotlist no es el plan actual (launch.mjs apply)");
+  if (sl.launch?.applied !== sha(launchFile(sl, "plan"))) bad.push("the shotlist is not the current plan (launch.mjs apply)");
   for (const s of plan.shots || []) if (s.vo) {
     const v = sl.launch?.vo?.[s.id];
-    if (!v || v.text !== s.vo || !fs.existsSync(path.join(dir(sl), v.file || "-"))) bad.push(`${s.id}: voz en off sin grabar (launch.mjs voice)`);
-    else if (v.secs > v.room + 0.05) bad.push(`${s.id}: la voz dura ${v.secs} s y solo cabe en ${v.room} s; acorta la línea`);
+    if (!v || v.text !== s.vo || !fs.existsSync(path.join(dir(sl), v.file || "-"))) bad.push(`${s.id}: voice-over not recorded (launch.mjs voice)`);
+    else if (v.secs > v.room + 0.05) bad.push(`${s.id}: the voice runs ${v.secs} s and only ${v.room} s fit; shorten the line`);
   }
   // The narration, measured on the recorded lines: no silence over 1.2 s between lines, and voice over most of the film.
   if (launchJSON(sl, "concepts")?.config?.voiceover) {
     const said = (plan.shots || []).filter((s) => s.vo && sl.launch?.vo?.[s.id]).map((s) => ({ id: s.id, a: s.start + (s.voAt ?? 0.15), b: s.start + (s.voAt ?? 0.15) + sl.launch.vo[s.id].secs }));
-    for (let i = 1; i < said.length; i++) if (said[i].a - said[i - 1].b > 1.2) bad.push(`${said[i].id}: ${(said[i].a - said[i - 1].b).toFixed(1)} s de silencio antes de su línea (máximo 1.2 s; la narración no se detiene)`);
+    for (let i = 1; i < said.length; i++) if (said[i].a - said[i - 1].b > 1.2) bad.push(`${said[i].id}: ${(said[i].a - said[i - 1].b).toFixed(1)} s of silence before its line (max 1.2 s; the narration doesn't stop)`);
     const cover = said.length ? (said.at(-1).b - said[0].a) / plan.durationSeconds : 0;
-    if (said.length && cover < 0.75) bad.push(`la narración cubre ${Math.round(cover * 100)} % de la película (mínimo 75 %; Town: 98 %)`);
+    if (said.length && cover < 0.75) bad.push(`the narration covers ${Math.round(cover * 100)} % of the film (min 75 %)`);
   }
   // Real footage inside a still: the files exist, and the frame has a green screen for each clip (detected by the
   // animatic on this exact frame).
   for (const s of sl.shots || []) if (s.inserts?.length) {
-    for (const i of s.inserts) if (!fs.existsSync(path.isAbsolute(i.file) ? i.file : path.join(dir(sl), i.file))) bad.push(`${s.id}: no existe el footage ${i.file}`);
+    for (const i of s.inserts) if (!fs.existsSync(path.isAbsolute(i.file) ? i.file : path.join(dir(sl), i.file))) bad.push(`${s.id}: the footage ${i.file} doesn't exist`);
     const sc = sl.launch?.screens?.[s.id];
-    if (s.frame && sc?.frame === s.frame && sc.boxes.length < s.inserts.length) bad.push(`${s.id}: el cuadro tiene ${sc.boxes.length} pantallas verdes y lleva ${s.inserts.length} clips; rehaz el cuadro`);
+    if (s.frame && sc?.frame === s.frame && sc.boxes.length < s.inserts.length) bad.push(`${s.id}: the frame has ${sc.boxes.length} green screens and carries ${s.inserts.length} clips; redraw the frame`);
   }
   const an = sl.launch?.animatic;
-  if (!an || !fs.existsSync(path.join(dir(sl), "out", "animatic.mp4")) || an.sig !== launchSig(sl)) bad.push("sin animatic del plan actual (launch.mjs animatic)");
+  if (!an || !fs.existsSync(path.join(dir(sl), "out", "animatic.mp4")) || an.sig !== launchSig(sl)) bad.push("no animatic of the current plan (launch.mjs animatic)");
   // The creator watched the storyboard animatic of this exact plan before any frame was paid for.
-  if (sl.launch?.animaticApproved?.plan !== planSha(sl)) bad.push("el creador no aprobó el animatic de este plan (launch.mjs animatic <slug> --approve --said \"...\")");
+  if (sl.launch?.animaticApproved?.plan !== planSha(sl)) bad.push("the creator hasn't approved this plan's animatic (launch.mjs animatic <slug> --approve --said \"...\")");
   // ...and again once every frame is drawn: The creator sees every frame before prices and the book.
-  else if ((sl.shots || []).every((s) => s.frame) && sl.launch?.animaticApproved?.sig !== launchSig(sl)) bad.push("el creador no ha visto el animatic con los cuadros dibujados (launch.mjs animatic <slug> --approve --said \"...\")");
+  else if ((sl.shots || []).every((s) => s.frame) && sl.launch?.animaticApproved?.sig !== launchSig(sl)) bad.push("the creator hasn't seen the animatic with the drawn frames (launch.mjs animatic <slug> --approve --said \"...\")");
   return bad;
 }
 // What the animatic shows: the plan, the frames and the recorded voice. Changing any of them asks for a new one.
@@ -310,20 +310,20 @@ function modelsCheck(sl) {
     if (miss.length) return no(`SOUND NOT PLANNED: ${miss.join(", ")}`);
   }
   const pc = sl.priceCheck;
-  if (!pc) return no("sin análisis de precios en vivo (studio.mjs prices)");
-  if ((Date.now() - Date.parse(pc.at)) / 864e5 > 7) return no(`el análisis de precios tiene más de 7 días (${pc.at.slice(0, 10)}); vuelve a correrlo`);
+  if (!pc) return no("no live price analysis (studio.mjs prices)");
+  if ((Date.now() - Date.parse(pc.at)) / 864e5 > 7) return no(`the price analysis is more than 7 days old (${pc.at.slice(0, 10)}); run it again`);
   const want = kindOf(sl) === "longform" ? sl.longform?.videoModel : sl.defaults?.videoModel;
-  if (want !== pc.pick?.key) return no(`el modelo del proyecto (${want}) no es el elegido en el análisis (${pc.pick?.key})`);
-  return ok(`${pc.pick.label} ${pc.pick.res} · $${pc.pick.usd} en vivo (${pc.at.slice(0, 10)})`);
+  if (want !== pc.pick?.key) return no(`the project's model (${want}) is not the one picked in the analysis (${pc.pick?.key})`);
+  return ok(`${pc.pick.label} ${pc.pick.res} · $${pc.pick.usd} live (${pc.at.slice(0, 10)})`);
 }
 
 function bookCheck(sl) {
-  if (!fs.existsSync(path.join(dir(sl), "book", "index.html"))) return no("sin Production Book (book.mjs)");
+  if (!fs.existsSync(path.join(dir(sl), "book", "index.html"))) return no("no Production Book (book.mjs)");
   // A launch film tests the chosen video model on one shot before the book: The creator picks the model
   // with the video in front of them, or waives the test in their words.
   if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && !(sl.shots || []).some((s) => (s.clips || []).some((c) => c.test && c.model === sl.defaults?.videoModel)))
-    return no(`sin prueba de movimiento con ${sl.defaults?.videoModel || "el modelo elegido"} (gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", o launch.mjs waive-test <slug> --said "...")`);
-  if (sl.bookEstimate == null) return no("el book no tiene estimado de costo");
+    return no(`no motion test on ${sl.defaults?.videoModel || "the chosen model"} (gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", or launch.mjs waive-test <slug> --said "...")`);
+  if (sl.bookEstimate == null) return no("the book has no cost estimate");
   return ok(`estimado ${sl.bookEstimate} cr`);
 }
 
@@ -335,59 +335,59 @@ export const takeOk = (t) => evalsPass(t) || !!t?.accepted?.said;
 function filmCheck(sl) {
   const k = kindOf(sl), bad = [];
   if (k === "scenes") {
-    if (!(sl.scenes || []).length) bad.push("sin escenas");
+    if (!(sl.scenes || []).length) bad.push("no scenes");
     for (const sc of sl.scenes || []) {
       const t = sc.clips?.[sc.clip];
-      if (!t) bad.push(`escena ${sc.id} sin toma elegida`);
-      else if (!t.qc?.pass) bad.push(`escena ${sc.id}: QC no pasó`);
-      else if (!t.continuity?.pass) bad.push(`escena ${sc.id}: continuidad no pasó`);
+      if (!t) bad.push(`scene ${sc.id} has no chosen take`);
+      else if (!t.qc?.pass) bad.push(`scene ${sc.id}: QC failed`);
+      else if (!t.continuity?.pass) bad.push(`scene ${sc.id}: continuity failed`);
     }
   } else if (k === "clips") {
-    if (!(sl.shots || []).length) bad.push("sin shots");
-    for (const s of (sl.shots || []).filter(films)) if (!takeOk(s.clips?.[s.clip])) bad.push(`${s.id}: sin toma que pase identidad, saltos y diálogo`);
+    if (!(sl.shots || []).length) bad.push("no shots");
+    for (const s of (sl.shots || []).filter(films)) if (!takeOk(s.clips?.[s.clip])) bad.push(`${s.id}: no take passes identity, jumps and dialogue`);
     if (sl.format === "launch") {
       const plan = launchJSON(sl, "plan");
-      if (launchJSON(sl, "concepts")?.config?.music && !(sl.music?.files || []).length) bad.push("sin música (gen.mjs music)");
-      for (const n of Object.keys(plan?.sfx || {})) if (!fs.existsSync(path.join(dir(sl), "audio", `sfx-${n}.mp3`))) bad.push(`sin el efecto ${n} (gen.mjs sfx)`);
+      if (launchJSON(sl, "concepts")?.config?.music && !(sl.music?.files || []).length) bad.push("no music (gen.mjs music)");
+      for (const n of Object.keys(plan?.sfx || {})) if (!fs.existsSync(path.join(dir(sl), "audio", `sfx-${n}.mp3`))) bad.push(`the ${n} effect is missing (gen.mjs sfx)`);
     }
   } else {
     const L = sl.longform || {};
-    if ((L.script || []).some((s, i) => s.text?.trim() && !fs.existsSync(path.join(dir(sl), "audio", "vo", `${String(i + 1).padStart(3, "0")}.mp3`)))) bad.push("narración incompleta");
-    if (L.music?.prompt && !(L.music.files || []).length) bad.push("sin música");
-    for (const sc of L.scenes || []) if (!exists(sl, sc.image) || (sc.motion !== "kenburns" && !exists(sl, sc.clip))) bad.push(`escena ${sc.id} sin loop`);
+    if ((L.script || []).some((s, i) => s.text?.trim() && !fs.existsSync(path.join(dir(sl), "audio", "vo", `${String(i + 1).padStart(3, "0")}.mp3`)))) bad.push("narration incomplete");
+    if (L.music?.prompt && !(L.music.files || []).length) bad.push("no music");
+    for (const sc of L.scenes || []) if (!exists(sl, sc.image) || (sc.motion !== "kenburns" && !exists(sl, sc.clip))) bad.push(`scene ${sc.id} has no loop`);
   }
-  return bad.length ? no(bad.join("; ")) : ok("todas las tomas pasan sus evals");
+  return bad.length ? no(bad.join("; ")) : ok("every take passes its evals");
 }
 
 export const takesSig = (sl) => sha(kindOf(sl) === "scenes" ? (sl.scenes || []).map((sc) => sc.clips?.[sc.clip]?.file) : kindOf(sl) === "clips" ? (sl.shots || []).map((s) => s.clips?.[s.clip]?.file) : (sl.longform?.scenes || []).map((s) => s.clip || s.image));
 
 function editCheck(sl) {
   const f = finalFile(sl);
-  if (!fs.existsSync(f)) return no(`sin corte final (${kindOf(sl) === "scenes" ? "edit.mjs" : sl.format === "launch" ? "launch.mjs build" : kindOf(sl) === "clips" ? "cut.mjs" : "longform.mjs build"})`);
-  if (sl.cut?.sha !== fileSha(f)) return no("el corte final no lo hizo el motor o cambió después");
-  if (sl.cut?.takes !== takesSig(sl)) return no("el corte usa tomas distintas de las aprobadas; vuelve a cortar");
+  if (!fs.existsSync(f)) return no(`no final cut (${kindOf(sl) === "scenes" ? "edit.mjs" : sl.format === "launch" ? "launch.mjs build" : kindOf(sl) === "clips" ? "cut.mjs" : "longform.mjs build"})`);
+  if (sl.cut?.sha !== fileSha(f)) return no("the final cut wasn't made by the engine, or changed afterwards");
+  if (sl.cut?.takes !== takesSig(sl)) return no("the cut uses takes other than the approved ones; cut again");
   return ok(path.basename(f));
 }
 
 function qcCheck(sl) {
   const q = sl.finalQc5;
-  if (!q) return no("sin QC del final (studio.mjs qc)");
-  if (q.sha !== fileSha(finalFile(sl))) return no("el QC es de otra versión del final; vuelve a correrlo");
-  return q.pass ? ok("QC del final pasó") : no(`QC del final: ${q.issues.join("; ")}`);
+  if (!q) return no("no final QC (studio.mjs qc)");
+  if (q.sha !== fileSha(finalFile(sl))) return no("the QC is for another version of the final; run it again");
+  return q.pass ? ok("final QC passed") : no(`final QC: ${q.issues.join("; ")}`);
 }
 
 function deliverCheck(sl) {
   const f = path.join(dir(sl), "delivery.json");
-  if (!fs.existsSync(f)) return no("sin recibo de entrega (studio.mjs deliver)");
+  if (!fs.existsSync(f)) return no("no delivery receipt (studio.mjs deliver)");
   const r = P.readJSON(f);
-  return r.sha === fileSha(finalFile(sl)) ? ok(`entregado ${r.at.slice(0, 10)}`) : no("el recibo no coincide con el archivo final");
+  return r.sha === fileSha(finalFile(sl)) ? ok(`entregado ${r.at.slice(0, 10)}`) : no("the receipt doesn't match the final file");
 }
 
 const approvedNow = (sl, id) => {
   const a = sl.flow?.approved?.[id];
-  if (!a) return no("espera la aprobación del creador");
-  if (FINGERPRINT[id] && a.fp !== FINGERPRINT[id](sl)) return no("cambió después de aprobarse; necesita aprobarse de nuevo");
-  return ok(`aprobado: "${a.said}"`);
+  if (!a) return no("waiting for the creator's approval");
+  if (FINGERPRINT[id] && a.fp !== FINGERPRINT[id](sl)) return no("changed after it was approved; it needs a new approval");
+  return ok(`approved: "${a.said}"`);
 };
 const both = (...rs) => rs.find((r) => !r.ok) || ok(rs.map((r) => r.detail).filter(Boolean).join(" · "));
 
@@ -399,7 +399,7 @@ function launchConcept(sl) {
 function launchScript(sl) {
   const plan = launchJSON(sl, "plan");
   const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
-  return bad.length ? no(bad.join("; ")) : ok(`${plan.shots.length} tomas · ${plan.durationSeconds} s`);
+  return bad.length ? no(bad.join("; ")) : ok(`${plan.shots.length} shots · ${plan.durationSeconds} s`);
 }
 
 // who: "creator" = his approval, "auto" = checks only.
@@ -408,7 +408,7 @@ function launchScript(sl) {
 export function refsGate(sl) {
   const ids = RF.approved(sl.format);
   if (!ids.length || sl.refsChoice || sl.flow?.approved?.concept) return []; // a concept approved before the bank had refs stands
-  return [`hay ${ids.length} referencia(s) aprobadas de ${sl.format} (${ids.join(", ")}): elige cuáles usar o ninguna, con las palabras del creador (studio.mjs refs <slug> --use id,id --said "..." | --none --said "...")`];
+  return [`there are ${ids.length} approved ${sl.format} reference(s) (${ids.join(", ")}): choose which to use, or none, in the creator's words (studio.mjs refs <slug> --use id,id --said "..." | --none --said "...")`];
 }
 export function projectText(sl) {
   if (sl.format === "launch") return (launchJSON(sl, "plan")?.shots || []).map((s) => s.vo || "").join(" ");
@@ -417,25 +417,25 @@ export function projectText(sl) {
 }
 export function copyGate(sl) {
   const ids = sl.refsChoice?.ids || [];
-  return ids.length ? RF.copyOverlap(projectText(sl), ids).filter((x) => x.share > RF.COPY_MAX).map((x) => `el guion repite ${Math.round(x.share * 100)} % de las frases de la referencia ${x.ref} (máximo ${Math.round(RF.COPY_MAX * 100)} %): la referencia enseña, no se copia`) : [];
+  return ids.length ? RF.copyOverlap(projectText(sl), ids).filter((x) => x.share > RF.COPY_MAX).map((x) => `the script repeats ${Math.round(x.share * 100)} % of reference ${x.ref}'s phrases (max ${Math.round(RF.COPY_MAX * 100)} %): a reference teaches, it isn't copied`) : [];
 }
 const withRefs = (check, extra) => (sl) => { const r = check(sl); if (!r.ok) return r; const bad = extra(sl); return bad.length ? no(bad.join("; ")) : r; };
 
 export const STEPS = {
-  intake: { name: "Intake", who: "auto", check: intakeCheck, next: "studio.mjs new (las 7 preguntas)" },
-  series: { name: "Biblia de la serie", who: "creator", check: (sl) => (fs.existsSync(path.join(P.PROJECTS, "..", "series", sl.series || "-", "series.json")) ? ok() : no("sin series.json")), next: "studio.mjs series new, luego approve series" },
-  concept: { name: "Concepto", who: "creator", check: withRefs((sl) => (!fs.existsSync(path.join(dir(sl), "concept.md")) ? no("sin concept.md") : sl.format === "launch" ? launchConcept(sl) : ok()), refsGate), next: "escribe concept.md (launch: también launch/brief.json y launch/concepts.json; launch.mjs check), luego approve concept" },
+  intake: { name: "Intake", who: "auto", check: intakeCheck, next: "studio.mjs new (the 7 questions)" },
+  series: { name: "Series bible", who: "creator", check: (sl) => (fs.existsSync(path.join(P.PROJECTS, "..", "series", sl.series || "-", "series.json")) ? ok() : no("no series.json")), next: "studio.mjs series new, luego approve series" },
+  concept: { name: "Concepto", who: "creator", check: withRefs((sl) => (!fs.existsSync(path.join(dir(sl), "concept.md")) ? no("no concept.md") : sl.format === "launch" ? launchConcept(sl) : ok()), refsGate), next: "write concept.md (launch: also launch/brief.json and launch/concepts.json; launch.mjs check), then approve concept" },
   // Meditations: the intention's rules (pace, pauses, voice share, music tempo, picture, safety) block the script
   // gate (one universal engine for guided meditations, the intention only changes the numbers).
-  script: { name: "Guion", who: "creator", check: withRefs((sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("sin guion") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : (sl.shots || []).length ? ok() : no("sin shots ni diálogo")), copyGate), next: "escribe el guion en la shotlist, luego approve script" },
+  script: { name: "Guion", who: "creator", check: withRefs((sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("no script") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : (sl.shots || []).length ? ok() : no("no shots or dialogue")), copyGate), next: "write the script in the shotlist, then approve script" },
   cast: { name: "Casting y sets", who: "creator", check: castCheck, next: "cast.mjs sheet / approve-character, luego approve cast" },
   radio: { name: "Radio cut", who: "auto", check: radioCheck, next: "radio.mjs" },
-  board: { name: "Storyboard y prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (escenas) o gen.mjs frame (clips)" },
-  models: { name: "Precios en vivo", who: "auto", check: modelsCheck, next: "studio.mjs prices <slug> (analiza Kie en vivo y elige el mejor modelo para la calidad y el costo; --pick <modelo> si el creador elige otro)" },
-  book: { name: "Production Book", who: "creator", check: bookCheck, next: "book.mjs, publicarlo, luego approve book (bloquea el presupuesto)" },
-  film: { name: "Filmación", who: "auto", check: filmCheck, next: "gen.mjs scenes | clip --shot | narration/bed/loops" },
-  edit: { name: "Edición", who: "auto", check: editCheck, next: "edit.mjs | cut.mjs | longform.mjs build" },
-  qc: { name: "QC del final", who: "auto", check: qcCheck, next: "studio.mjs qc" },
+  board: { name: "Storyboard and prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (scenes) or gen.mjs frame (clips)" },
+  models: { name: "Precios en vivo", who: "auto", check: modelsCheck, next: "studio.mjs prices <slug> (analyzes live prices and picks the best model for quality and cost; --pick <model> if the creator chooses another)" },
+  book: { name: "Production Book", who: "creator", check: bookCheck, next: "book.mjs, publish it, then approve book (locks the budget)" },
+  film: { name: "Filming", who: "auto", check: filmCheck, next: "gen.mjs scenes | clip --shot | narration/bed/loops" },
+  edit: { name: "Edit", who: "auto", check: editCheck, next: "edit.mjs | cut.mjs | longform.mjs build" },
+  qc: { name: "Final QC", who: "auto", check: qcCheck, next: "studio.mjs qc" },
   deliver: { name: "Entrega", who: "auto", check: deliverCheck, next: "studio.mjs deliver" },
   retro: { name: "Retro", who: "creator", check: () => ok(), next: "studio.mjs approve retro --said \"...\" --notes \"...\"" },
 };
@@ -471,21 +471,21 @@ export function status(sl) {
 export class FlowStop extends Error {}
 
 export function assertV5(sl) {
-  if (!sl?.flow?.v) throw new FlowStop(`${sl?.slug || "este proyecto"} no es un proyecto del flujo v5. Créalo con: node engine/studio.mjs new`);
-  if (sl.flow.archived) throw new FlowStop(`${sl.slug} está archivado (solo lectura): ${sl.flow.archived}`);
+  if (!sl?.flow?.v) throw new FlowStop(`${sl?.slug || "this project"} is not a flow v5 project. Create it with: node engine/studio.mjs new`);
+  if (sl.flow.archived) throw new FlowStop(`${sl.slug} is archived (read-only): ${sl.flow.archived}`);
 }
 
 // The gate every command calls. `step` is the step the command belongs to.
 export function requireStep(sl, step, what = step) {
   assertV5(sl);
   const r = recipe(sl);
-  if (!r.includes(step)) throw new FlowStop(`"${what}" no forma parte de la receta de ${FORMATS[sl.format]?.label || sl.format}`);
+  if (!r.includes(step)) throw new FlowStop(`"${what}" is not part of the ${FORMATS[sl.format]?.label || sl.format} recipe`);
   for (const id of r.slice(0, r.indexOf(step))) {
     const s = stepStatus(sl, id);
-    if (!s.ok) throw new FlowStop(`"${what}" pertenece al paso "${STEPS[step].name}", pero antes falta "${STEPS[id].name}": ${s.detail}.\nSiguiente: ${STEPS[id].next}\nEstado: node engine/studio.mjs status ${sl.slug}`);
+    if (!s.ok) throw new FlowStop(`"${what}" belongs to the "${STEPS[step].name}" step, but "${STEPS[id].name}" comes first: ${s.detail}.\nNext: ${STEPS[id].next}\nStatus: node engine/studio.mjs status ${sl.slug}`);
   }
   // Every paid step after the book needs the budget the book locked.
-  if (r.indexOf(step) >= r.indexOf("film") && sl.budget?.approvedCredits == null) throw new FlowStop(`"${what}": no hay presupuesto aprobado (se fija al aprobar el Production Book)`);
+  if (r.indexOf(step) >= r.indexOf("film") && sl.budget?.approvedCredits == null) throw new FlowStop(`"${what}": no approved budget (it is set when the Production Book is approved)`);
 }
 
 // PILOT GATE (filming every scene at once on an untried model shows timing, sound and wardrobe problems only after
@@ -499,14 +499,14 @@ export function requirePilot(sl, ids) {
   const ok = sl.flow?.approved?.pilot && (sl.flow.approved.pilot.model ?? null) === (sl.defaults?.videoModel ?? null);
   if (kindOf(sl) === "longform" || ok) return;
   const p = pilotId(sl), rest = ids.filter((i) => i !== p);
-  if (rest.length) throw new FlowStop(`PILOT STOP: film the pilot first (${p}), show it to the creator and record his yes: studio.mjs approve-pilot ${sl.slug} --said "..." . Only then ${rest.join(", ")}.`);
+  if (rest.length) throw new FlowStop(`PILOT STOP: film the pilot first (${p}), show it to the creator and record their yes: studio.mjs approve-pilot ${sl.slug} --said "..." . Only then ${rest.join(", ")}.`);
 }
 export function approvePilot(slug, said) {
-  if (!said?.trim()) throw new FlowStop('approve-pilot necesita las palabras exactas del creador: --said "..."');
+  if (!said?.trim()) throw new FlowStop('approve-pilot needs the creator\'s exact words: --said "..."');
   return P.updateShotlist(slug, (sl) => {
     assertV5(sl);
     const id = pilotId(sl), item = (sl.scenes || []).find((x) => x.id === id) || (sl.shots || []).find((x) => x.id === id);
-    if (!item?.clips?.length) throw new FlowStop(`el piloto ${id} todavía no está filmado`);
+    if (!item?.clips?.length) throw new FlowStop(`the pilot ${id} isn't filmed yet`);
     sl.flow.approved ||= {};
     sl.flow.approved.pilot = { said: said.trim(), at: new Date().toISOString(), item: id, take: (item.clip ?? item.clips.length - 1) + 1, model: sl.defaults?.videoModel ?? null };
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `approve pilot ${id}`, said: said.trim() }];
@@ -514,33 +514,33 @@ export function approvePilot(slug, said) {
 }
 
 export function approve(slug, id, said, extra = {}) {
-  if (!said?.trim()) throw new FlowStop('approve necesita las palabras exactas del creador: --said "..."');
+  if (!said?.trim()) throw new FlowStop('approve needs the creator\'s exact words: --said "..."');
   return P.updateShotlist(slug, (sl) => {
     assertV5(sl);
     const S = STEPS[id];
-    if (!S || S.who !== "creator") throw new FlowStop(`"${id}" no es un paso que el creador aprueba (${Object.keys(STEPS).filter((k) => STEPS[k].who === "creator").join(", ")})`);
+    if (!S || S.who !== "creator") throw new FlowStop(`"${id}" is not a step the creator approves (${Object.keys(STEPS).filter((k) => STEPS[k].who === "creator").join(", ")})`);
     const r = recipe(sl);
-    if (!r.includes(id)) throw new FlowStop(`"${id}" no está en la receta de este proyecto`);
-    for (const p of r.slice(0, r.indexOf(id))) { const s = stepStatus(sl, p); if (!s.ok) throw new FlowStop(`antes de aprobar "${S.name}" falta "${STEPS[p].name}": ${s.detail}`); }
+    if (!r.includes(id)) throw new FlowStop(`"${id}" is not in this project's recipe`);
+    for (const p of r.slice(0, r.indexOf(id))) { const s = stepStatus(sl, p); if (!s.ok) throw new FlowStop(`before approving "${S.name}", "${STEPS[p].name}" is missing: ${s.detail}`); }
     const c = S.check(sl);
-    if (!c.ok) throw new FlowStop(`"${S.name}" no está listo para aprobarse: ${c.detail}`);
+    if (!c.ok) throw new FlowStop(`"${S.name}" is not ready to approve: ${c.detail}`);
     sl.flow.approved ||= {};
     sl.flow.approved[id] = { said: said.trim(), at: new Date().toISOString(), fp: FINGERPRINT[id] ? FINGERPRINT[id](sl) : null, ...extra };
     sl.flow.log = [...(sl.flow.log || []), { at: new Date().toISOString(), event: `approve ${id}`, said: said.trim() }];
     if (id === "book") {
       const spent = P.ledgerTotal(slug);
       const hard = sl.intake?.budget?.mode === "fixed" && sl.intake.budget.usd ? sl.intake.budget.usd / 0.005 : null;
-      if (hard != null && spent + sl.bookEstimate > hard) throw new FlowStop(`el book (gastado ${(spent * 0.005).toFixed(2)} + estimado ${(sl.bookEstimate * 0.005).toFixed(2)}) pasa el tope fijo de ${sl.intake.budget.usd}: baja el modelo, la resolución o la duración`);
-      sl.budget = { approvedCredits: Math.ceil(spent + sl.bookEstimate), approvedAt: new Date().toISOString(), history: [{ add: sl.bookEstimate, note: `Production Book aprobado: "${said.trim()}"` }] };
+      if (hard != null && spent + sl.bookEstimate > hard) throw new FlowStop(`the book (spent ${(spent * 0.005).toFixed(2)} + estimate ${(sl.bookEstimate * 0.005).toFixed(2)}) passes the fixed cap of ${sl.intake.budget.usd}: lower the model, the resolution or the length`);
+      sl.budget = { approvedCredits: Math.ceil(spent + sl.bookEstimate), approvedAt: new Date().toISOString(), history: [{ add: sl.bookEstimate, note: `Production Book approved: "${said.trim()}"` }] };
     }
   });
 }
 
 export function override(slug, step, said, reason) {
-  if (!said?.trim() || !reason?.trim()) throw new FlowStop('override necesita --said "palabras exactas del creador" y --reason "por qué"');
+  if (!said?.trim() || !reason?.trim()) throw new FlowStop('override needs --said "the creator\'s exact words" and --reason "why"');
   return P.updateShotlist(slug, (sl) => {
     assertV5(sl);
-    if (!STEPS[step]) throw new FlowStop(`paso desconocido: ${step}`);
+    if (!STEPS[step]) throw new FlowStop(`unknown step: ${step}`);
     const o = { step, said: said.trim(), reason: reason.trim(), at: new Date().toISOString(), fp: FINGERPRINT[step] ? FINGERPRINT[step](sl) : "manual" };
     sl.flow.overrides = [...(sl.flow.overrides || []), o];
     sl.flow.log = [...(sl.flow.log || []), { at: o.at, event: `override ${step}`, said: o.said, reason: o.reason }];

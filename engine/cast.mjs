@@ -92,11 +92,11 @@ const commands = {
   likeness() {
     const kind = flag("--kind"), said = flag("--said");
     if (!id || !["fictional", "self", "real-person"].includes(kind)) throw new Error('usage: likeness <char> --kind fictional|self|real-person [--said "..."]');
-    if (kind === "real-person" && !said?.trim()) throw new Error('una persona real necesita tu declaración de que te autorizó: --said "..."');
+    if (kind === "real-person" && !said?.trim()) throw new Error('a real person needs the creator\'s statement that the person authorized it: --said "..."');
     const data = P.readJSON(charFile(id));
     data.likeness = { kind, ...(kind === "real-person" ? { authorized: { said, at: new Date().toISOString() } } : {}) };
     P.writeJSON(charFile(id), data);
-    console.log(`${id}: ${kind === "real-person" ? "persona real, autorización declarada por el creador y registrada" : kind === "self" ? "tu propia cara y voz" : "personaje ficticio"}`);
+    console.log(`${id}: ${kind === "real-person" ? "real person, authorization stated by the creator and recorded" : kind === "self" ? "the creator's own face and voice" : "fictional character"}`);
   },
 
   "model-sheet"() {

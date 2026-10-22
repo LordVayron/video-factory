@@ -27,7 +27,7 @@ const sl = P.loadShotlist(slug);
 requireStep(sl, "radio", "radio");
 const pace = { gap: 0.25, tempo: 1.0, lead: 0.12, tail: 0.6, innerPause: 0.18, ...(sl.pace || {}) };
 // atempo below 0.85 smears the voice into slow motion (clearly audible at 0.7); slow the read with real pauses instead.
-if (pace.tempo < 0.85 || pace.tempo > 1.2) throw new Error(`pace.tempo ${pace.tempo} fuera de 0.85-1.2: suena en cámara lenta o acelerado. Usa pace.innerPause, beats o gap para alargar.`);
+if (pace.tempo < 0.85 || pace.tempo > 1.2) throw new Error(`pace.tempo ${pace.tempo} outside 0.85-1.2: it sounds slowed down or sped up. Use pace.innerPause, beats or gap to lengthen.`);
 const ff = (args) => execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...args], { cwd: dir, stdio: ["ignore", "inherit", "inherit"] });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 

@@ -14,11 +14,11 @@ export default function (t, ROOT) {
   const noShot = b(); noShot.shots.pop(); noShot.shots[1].transitionOut = undefined;
   const late = b(); late.structure[1].to = 40;
   const quiet = b(); quiet.music.present = false;
-  t("refs: a breakdown describes every measured shot and every join, keeps beats inside the video and matches the measured music", !R.breakdownRules(b(), prof()).length && R.breakdownRules(noShot, prof()).some((x) => /toma 3 sin describir/.test(x)) && R.breakdownRules(noShot, prof()).some((x) => /cómo se une/.test(x)) && R.breakdownRules(late, prof()).some((x) => /beat/.test(x)) && R.breakdownRules(quiet, prof()).some((x) => /música/.test(x)));
+  t("refs: a breakdown describes every measured shot and every join, keeps beats inside the video and matches the measured music", !R.breakdownRules(b(), prof()).length && R.breakdownRules(noShot, prof()).some((x) => /shot 3 not described/.test(x)) && R.breakdownRules(noShot, prof()).some((x) => /how it joins/.test(x)) && R.breakdownRules(late, prof()).some((x) => /beat/.test(x)) && R.breakdownRules(quiet, prof()).some((x) => /music/.test(x)));
 
   const withText = prof({ onScreenText: [{ text: "SALE", from: 1, to: 2 }], sound: { sfx: [{ at: 4, jumpDb: 9 }] } });
   const plain = b(); plain.onScreenText = { style: "", examples: [] }; plain.sfx = [];
-  t("refs: measured on-screen text and sound hits must be described in the breakdown", R.breakdownRules(plain, withText).some((x) => /texto en pantalla/.test(x)) && R.breakdownRules(plain, withText).some((x) => /golpes de sonido/.test(x)));
+  t("refs: measured on-screen text and sound hits must be described in the breakdown", R.breakdownRules(plain, withText).some((x) => /on-screen text/.test(x)) && R.breakdownRules(plain, withText).some((x) => /sound hits/.test(x)));
   const lib = fs.readFileSync(path.join(ROOT, "engine", "lib", "refs.mjs"), "utf8");
   t("refs: sound (tempo, hits outside the voice) and on-screen text (local OCR) are measured, not left to Claude", lib.includes('media("audio")') && lib.includes('media("ocr")') && fs.existsSync(path.join(ROOT, "engine", "lib", "ref_media.py")));
   t("refs: measuring again never undoes the creator's approval", lib.includes("re-measuring never undoes the creator's approval"));
@@ -27,7 +27,7 @@ export default function (t, ROOT) {
   const id = `_check-ref-${process.pid}`, d = R.dirOf(id); fs.mkdirSync(d, { recursive: true });
   const w = (f, v) => fs.writeFileSync(path.join(d, f), JSON.stringify(v));
   w("meta.json", { id, status: "broken-down" }); w("profile.json", { ...prof(), guess: { format: "ugc", confidence: 0.5, why: [] } }); w("breakdown.json", b());
-  let noWords = false, noFormat = false; try { R.approve(id, {}); } catch { noWords = true; } try { R.approve(id, { said: "check" }); } catch (e) { noFormat = /confirmación del creador/.test(e.message); }
+  let noWords = false, noFormat = false; try { R.approve(id, {}); } catch { noWords = true; } try { R.approve(id, { said: "check" }); } catch (e) { noFormat = /the creator's confirmation/.test(e.message); }
   R.approve(id, { said: "check", formatSaid: "check" });
   t("refs: a reference enters the bank only in the creator's words, and the format too when the numbers disagreed", noWords && noFormat && R.approved("launch").includes(id));
   const bk = R.bank("launch");

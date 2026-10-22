@@ -41,7 +41,7 @@ function load(sl) {
   const plan = L.ShotPlan.parse(L.read(slug, "plan"));
   const style = L.StyleBible.parse(L.read(slug, "style"));
   const config = L.read(slug, "concepts")?.config;
-  if (!config) throw new F.FlowStop("sin launch/concepts.json");
+  if (!config) throw new F.FlowStop("no launch/concepts.json");
   return { plan, style, config, brief: L.read(slug, "brief") };
 }
 
@@ -52,7 +52,7 @@ const commands = {
     const sl = P.loadShotlist(slug);
     F.assertV5(sl);
     const file = flag("--file");
-    if (!file || !fs.existsSync(file)) throw new F.FlowStop("reference <slug> --file <video de referencia>");
+    if (!file || !fs.existsSync(file)) throw new F.FlowStop("reference <slug> --file <reference video>");
     const p = REF.profile(file, { lang: sl.lang === "es" ? "es" : "en" });
     P.writeJSON(path.join(P.projectDir(slug), "launch", "reference.json"), { ...p, at: now() });
     console.log(JSON.stringify(p, null, 1));
@@ -69,7 +69,7 @@ const commands = {
     for (const [name, out] of groups) console.log(`${out.length ? "✗" : "✓"} ${name}${out.map((x) => `\n   - ${x}`).join("")}`);
     const plan = L.read(slug, "plan");
     if (plan?.shots) {
-      console.log(`\n${plan.shots.length} tomas · ${+plan.shots.reduce((n, s) => n + s.duration, 0).toFixed(2)} s · ${plan.shots.reduce((n, s) => n + (s.vo?.match(/\S+/g) || []).length, 0)} palabras de voz en off`);
+      console.log(`\n${plan.shots.length} shots · ${+plan.shots.reduce((n, s) => n + s.duration, 0).toFixed(2)} s · ${plan.shots.reduce((n, s) => n + (s.vo?.match(/\S+/g) || []).length, 0)} voice-over words`);
       for (const s of plan.shots) console.log(`  ${String(s.start.toFixed(2)).padStart(5)}–${(s.start + s.duration).toFixed(2).padEnd(5)} ${s.id.padEnd(4)} ${s.role.padEnd(11)} ${s.source.padEnd(8)} ${s.beat}${s.vo ? `  VO: "${s.vo}"` : ""}${(s.text || []).map((o) => `  [${o.kind}: ${o.text}]`).join("")}`);
     }
     process.exitCode = groups.some(([, o]) => o.length) ? 1 : 0;
@@ -82,7 +82,7 @@ const commands = {
     F.requireStep(sl, "board", "launch apply");
     const { plan, style } = load(sl);
     const bad = L.planRules(L.read(slug, "plan"), { brief: L.read(slug, "brief"), concepts: L.read(slug, "concepts"), style: L.read(slug, "style"), reference: L.read(slug, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
-    if (bad.length) throw new F.FlowStop(`el plan no pasa:\n - ${bad.join("\n - ")}`);
+    if (bad.length) throw new F.FlowStop(`the plan doesn't pass:\n - ${bad.join("\n - ")}`);
     // The cast is the style bible's characters (the intake's --chars is usually empty for a new launch cast).
     const cast = [...new Set([...(sl.cast || []), ...style.characters.map((c) => c.id)])];
     const fresh = L.toShots(plan, style, P.style(sl.style), cast);
@@ -111,8 +111,8 @@ const commands = {
       x.sfx = plan.sfx;
       x.launch = { ...(x.launch || {}), applied: F.planSha(x) };
     });
-    console.log(`shotlist = plan ${plan.conceptId}: ${fresh.length} tomas (${fresh.filter(F.films).length} generadas, ${fresh.filter((s) => s.source === "still").length} fijas, ${fresh.filter((s) => s.source === "card").length} tarjetas); ${kept} conservan su cuadro`);
-    for (const s of sl.shots.filter((s) => s.source !== "card" && !s.frame)) console.log(`  falta cuadro: node engine/gen.mjs frame ${slug} ${s.id} first --planned`);
+    console.log(`shotlist = plan ${plan.conceptId}: ${fresh.length} shots (${fresh.filter(F.films).length} generated, ${fresh.filter((s) => s.source === "still").length} stills, ${fresh.filter((s) => s.source === "card").length} cards); ${kept} keep their frame`);
+    for (const s of sl.shots.filter((s) => s.source !== "card" && !s.frame)) console.log(`  frame missing: node engine/gen.mjs frame ${slug} ${s.id} first --planned`);
   },
 
   // Voice-over before the book (like the sitcom's radio cut): ElevenLabs, billed in its own characters. Each line
@@ -123,9 +123,9 @@ const commands = {
     // text with its real timing (the narrator's voice must already be chosen).
     F.requireStep(sl, has("--take") ? "script" : "board", "launch voice");
     const { plan, config } = load(sl);
-    if (!config.voiceover) return console.log("la película va sin voz en off");
+    if (!config.voiceover) return console.log("the film has no voice-over");
     const V = sl.launch?.voice || {};
-    if (!V.eleven) throw new F.FlowStop("falta la voz del narrador: sl.launch.voice.eleven (se elige con the creator en el casting)");
+    if (!V.eleven) throw new F.FlowStop("the narrator's voice is missing: sl.launch.voice.eleven (chosen with the creator at casting)");
     const lines = plan.shots.filter((s) => s.vo);
     if (has("--take")) return takeVoice(plan, lines, V);
     const from = flag("--from") || V.source;
@@ -147,7 +147,7 @@ const commands = {
     }
     P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), vo }; });
     const words = lines.reduce((n, s) => n + s.vo.split(/\s+/).length, 0), secs = Object.values(vo).reduce((n, v) => n + v.secs, 0);
-    console.log(`voz en off: ${lines.length} líneas · ${words} palabras en ${secs.toFixed(1)} s de voz (${Math.round((words / secs) * 60)} wpm) · ${chars} caracteres de ElevenLabs nuevos`);
+    console.log(`voice-over: ${lines.length} lines · ${words} words in ${secs.toFixed(1)} s of voice (${Math.round((words / secs) * 60)} wpm) · ${chars} new ElevenLabs characters`);
     for (const s of lines) { const v = vo[s.id]; console.log(`  ${s.id.padEnd(4)} ${v.secs.toFixed(2)} s de ${v.room} s ${v.secs > v.room + 0.05 ? "NO CABE" : "ok"}  "${s.vo}"`); }
   },
 
@@ -157,14 +157,14 @@ const commands = {
     // --approve --said: The creator watched this plan's animatic (storyboard panels or frames, voice, text, timing).
     // No frame is paid for before it (every cut and bridge is judged on the storyboard first).
     if (has("--approve")) {
-      if (!flag("--said")) throw new F.FlowStop('animatic --approve necesita --said "palabras exactas del creador"');
-      if (!sl.launch?.animatic || !fs.existsSync(path.join(P.projectDir(slug), "out", "animatic.mp4"))) throw new F.FlowStop("primero arma el animatic (launch.mjs animatic) y enséñaselo al creador");
+      if (!flag("--said")) throw new F.FlowStop('animatic --approve needs --said "the creator\'s exact words"');
+      if (!sl.launch?.animatic || !fs.existsSync(path.join(P.projectDir(slug), "out", "animatic.mp4"))) throw new F.FlowStop("build the animatic first (launch.mjs animatic) and show it to the creator");
       P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), animaticApproved: { plan: F.planSha(x), sig: F.launchSig(x), said: flag("--said"), at: now() } }; });
-      return console.log("animatic aprobado con las palabras del creador; ya se pueden dibujar los cuadros (gen.mjs frame --planned)");
+      return console.log("animatic approved in the creator's words; the frames can be drawn now (gen.mjs frame --planned)");
     }
     const out = await build(sl, "animatic");
     P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), animatic: { sig: F.launchSig(x), at: now() } }; });
-    console.log(`${P.rel(slug, out)} · animatic (cuadros, voz y texto al tiempo exacto; sin música)`);
+    console.log(`${P.rel(slug, out)} · animatic (frames, voice and text at their exact times; no music)`);
   },
 
   // A style made from the creator's own references: their images are copied into the bible, the look is
@@ -172,12 +172,12 @@ const commands = {
   //   style-from-refs <slug> --name <id> --ref a.png --ref b.png [--ref c.png] --look "..." --negative "..." --said "..."
   "style-from-refs"() {
     const id = flag("--name"), refs = process.argv.flatMap((a, i) => (a === "--ref" && process.argv[i + 1] ? [process.argv[i + 1]] : []));
-    if (!id || !flag("--look") || !flag("--negative") || !flag("--said")) throw new F.FlowStop('style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "palabras exactas del creador"');
-    if (!/^[a-z0-9][a-z0-9-]{2,40}$/.test(id)) throw new F.FlowStop("--name: minúsculas, números y guiones (3–40)");
+    if (!id || !flag("--look") || !flag("--negative") || !flag("--said")) throw new F.FlowStop('style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "the creator\'s exact words"');
+    if (!/^[a-z0-9][a-z0-9-]{2,40}$/.test(id)) throw new F.FlowStop("--name: lowercase letters, numbers and hyphens (3–40)");
     const dir = path.join(P.BIBLE, "styles", id);
-    if (fs.existsSync(path.join(dir, "style.json")) && JSON.parse(fs.readFileSync(path.join(dir, "style.json"), "utf8")).kind !== "custom") throw new F.FlowStop(`ya existe el estilo ${id} y no es propio; usa otro nombre`);
+    if (fs.existsSync(path.join(dir, "style.json")) && JSON.parse(fs.readFileSync(path.join(dir, "style.json"), "utf8")).kind !== "custom") throw new F.FlowStop(`the style ${id} already exists and isn't a custom one; use another name`);
     fs.mkdirSync(path.join(dir, "refs"), { recursive: true });
-    const copied = refs.map((f, k) => { if (!fs.existsSync(f)) throw new F.FlowStop(`no existe la referencia ${f}`); const to = `refs/ref-${k + 1}${path.extname(f).toLowerCase() || ".png"}`; fs.copyFileSync(f, path.join(dir, to)); return to; });
+    const copied = refs.map((f, k) => { if (!fs.existsSync(f)) throw new F.FlowStop(`the reference ${f} doesn't exist`); const to = `refs/ref-${k + 1}${path.extname(f).toLowerCase() || ".png"}`; fs.copyFileSync(f, path.join(dir, to)); return to; });
     const base = P.style("storybook");
     const st = {
       id, name: id, kind: "custom", status: "draft", description: "A style made from the creator's own reference images.",
@@ -193,21 +193,21 @@ const commands = {
     const problems = L.customStyleRules({ ...st, dir });
     if (problems.length) throw new F.FlowStop(problems.join("; "));
     P.updateShotlist(slug, (x) => { x.style = id; });
-    console.log(`estilo propio ${id}: ${copied.length} referencias en bible/styles/${id}; el proyecto usa este estilo. Pon visualStyle "${id}" en concepts.json y preset "${id}" en el style bible; la identidad visual se aprueba igual (studio.mjs approve-look).`);
+    console.log(`custom style ${id}: ${copied.length} references in bible/styles/${id}; the project uses this style. Set visualStyle "${id}" in concepts.json and preset "${id}" in the style bible; the visual identity is approved as usual (studio.mjs approve-look).`);
   },
 
   // The motion test before the book can be skipped only in the creator's words.
   "waive-test"() {
-    if (!flag("--said")) throw new F.FlowStop('waive-test <slug> --said "palabras exactas del creador"');
+    if (!flag("--said")) throw new F.FlowStop('waive-test <slug> --said "the creator\'s exact words"');
     P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), motionTestWaived: { said: flag("--said"), at: now() } }; });
-    console.log("prueba de movimiento omitida con las palabras del creador (queda en el book)");
+    console.log("motion test waived in the creator's words (recorded in the book)");
   },
 
   async build() {
     const sl = P.loadShotlist(slug);
     const draft = has("--draft");
     F.requireStep(sl, draft ? "film" : "edit", draft ? "launch build --draft" : "launch build");
-    if (sl.format !== "launch") throw new F.FlowStop("launch.mjs build es solo para Product launch films");
+    if (sl.format !== "launch") throw new F.FlowStop("launch.mjs build is only for Product launch films");
     await build(sl, draft ? "draft" : "final");
   },
 
@@ -218,7 +218,7 @@ const commands = {
     const sl = P.loadShotlist(slug);
     F.requireStep(sl, "film", "launch review");
     const id = flag("--shot"), s = id && P.shot(sl, id), i = s?.clip ?? (s?.clips || []).length - 1, t = s?.clips?.[i];
-    if (!t) throw new F.FlowStop("review <slug> --shot <id> [--ok \"qué se revisó\" | --reject \"qué falla\"]");
+    if (!t) throw new F.FlowStop("review <slug> --shot <id> [--ok \"what was checked\" | --reject \"what fails\"]");
     const sheet = path.join(P.projectDir(slug), "out", "_review", `${id}.jpg`), joinSheet = path.join(P.projectDir(slug), "out", "_review", `${id}-join.jpg`);
     const prevShot = sl.shots[sl.shots.indexOf(s) - 1];
     if (flag("--ok")) {
@@ -226,15 +226,15 @@ const commands = {
       // (a take "without things appearing" was approved while it melted, idled and broke the story).
       const pts = { motion: "--motion", join: "--join", logic: "--logic", appear: "--appear", end: "--end" };
       const miss = Object.entries(pts).filter(([, f]) => !flag(f)?.trim() || flag(f).trim().split(/\s+/).length < 2).map(([, f]) => f);
-      if (miss.length) throw new F.FlowStop(`${id}: la revisión responde cada punto en palabras: ${miss.join(" ")} (movimiento natural sin deformarse; unión con la toma anterior; lógica de la historia; nada aparece, desaparece o se queda sin hacer nada; el último cuadro es el final planeado)`);
+      if (miss.length) throw new F.FlowStop(`${id}: the review answers every point in words: ${miss.join(" ")} (natural motion without warping; join with the previous shot; story logic; nothing appears, disappears or idles; the last frame is the planned end)`);
       const fresh = (f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= fs.statSync(P.abs(slug, t.file)).mtimeMs;
-      if (!fresh(sheet)) throw new F.FlowStop(`${id}: primero mira la hoja cuadro por cuadro de esta toma (launch.mjs review ${slug} --shot ${id})`);
-      if (prevShot && !fresh(joinSheet)) throw new F.FlowStop(`${id}: primero mira la unión con ${prevShot.id} (launch.mjs review ${slug} --shot ${id} genera ${id}-join.jpg)`);
+      if (!fresh(sheet)) throw new F.FlowStop(`${id}: first look at this take's frame-by-frame sheet (launch.mjs review ${slug} --shot ${id})`);
+      if (prevShot && !fresh(joinSheet)) throw new F.FlowStop(`${id}: first look at the join with ${prevShot.id} (launch.mjs review ${slug} --shot ${id} makes ${id}-join.jpg)`);
     }
     if (flag("--ok") || flag("--reject")) {
       const answers = flag("--ok") ? { motion: flag("--motion"), join: flag("--join"), logic: flag("--logic"), appear: flag("--appear"), end: flag("--end") } : null;
       P.updateShotlist(slug, (x) => { const tk = P.shot(x, id).clips[i]; tk.review = { ok: !!flag("--ok"), notes: flag("--ok") || flag("--reject"), ...(answers ? { answers } : {}), file: tk.file, prompt: sha(P.shot(x, id).prompt), at: now() }; });
-      return console.log(`${id}: revisión ${flag("--ok") ? "APROBADA" : "RECHAZADA"} (${flag("--ok") || flag("--reject")})`);
+      return console.log(`${id}: review ${flag("--ok") ? "APPROVED" : "REJECTED"} (${flag("--ok") || flag("--reject")})`);
     }
     const out = path.join(P.projectDir(slug), "out", "_review", `${id}.jpg`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -245,18 +245,18 @@ const commands = {
     if (pt && fs.existsSync(P.abs(slug, pt.file))) {
       const pf = P.abs(slug, pt.file), a = Math.max(0, dur(pf) - 1), b = s.in ?? 0;
       ff(["-ss", String(a), "-t", "1", "-i", pf, "-ss", String(b), "-t", "1", "-i", P.abs(slug, t.file), "-filter_complex", "[0:v]fps=6,scale=480:-2[a];[1:v]fps=6,scale=480:-2[b];[a][b]concat=n=2:v=1:a=0,tile=6x2", "-frames:v", "1", "-q:v", "3", joinSheet]);
-      console.log(`unión con ${prevShot.id}: ${joinSheet}`);
+      console.log(`join with ${prevShot.id}: ${joinSheet}`);
     }
     const st = L.read(slug, "style") || {};
     console.log(`${out}
-Mira cada cuadro y revisa:
- - ¿aparece, desaparece o se multiplica algo o alguien que no está en el plan? (gente, manos, objetos)
- - física: ¿todo lo que se mueve tiene causa visible y termina donde dice el final? (nada se hunde, nada sale de cuadro sin razón)
- - el hilo (${st.thread || "—"}) se ve igual que su ficha; ninguna mano o personaje distinto
- - reglas de continuidad: ${(st.continuity || []).map((c) => `${c.subject}: ${c.rule}`).join("; ") || "—"}
- - letras o logos dibujados por el modelo
- - el último cuadro coincide con el final planeado: ${P.shot(sl, id).end || L.read(slug, "plan")?.shots?.find((x) => x.id === id)?.end || "—"}
-Luego: launch.mjs review ${slug} --shot ${id} --ok "..." --motion "..." --join "..." --logic "..." --appear "..." --end "..." | --reject "..."`);
+Look at every frame and check:
+ - does anything or anyone not in the plan appear, disappear or multiply? (people, hands, objects)
+ - physics: does everything that moves have a visible cause and end where the end says? (nothing sinks, nothing leaves the frame without a reason)
+ - the thread (${st.thread || "—"}) looks like its sheet; no different hand or character
+ - continuity rules: ${(st.continuity || []).map((c) => `${c.subject}: ${c.rule}`).join("; ") || "—"}
+ - letters or logos drawn by the model
+ - the last frame matches the planned end: ${P.shot(sl, id).end || L.read(slug, "plan")?.shots?.find((x) => x.id === id)?.end || "—"}
+Then: launch.mjs review ${slug} --shot ${id} --ok "..." --motion "..." --join "..." --logic "..." --appear "..." --end "..." | --reject "..."`);
   },
 
   package() {
@@ -285,7 +285,7 @@ async function takeVoice(plan, lines, V) {
   let k = 1; while (fs.existsSync(path.join(d, "audio", `narration-take-${k}.mp3`))) k++;
   const text = lines.map((s) => s.vo.trim()).join(" ");
   // --recut: the latest take again (the one the creator approved), only cut anew.
-  if (has("--recut")) { if (k === 1) throw new F.FlowStop("no hay toma de narración que recortar"); k--; }
+  if (has("--recut")) { if (k === 1) throw new F.FlowStop("no narration take to cut"); k--; }
   const take = path.join(d, "audio", `narration-take-${k}.mp3`);
   fs.mkdirSync(path.dirname(take), { recursive: true });
   if (!has("--recut")) {
@@ -301,7 +301,7 @@ async function takeVoice(plan, lines, V) {
     const toks = s.vo.split(/\s+/).map(norm).filter(Boolean);
     let j = -1;
     for (let x = at; x <= ws.length - toks.length && j < 0; x++) if (toks.every((t, q) => ws[x + q].n === t)) j = x;
-    if (j < 0) throw new F.FlowStop(`${s.id}: la toma no dice "${s.vo}" palabra por palabra (narration-take-${k}.mp3); vuelve a grabar`);
+    if (j < 0) throw new F.FlowStop(`${s.id}: the take doesn't say "${s.vo}" word for word (narration-take-${k}.mp3); record it again`);
     // The words around the line bound its cut: whisper puts word ends early (a cut at a word's end can clip its last
     // sound), so a line ends just before the next word starts, never at a fixed margin after its own.
     spans.push({ s, a: ws[j].start, b: ws[j + toks.length - 1].end, prevEnd: ws[j - 1]?.end ?? 0, nextStart: ws[j + toks.length]?.start ?? null });
@@ -313,7 +313,7 @@ async function takeVoice(plan, lines, V) {
   // from the narration and dropped the extra second the creator wanted after a line and the full celebration).
   const pauses = plan.shots.map((s) => s.pause || 0), before = (i) => pauses.slice(0, i).reduce((n, v) => n + v, 0);
   const end = n0 + spans.at(-1).b + before(spans.length), last = plan.shots.at(-1), tail = !last.vo;
-  if (end > plan.durationSeconds - (tail ? 1.8 : 0.3)) throw new F.FlowStop(`la narración termina en ${end.toFixed(2)} s y la película dura ${plan.durationSeconds} s${tail ? " con el cierre de marca" : ""}; acorta el texto`);
+  if (end > plan.durationSeconds - (tail ? 1.8 : 0.3)) throw new F.FlowStop(`the narration ends at ${end.toFixed(2)} s and the film lasts ${plan.durationSeconds} s${tail ? " with the brand ending" : ""}; shorten the text`);
   const starts = spans.map((x, i) => (i ? Math.floor((n0 + x.a - lead + before(i)) * fps) / fps : 0)); // down to the frame, so no line starts before its shot
   if (tail) starts.push(q(Math.max(end + 0.3, plan.durationSeconds - 3.5)));
   const p2 = L.read(slug, "plan");
@@ -324,7 +324,7 @@ async function takeVoice(plan, lines, V) {
   spans.forEach((x, i) => { x.cb = spans[i + 1] ? spans[i + 1].ca : Math.min(dur(take), x.b + 0.6); });
   spans.forEach((x, i) => { p2.shots[i].voAt = +(n0 + x.ca + before(i) - starts[i]).toFixed(3); });
   const short = p2.shots.filter((s) => s.duration < 1);
-  if (short.length) throw new F.FlowStop(`con esta toma ${short.map((s) => `${s.id} dura ${s.duration.toFixed(2)} s`).join(", ")}; reparte el texto (una toma necesita al menos 1 s)`);
+  if (short.length) throw new F.FlowStop(`with this take ${short.map((s) => `${s.id} dura ${s.duration.toFixed(2)} s`).join(", ")}; spread the text (a shot needs at least 1 s)`);
   P.writeJSON(L.fileOf(slug, "plan"), p2);
   const vo = {};
   for (const [i, x] of spans.entries()) {
@@ -333,14 +333,14 @@ async function takeVoice(plan, lines, V) {
     ff(["-i", take, "-af", `atrim=${a.toFixed(3)}:${b.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.02,afade=t=out:st=${Math.max(0, b - a - 0.03).toFixed(3)}:d=0.03`, "-c:a", "libmp3lame", "-q:a", "2", out]);
     // Each cut line is heard again: its first and last words must come out whole.
     const want = x.s.vo.split(/\s+/).map(norm).filter(Boolean), got = REF.words(out, "en").map((w) => norm(w.w)).filter(Boolean);
-    if (got[0] !== want[0] || got.at(-1) !== want.at(-1)) throw new F.FlowStop(`${x.s.id}: el corte se oye "${got.join(" ")}" y la línea es "${want.join(" ")}"; revisa la toma`);
+    if (got[0] !== want[0] || got.at(-1) !== want.at(-1)) throw new F.FlowStop(`${x.s.id}: the cut sounds like "${got.join(" ")}" and the line is "${want.join(" ")}"; check the take`);
     const nx = p2.shots[i + 1];
     const room = +(((nx?.vo ? nx.start + nx.voAt : p2.durationSeconds - 0.3) - (s.start + s.voAt))).toFixed(2);
     vo[s.id] = { text: s.vo, file: P.rel(slug, out), secs: +dur(out).toFixed(2), room, key: sha([s.vo, P.rel(slug, take)]), source: P.rel(slug, take) };
   }
   P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), voice: { ...(x.launch?.voice || {}), source: P.rel(slug, take), takeMode: true }, vo }; });
   const words = text.split(/\s+/).length;
-  console.log(`narración en una toma: ${P.rel(slug, take)} · ${words} palabras en ${(spans.at(-1).b - spans[0].a).toFixed(1)} s (${Math.round(words / (spans.at(-1).b - spans[0].a) * 60)} wpm) · el plan se recortó a la narración:`);
+  console.log(`narration in one take: ${P.rel(slug, take)} · ${words} words in ${(spans.at(-1).b - spans[0].a).toFixed(1)} s (${Math.round(words / (spans.at(-1).b - spans[0].a) * 60)} wpm) · the plan now follows the narration's timing:`);
   for (const s of p2.shots) console.log(`  ${s.start.toFixed(2).padStart(5)}–${(s.start + s.duration).toFixed(2).padEnd(5)} ${s.id.padEnd(4)} ${s.vo ? `"${s.vo}"` : "(cierre)"}`);
 }
 
@@ -350,7 +350,7 @@ async function takeVoice(plan, lines, V) {
 // silences longer than 0.35 s inside a line are shortened to 0.3 s. The words themselves are never sped up.
 async function importVoice(plan, lines, from) {
   const file = P.abs(slug, from);
-  if (!fs.existsSync(file)) throw new F.FlowStop(`no existe la grabación ${from}`);
+  if (!fs.existsSync(file)) throw new F.FlowStop(`the recording ${from} doesn't exist`);
   const r = spawnSync("python", [path.join(ROOT, "engine", "lib", "words.py"), file, L.read(slug, "concepts")?.config?.language === "es" ? "es" : "en"], { encoding: "utf8", maxBuffer: 1 << 24 });
   if (r.status !== 0) throw new Error(`words.py: ${(r.stderr || "").slice(-200)}`);
   const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
@@ -367,7 +367,7 @@ async function importVoice(plan, lines, from) {
       // A line written after the recording (the new hook): the narrator's saved voice records it in the
       // calmest setting, and it is marked so the creator hears it next to the recording before it is used.
       const V = P.loadShotlist(slug).launch?.voice || {}, out = P.abs(slug, `audio/vo/${s.id}.mp3`);
-      if (!V.eleven) throw new F.FlowStop(`${s.id}: "${s.vo}" no está en ${from} y no hay voz guardada para grabarla`);
+      if (!V.eleven) throw new F.FlowStop(`${s.id}: "${s.vo}" is not in ${from} and there is no saved voice to record it`);
       fs.mkdirSync(path.dirname(out), { recursive: true });
       const fill = V.fill || { model: "eleven_multilingual_v2", settings: { stability: 0.85, similarity_boost: 0.8, style: 0, use_speaker_boost: true } };
       await eleven.tts({ text: s.vo, voice: V.eleven, model: fill.model, settings: fill.settings, out });
@@ -390,7 +390,7 @@ async function importVoice(plan, lines, from) {
   }
   P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), voice: { ...(x.launch?.voice || {}), source: from }, vo }; });
   P.ledger(slug, { ok: true, label: "vo imported", model: "recording", credits: 0, files: Object.values(vo).map((v) => v.file) });
-  console.log(`voz en off desde ${from}: ${lines.length} líneas, palabra por palabra`);
+  console.log(`voice-over from ${from}: ${lines.length} lines, word for word`);
   for (const s of lines) { const v = vo[s.id]; console.log(`  ${s.id.padEnd(4)} ${v.secs.toFixed(2)} s de ${v.room} s ${v.secs > v.room + 0.05 ? "NO CABE" : "ok"}  "${s.vo}"`); }
 }
 
@@ -444,24 +444,24 @@ async function build(sl, mode) {
     const frameFile = s.frame && fs.existsSync(P.abs(slug, s.frame)) ? P.abs(slug, s.frame) : null;
     let used = null, input = null, base = null;
     if (ps.source === "generate" && mode !== "animatic") {
-      if (!t) throw new F.FlowStop(`${ps.id} no tiene toma`);
-      if (mode === "final" && !F.takeOk(t)) throw new F.FlowStop(`${ps.id}: su toma no pasó todos los evals`);
-      if (mode === "final" && !(t.review?.ok && t.review.file === t.file && t.review.prompt === sha(s.prompt))) throw new F.FlowStop(`${ps.id}: su toma no tiene revisión cuadro por cuadro aprobada (launch.mjs review ${slug} --shot ${ps.id})`);
+      if (!t) throw new F.FlowStop(`${ps.id} has no take`);
+      if (mode === "final" && !F.takeOk(t)) throw new F.FlowStop(`${ps.id}: its take didn't pass every eval`);
+      if (mode === "final" && !(t.review?.ok && t.review.file === t.file && t.review.prompt === sha(s.prompt))) throw new F.FlowStop(`${ps.id}: its take has no approved frame-by-frame review (launch.mjs review ${slug} --shot ${ps.id})`);
       // s.cutOut: an edit decision on the filmed take (an unplanned element enters later): used up to here, then the
       // last clean frame holds. It does not reopen the approved plan.
       // s.retime {upTo}: an edit decision (when the model invents motion late in a take): only the
       // clean part up to here is used, slowed with motion interpolation to fill the planned length (never below 0.65x).
       // Every edit decision on a take is the creator's call, in their words.
-      if (mode === "final") for (const k of ["retime", "splice", "cutOut", "cleanPatch"]) if (s[k] && !s[k].said?.trim()) throw new F.FlowStop(`${ps.id}: la decisión de edición ${k} no tiene las palabras del creador (${k}.said)`);
+      if (mode === "final") for (const k of ["retime", "splice", "cutOut", "cleanPatch"]) if (s[k] && !s[k].said?.trim()) throw new F.FlowStop(`${ps.id}: the edit decision ${k} lacks the creator's words (${k}.said)`);
       const file = P.abs(slug, t.file), a = s.in ?? 0, b = Math.min(s.retime?.upTo ?? Infinity, s.cutOut?.at ?? Infinity, t.evals?.jumps?.trimAt ?? Infinity, dur(file));
       // s.splice {keep: [[from, to], ...], fade}: an edit decision (when something appears mid-take that
       // shouldn't): the clean pieces of one take joined by short dissolves, slowed to fill the shot.
       const sp = s.splice, fade = sp?.fade ?? 0.3, spLen = sp ? sp.keep.reduce((n, [x, y]) => n + (y - x), 0) - fade * (sp.keep.length - 1) : 0;
       const slow = sp ? (m / fps) / spLen : s.retime ? (m / fps) / (b - a) : 1;
-      if (slow > 1 / 0.65) throw new F.FlowStop(`${ps.id}: retime ralentiza ${slow.toFixed(2)}x; el máximo es 1.54x`);
-      if (sp) problems.push(`${ps.id}: empalme de ${sp.keep.map(([x, y]) => `${x}-${y}`).join(" + ")} s con fundidos de ${fade} s, ralentizado ${slow.toFixed(2)}x (splice)`);
-      else if (s.retime) problems.push(`${ps.id}: se usa ${a}-${b.toFixed(2)} s de la toma, ralentizado ${slow.toFixed(2)}x (retime)`);
-      else if (b - a < m / fps - 0.05) problems.push(`${ps.id}: la toma útil dura ${(b - a).toFixed(2)} s y la toma planeada ${(m / fps).toFixed(2)} s; se congela el último cuadro`);
+      if (slow > 1 / 0.65) throw new F.FlowStop(`${ps.id}: retime slows ${slow.toFixed(2)}x; the max is 1.54x`);
+      if (sp) problems.push(`${ps.id}: empalme de ${sp.keep.map(([x, y]) => `${x}-${y}`).join(" + ")} s with ${fade} s dissolves, slowed ${slow.toFixed(2)}x (splice)`);
+      else if (s.retime) problems.push(`${ps.id}: uses ${a}-${b.toFixed(2)} s of the take, slowed ${slow.toFixed(2)}x (retime)`);
+      else if (b - a < m / fps - 0.05) problems.push(`${ps.id}: the usable take lasts ${(b - a).toFixed(2)} s and the planned shot ${(m / fps).toFixed(2)} s; the last frame is held`);
       input = sp ? ["-i", file] : ["-ss", String(a), "-t", (b - a).toFixed(3), "-i", file];
       let join = "";
       if (sp) {
@@ -489,7 +489,7 @@ async function build(sl, mode) {
       ff(["-f", "lavfi", "-i", `color=c=${bg.replace("#", "0x")}:s=${W}x${H}:r=${fps}`, ...enc]);
       used = { card: bg };
     } else {
-      if (mode !== "animatic") throw new F.FlowStop(`${ps.id} no tiene cuadro (gen.mjs frame ${slug} ${ps.id} first --planned)`);
+      if (mode !== "animatic") throw new F.FlowStop(`${ps.id} has no frame (gen.mjs frame ${slug} ${ps.id} first --planned)`);
       // A storyboard animatic before any frame is paid for: the shot's drawn start panel
       // dissolves into its end panel (launch/boards/<id>-a.png, -b.png), so the cuts and bridges are judged first.
       const bd = (k) => path.join(P.projectDir(slug), "launch", "boards", `${ps.id}-${k}.png`);
@@ -506,9 +506,9 @@ async function build(sl, mode) {
       // Real footage inside the picture: each clip plays behind its green screen (reading order, found on the first
       // frame), and the green is keyed out of every frame, so on an animated shot with a locked camera the clips stay
       // inside their screens while the room around them moves.
-      if (!frameFile) throw new F.FlowStop(`${ps.id} no tiene cuadro para encontrar sus pantallas`);
+      if (!frameFile) throw new F.FlowStop(`${ps.id} has no frame to find its screens in`);
       const boxes = screensOf(sl, ps.id, s.frame);
-      if (boxes.length < ps.inserts.length) throw new F.FlowStop(`${ps.id}: el cuadro tiene ${boxes.length} pantallas verdes y lleva ${ps.inserts.length} clips; rehaz el cuadro`);
+      if (boxes.length < ps.inserts.length) throw new F.FlowStop(`${ps.id}: the frame has ${boxes.length} green screens and carries ${ps.inserts.length} clips; redraw the frame`);
       const pad = 0.012, g = [`[0:v]${base},format=rgba,colorkey=0x00FF00:0.35:0.08[fg]`, `color=c=black:s=${W}x${H}:r=${fps}[b0]`];
       ps.inserts.forEach((_, k) => {
         const b = boxes[k], x = Math.max(0, Math.round((b.x - pad) * W)), y = Math.max(0, Math.round((b.y - pad) * H));
@@ -560,7 +560,7 @@ async function build(sl, mode) {
     const e = spawnSync("ffmpeg", ["-hide_banner", "-i", a1, "-i", b1, "-lavfi", "ssim", "-f", "null", "-"], { encoding: "utf8" }).stderr;
     const v = Number((e.match(/All:([\d.]+)/) || [])[1] ?? 0);
     parts[i].join = +v.toFixed(3);
-    if (v < 0.8) problems.push(`${parts[i].ps.id}: la unión con ${parts[i - 1].ps.id} salta (SSIM ${v.toFixed(2)}, mínimo 0.80 para un corte invisible); revisa el in de la toma o el último cuadro de ${parts[i - 1].ps.id}`);
+    if (v < 0.8) problems.push(`${parts[i].ps.id}: the join with ${parts[i - 1].ps.id} jumps (SSIM ${v.toFixed(2)}, min 0.80 for an invisible cut); check the take's in point or ${parts[i - 1].ps.id}'s last frame`);
   }
   const picture = path.join(tmp, "picture.mp4");
   if (parts.every((p) => p.m === p.n)) {
@@ -634,15 +634,15 @@ async function build(sl, mode) {
   for (const { ps } of parts) {
     const v = sl.launch?.vo?.[ps.id];
     if (!ps.vo) continue;
-    if (!v || !fs.existsSync(P.abs(slug, v.file))) { if (mode !== "animatic") throw new F.FlowStop(`${ps.id}: falta la voz en off (launch.mjs voice)`); continue; }
+    if (!v || !fs.existsSync(P.abs(slug, v.file))) { if (mode !== "animatic") throw new F.FlowStop(`${ps.id}: the voice-over is missing (launch.mjs voice)`); continue; }
     const k = add(P.abs(slug, v.file)), ms = Math.round((ps.start + ps.voAt) * 1000);
     chains.push(`[${k}:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${ms}|${ms}[vo${k}]`);
     vo.push(`[vo${k}]`);
-    if (ps.start + ps.voAt + v.secs > total + 0.02) problems.push(`${ps.id}: la voz se corta al final de la película`);
+    if (ps.start + ps.voAt + v.secs > total + 0.02) problems.push(`${ps.id}: the voice is cut off at the end of the film`);
   }
   for (const { ps } of parts) for (const x of ps.sfx) {
     const e = typeof x === "string" ? { name: x, at: 0, db: -8 } : x, f = P.abs(slug, `audio/sfx-${e.name}.mp3`);
-    if (!fs.existsSync(f)) { if (mode === "final") throw new F.FlowStop(`falta el efecto ${e.name} (gen.mjs sfx)`); continue; }
+    if (!fs.existsSync(f)) { if (mode === "final") throw new F.FlowStop(`the effect ${e.name} is missing (gen.mjs sfx)`); continue; }
     // Effects sit under the voice (raw generated effects vary widely in loudness and the loud ones bury the
     // film). Each file is measured and brought to SFX_LUFS, peaks held at -14 dBFS; `gain` (dB)
     // nudges one cue up or down from there.
@@ -653,7 +653,7 @@ async function build(sl, mode) {
     fx.push(`[fx${k}]`);
   }
   const musicFile = config.music && mode !== "animatic" && sl.music?.files?.length ? P.abs(slug, sl.music.files[sl.music.pick ?? 0]) : null;
-  if (config.music && mode === "final" && !musicFile) throw new F.FlowStop("falta la música (gen.mjs music)");
+  if (config.music && mode === "final" && !musicFile) throw new F.FlowStop("the music is missing (gen.mjs music)");
   const mix = [];
   // A gentle compressor evens the narration's own swings between sentences.
   if (vo.length) { chains.push(`${vo.join("")}amix=inputs=${vo.length}:normalize=0,acompressor=threshold=0.06:ratio=3:attack=8:release=250:makeup=1.6[vobus]`); }
@@ -696,14 +696,14 @@ async function build(sl, mode) {
 
   // 5. Editor QC: the length to the frame, the voice-over without overlaps or cut-offs, the loudness.
   const frames = Number(execFileSync("ffprobe", ["-v", "error", "-select_streams", "v", "-count_frames", "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", out]).toString());
-  if (Math.abs(frames - N) > 1) problems.push(`${frames} cuadros y se piden ${N} (${total} s a ${fps} fps)`);
+  if (Math.abs(frames - N) > 1) problems.push(`${frames} frames and ${N} are required (${total} s at ${fps} fps)`);
   const lines = plan.shots.filter((s) => s.vo && sl.launch?.vo?.[s.id]);
-  for (const [k, s] of lines.entries()) { const nx = lines[k + 1]; const end = s.start + s.voAt + sl.launch.vo[s.id].secs; if (nx && end > nx.start + nx.voAt + 0.02) problems.push(`${s.id}: la voz se encima con la de ${nx.id}`); }
+  for (const [k, s] of lines.entries()) { const nx = lines[k + 1]; const end = s.start + s.voAt + sl.launch.vo[s.id].secs; if (nx && end > nx.start + nx.voAt + 0.02) problems.push(`${s.id}: the voice overlaps ${nx.id}'s`); }
   const loud = lufs(out);
   // EVEN MIX: the 2 s windows of the film stay within 6 dB of each other (the fade-out excluded).
   const band = REF.loudnessBand(out, total);
-  if (mode === "final" && band.spread > 6) problems.push(`la mezcla salta ${band.spread} dB entre ventanas de 2 s (máximo 6; la referencia ${L.read(slug, "reference")?.loudness?.spread ?? "—"}); revisa huecos de voz y el nivel de la música`);
-  if (!silent && !(Math.abs(loud - -14) <= 1)) problems.push(`volumen ${loud} LUFS, se pide -14`);
+  if (mode === "final" && band.spread > 6) problems.push(`the mix jumps ${band.spread} dB between 2 s windows (max 6; the reference ${L.read(slug, "reference")?.loudness?.spread ?? "—"}); check gaps in the voice and the music level`);
+  if (!silent && !(Math.abs(loud - -14) <= 1)) problems.push(`loudness ${loud} LUFS, -14 is required`);
   const soft = problems.filter((p) => /se congela|\((retime|splice)\)$/.test(p)); // approved edit decisions are notes, not failures
   const hard = problems.filter((p) => !soft.includes(p));
   if (config.captions && srt.length) fs.writeFileSync(path.join(d, "out", mode === "draft" ? `${slug}-DRAFT.srt` : `${slug}.srt`), srt.join("\n"));
@@ -727,9 +727,9 @@ async function build(sl, mode) {
       x.finalQc = { pass: !hard.length, problems: hard, warnings: soft, frames, duration: +(frames / fps).toFixed(3), loudness: loud, at: now() };
     });
   }
-  console.log(`${P.rel(slug, out)} · ${frames} cuadros (${(frames / fps).toFixed(2)} s a ${fps} fps) · ${loud} LUFS${mode === "draft" ? " · DRAFT (no se entrega)" : ""}`);
+  console.log(`${P.rel(slug, out)} · ${frames} frames (${(frames / fps).toFixed(2)} s at ${fps} fps) · ${loud} LUFS${mode === "draft" ? " · DRAFT (not for delivery)" : ""}`);
   for (const p of problems) console.log(` - ${p}`);
-  if (mode === "final") console.log(hard.length ? "QC DEL EDITOR: FALLA" : "QC DEL EDITOR: PASA. Siguiente: mira el final completo, escribe launch/quality-report.json con su sha y corre studio.mjs qc");
+  if (mode === "final") console.log(hard.length ? "EDITOR QC: FAIL" : "EDITOR QC: PASS. Next: watch the whole final, write launch/quality-report.json with its sha and run studio.mjs qc");
   return out;
 }
 

@@ -73,18 +73,18 @@ const commands = {
     const slug = pos[0];
     const need = ["--title", "--series", "--format", "--start", "--platform", "--ar", "--seconds", "--lang", "--cast", "--budget", "--refs"];
     const missing = need.filter((n) => !flag(n));
-    if (!slug || missing.length) throw new F.FlowStop(`Intake incompleto. Faltan: ${[!slug && "<slug>", ...missing].filter(Boolean).join(", ")}\nLas 7 preguntas (hazlas una a una, con botones):\n${F.INTAKE.map((q, i) => `  P${i + 1}. ${q.q}`).join("\n")}`);
-    if (fs.existsSync(path.join(P.PROJECTS, slug, "shotlist.json"))) throw new F.FlowStop(`el proyecto ${slug} ya existe`);
+    if (!slug || missing.length) throw new F.FlowStop(`Intake incomplete. Missing: ${[!slug && "<slug>", ...missing].filter(Boolean).join(", ")}\nThe 7 questions (ask them one at a time, with buttons):\n${F.INTAKE.map((q, i) => `  P${i + 1}. ${q.q}`).join("\n")}`);
+    if (fs.existsSync(path.join(P.PROJECTS, slug, "shotlist.json"))) throw new F.FlowStop(`the project ${slug} already exists`);
     const format = flag("--format");
-    if (!F.FORMATS[format]) throw new F.FlowStop(`formato desconocido "${format}". Opciones: ${Object.keys(F.FORMATS).join(", ")}. Un formato nuevo necesita su ADN primero (studio skill).`);
+    if (!F.FORMATS[format]) throw new F.FlowStop(`unknown format "${format}". Options: ${Object.keys(F.FORMATS).join(", ")}. A new format needs its DNA first (studio skill).`);
     const [mode, seriesId] = flag("--series").split(":");
     if (!["single", "episode", "new"].includes(mode) || (mode !== "single" && !seriesId)) throw new F.FlowStop("--series: single | episode:<id> | new:<id>");
     if (mode === "episode") {
-      if (!fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`no existe la serie ${seriesId}`);
-      if (!P.readJSON(seriesFile(seriesId)).approved) throw new F.FlowStop(`la serie ${seriesId} no está aprobada; su biblia se aprueba primero`);
+      if (!fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`the series ${seriesId} doesn't exist`);
+      if (!P.readJSON(seriesFile(seriesId)).approved) throw new F.FlowStop(`the series ${seriesId} is not approved; its bible is approved first`);
     }
     if (mode === "new") {
-      if (fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`la serie ${seriesId} ya existe; usa --series episode:${seriesId}`);
+      if (fs.existsSync(seriesFile(seriesId))) throw new F.FlowStop(`the series ${seriesId} already exists; use --series episode:${seriesId}`);
       commands.series(["new", seriesId]);
       // The template is a sitcom's; a new series takes its format's style and DNA (a micro-drama inherited
       // "retro-sitcom" and its scene prompts asked for a 1990s multi-camera look).
@@ -101,11 +101,11 @@ const commands = {
     // Launch films, Release 1: only what the editor finishes today is offered (never a selector that doesn't work).
     if (format === "launch") {
       const R = L.RELEASE;
-      if (!R.ar.includes(intake.platform.ar) || !R.seconds.includes(intake.platform.seconds)) throw new F.FlowStop(`Product launch film: por ahora solo ${R.seconds.join("/")} s en ${R.ar.join("/")} a ${R.fps.join("/")} fps (Release 1). ${intake.platform.seconds} s en ${intake.platform.ar} todavía no está disponible.`);
-      if (flag("--style") && !R.styles.includes(flag("--style"))) throw new F.FlowStop(`Product launch film: estilos disponibles ${R.styles.join(", ")}, o uno propio desde las referencias del creador (launch.mjs style-from-refs)`);
+      if (!R.ar.includes(intake.platform.ar) || !R.seconds.includes(intake.platform.seconds)) throw new F.FlowStop(`Product launch film: for now only ${R.seconds.join("/")} s in ${R.ar.join("/")} at ${R.fps.join("/")} fps (Release 1). ${intake.platform.seconds} s in ${intake.platform.ar} is not available yet.`);
+      if (flag("--style") && !R.styles.includes(flag("--style"))) throw new F.FlowStop(`Product launch film: available styles ${R.styles.join(", ")}, or a custom one from the creator's references (launch.mjs style-from-refs)`);
     }
     const chars = flag("--chars") ? flag("--chars").split(",") : [];
-    for (const id of chars) if (!fs.existsSync(path.join(P.BIBLE, "characters", id, "character.json")) && intake.cast === "existing") throw new F.FlowStop(`el personaje ${id} no existe en la biblia`);
+    for (const id of chars) if (!fs.existsSync(path.join(P.BIBLE, "characters", id, "character.json")) && intake.cast === "existing") throw new F.FlowStop(`the character ${id} is not in the bible`);
     const series = mode === "single" ? undefined : seriesId;
     const sStyle = series ? P.readJSON(seriesFile(series), {}).style : null;
     const dir = path.join(P.PROJECTS, slug);
@@ -124,9 +124,9 @@ const commands = {
     const sl = P.loadShotlist(slug);
     P.writeJSON(path.join(dir, "intake.json"), intake);
     fs.writeFileSync(path.join(dir, "concept.md"), CONCEPT(sl, intake));
-    console.log(`creado projects/${slug}/ · ${F.FORMATS[format].label} · receta: ${F.recipe(sl).join(" → ")}`);
+    console.log(`created projects/${slug}/ · ${F.FORMATS[format].label} · recipe: ${F.recipe(sl).join(" → ")}`);
     const bankIds = RF.approved(format);
-    if (bankIds.length) console.log(`referencias aprobadas de ${format}: ${bankIds.join(", ")}. Ofrécelas al creador (studio.mjs refs ${slug} --use ... | --none); el concepto espera su elección.`);
+    if (bankIds.length) console.log(`approved ${format} references: ${bankIds.join(", ")}. Offer them to the creator (studio.mjs refs ${slug} --use ... | --none); the concept waits for their choice.`);
     commands.status([slug]);
   },
 
@@ -135,8 +135,8 @@ const commands = {
     const sl = P.loadShotlist(slug);
     F.assertV5(sl);
     const { steps, current } = F.status(sl);
-    console.log(`${sl.title} · ${F.FORMATS[sl.format]?.label} · ${sl.series ? "serie " + sl.series : "video individual"} · gastado $${(P.ledgerTotal(slug) * 0.005).toFixed(2)}${sl.budget ? ` de $${(sl.budget.approvedCredits * 0.005).toFixed(2)} aprobados` : ""}\n`);
-    for (const s of steps) console.log(`${s.ok ? " ✓" : s === current ? " →" : "  "} ${s.name.padEnd(22)} ${s.who === "creator" ? "[creador]" : "[auto]  "}${s.detail || ""}`);
+    console.log(`${sl.title} · ${F.FORMATS[sl.format]?.label} · ${sl.series ? "series " + sl.series : "single video"} · spent $${(P.ledgerTotal(slug) * 0.005).toFixed(2)}${sl.budget ? ` de $${(sl.budget.approvedCredits * 0.005).toFixed(2)} aprobados` : ""}\n`);
+    for (const s of steps) console.log(`${s.ok ? " ✓" : s === current ? " →" : "  "} ${s.name.padEnd(22)} ${s.who === "creator" ? "[creator]" : "[auto]  "}${s.detail || ""}`);
     console.log(current ? `\nSiguiente: ${current.name}. ${current.next}` : "\nProyecto cerrado.");
   },
 
@@ -145,23 +145,23 @@ const commands = {
     F.approve(slug, step, flag("--said"), flag("--notes") ? { notes: flag("--notes") } : {});
     const sl = P.loadShotlist(slug);
     if (step === "series") P.writeJSON(seriesFile(sl.series), { ...P.readJSON(seriesFile(sl.series)), approved: { said: flag("--said"), at: now() } });
-    if (step === "book") console.log(`presupuesto bloqueado: ${sl.budget.approvedCredits} cr ($${(sl.budget.approvedCredits * 0.005).toFixed(2)}). Cualquier gasto extra necesita otro sí del creador.`);
-    console.log(`aprobado: ${step}`);
+    if (step === "book") console.log(`budget locked: ${sl.budget.approvedCredits} cr ($${(sl.budget.approvedCredits * 0.005).toFixed(2)}). Any extra spend needs another yes from the creator.`);
+    console.log(`approved: ${step}`);
     commands.status([slug]);
   },
 
   "approve-character"() {
     const id = pos[0], said = flag("--said");
-    if (!id || !said) throw new F.FlowStop('approve-character <id> --said "palabras exactas del creador"');
+    if (!id || !said) throw new F.FlowStop('approve-character <id> --said "the creator\'s exact words"');
     const f = path.join(P.BIBLE, "characters", id, "character.json");
     const c = P.readJSON(f, null);
     if (!c) throw new F.FlowStop(`no existe bible/characters/${id}`);
-    if (!c.look?.trim()) throw new F.FlowStop(`${id}: escribe su look completo, con sus marcas (pecas, lunares, lentes, aretes...)`);
+    if (!c.look?.trim()) throw new F.FlowStop(`${id}: write their full look, with their marks (freckles, moles, glasses, earrings...)`);
     const d = path.dirname(f);
     // In-style sheets (cast.mjs sheet --style) live under looks.<style>.sheet.
-    if (![...(c.refs || []), ...(c.sheets || []), ...Object.values(c.looks || {}).flatMap((l) => [l.modelSheet, l.sheet])].filter(Boolean).some((x) => fs.existsSync(path.join(d, x)))) throw new F.FlowStop(`${id}: falta su model sheet o referencia`);
+    if (![...(c.refs || []), ...(c.sheets || []), ...Object.values(c.looks || {}).flatMap((l) => [l.modelSheet, l.sheet])].filter(Boolean).some((x) => fs.existsSync(path.join(d, x)))) throw new F.FlowStop(`${id}: their model sheet or reference is missing`);
     P.writeJSON(f, { ...c, approved: { said, at: now() } });
-    console.log(`personaje aprobado: ${id}`);
+    console.log(`character approved: ${id}`);
   },
 
   // A take that failed an eval is used only if the creator accepts that exact take, in their words.
@@ -169,10 +169,10 @@ const commands = {
   // video price or book of a drama.
   "approve-look"() {
     const slug = pos[0], file = flag("--file"), said = flag("--said");
-    if (!slug || !file || !said) throw new F.FlowStop('approve-look <slug> --file <imagen del proyecto> --said "palabras exactas del creador"');
-    if (!fs.existsSync(P.abs(slug, file))) throw new F.FlowStop(`no existe ${file} en el proyecto`);
+    if (!slug || !file || !said) throw new F.FlowStop('approve-look <slug> --file <project image> --said "the creator\'s exact words"');
+    if (!fs.existsSync(P.abs(slug, file))) throw new F.FlowStop(`${file} doesn't exist in the project`);
     P.updateShotlist(slug, (sl) => { F.assertV5(sl); sl.lookTest = { file, said, at: now() }; sl.flow.log.push({ at: now(), event: `approve-look ${file}`, said }); });
-    console.log("prueba de look aprobada con las palabras del creador");
+    console.log("look test approved in the creator's words");
   },
 
   // The intake's fixed budget is a hard cap (gen.mjs job, book, phase budget). Only the creator's words raise it.
@@ -183,56 +183,56 @@ const commands = {
     if (!slug || !said || (!use && !none)) throw new F.FlowStop('refs <slug> --use id,id --said "..." | --none --said "..."');
     const sl0 = P.loadShotlist(slug), ids = none ? [] : use.split(",").map((x) => x.trim()).filter(Boolean);
     const bad = ids.filter((id) => !RF.approved(sl0.format).includes(id));
-    if (bad.length) throw new F.FlowStop(`no son referencias aprobadas de ${sl0.format}: ${bad.join(", ")} (aprobadas: ${RF.approved(sl0.format).join(", ") || "ninguna"})`);
+    if (bad.length) throw new F.FlowStop(`not approved ${sl0.format} references: ${bad.join(", ")} (approved: ${RF.approved(sl0.format).join(", ") || "none"})`);
     P.updateShotlist(slug, (sl) => { sl.refsChoice = { ids, said, at: now() }; sl.flow.log.push({ at: now(), event: `refs ${ids.join(",") || "none"}`, said }); });
-    console.log(ids.length ? `referencias elegidas: ${ids.join(", ")} (las reglas del guion se calibran con ellas)` : "sin referencias (palabras del creador registradas)");
+    console.log(ids.length ? `references chosen: ${ids.join(", ")} (the script rules are calibrated to them)` : "no references (the creator's words recorded)");
   },
 
   cap() {
     const slug = pos[0], usd = Number(flag("--usd")), said = flag("--said");
-    if (!slug || !usd || !said) throw new F.FlowStop('cap <slug> --usd <nuevo tope> --said "palabras exactas del creador"');
+    if (!slug || !usd || !said) throw new F.FlowStop('cap <slug> --usd <new cap> --said "the creator\'s exact words"');
     P.updateShotlist(slug, (sl) => {
       F.assertV5(sl);
       const old = sl.intake?.budget?.usd;
-      if (sl.intake?.budget?.mode !== "fixed") throw new F.FlowStop("este proyecto no tiene tope fijo en el intake");
+      if (sl.intake?.budget?.mode !== "fixed") throw new F.FlowStop("this project has no fixed cap in the intake");
       sl.intake.budget.usd = usd;
       sl.flow.log.push({ at: now(), event: `cap $${old} -> $${usd}`, said });
     });
-    console.log(`tope del proyecto: $${usd} (palabras del creador registradas)`);
+    console.log(`project cap: $${usd} (the creator's words recorded)`);
   },
 
   // The pilot gate (lib/flow.mjs): The creator approves the first filmed scene or shot before the rest is filmed.
   "approve-pilot"() {
     const slug = pos[0], said = flag("--said");
-    if (!slug || !said) throw new F.FlowStop('approve-pilot <slug> --said "palabras exactas del creador" [--ok-fast]');
+    if (!slug || !said) throw new F.FlowStop('approve-pilot <slug> --said "the creator\'s exact words" [--ok-fast]');
     // The pilot draft must speak at the format's pace, or the creator must accept the measured rate in so many words
     // (a fast pilot means the rest, filmed on the same model, will be fast too).
     const dq = (() => { try { return JSON.parse(fs.readFileSync(path.join(P.projectDir(slug), "out", "draft-qc.json"), "utf8")); } catch { return null; } })();
     if (dq?.maxWpm && dq.wpm > dq.maxWpm && !argv.includes("--ok-fast"))
-      throw new F.FlowStop(`el piloto habla a ${dq.wpm} wpm (máximo ${dq.maxWpm}) en ${dq.model}. Dile al creador ese número y las opciones (otro modelo para el piloto, o aceptarlo); solo con su sí explícito al ritmo: --ok-fast`);
+      throw new F.FlowStop(`the pilot speaks at ${dq.wpm} wpm (max ${dq.maxWpm}) on ${dq.model}. Tell the creator that number and the options (another model for the pilot, or accept it); only with their explicit yes to the pace: --ok-fast`);
     F.approvePilot(slug, said);
-    console.log(`piloto aprobado con las palabras del creador; ya se puede filmar el resto (gen.mjs scenes / clip)`);
+    console.log(`pilot approved in the creator's words; the rest can be filmed now (gen.mjs scenes / clip)`);
   },
 
   "accept-take"() {
     const [slug, id, n] = pos, said = flag("--said"), reason = flag("--reason");
-    if (!slug || !id || !n || !said || !reason) throw new F.FlowStop('accept-take <slug> <shot> <take number> --said "palabras exactas del creador" --reason "qué falla y por qué se acepta"');
+    if (!slug || !id || !n || !said || !reason) throw new F.FlowStop('accept-take <slug> <shot> <take number> --said "the creator\'s exact words" --reason "what fails and why it is accepted"');
     P.updateShotlist(slug, (sl) => {
       F.assertV5(sl);
       const s = P.findItem(sl, id), t = s.clips?.[Number(n) - 1]; // a shot (clips formats) or a scene (scenes formats)
-      if (!t) throw new F.FlowStop(`${id} no tiene toma ${n}`);
+      if (!t) throw new F.FlowStop(`${id} has no take ${n}`);
       t.accepted = { said, reason, at: now() };
       s.clip = Number(n) - 1;
       sl.flow.overrides = [...(sl.flow.overrides || []), { step: "film", take: `${id} take ${n}`, said, reason, at: now(), fp: "take" }];
       sl.flow.log.push({ at: now(), event: `accept-take ${id} #${n}`, said, reason });
     });
-    console.log(`toma ${n} de ${id} aceptada con las palabras del creador; queda en el Production Book.`);
+    console.log(`take ${n} of ${id} accepted in the creator's words; it is recorded in the Production Book.`);
   },
 
   override() {
     const [slug, step] = pos;
     F.override(slug, step, flag("--said"), flag("--reason"));
-    console.log(`override registrado en ${slug}: ${step}. Aparece en el Production Book.`);
+    console.log(`override recorded in ${slug}: ${step}. It appears in the Production Book.`);
   },
 
   // Live price analysis (models step): every video model the engine can run for this format, priced live on Kie for
@@ -251,7 +251,7 @@ const commands = {
     let options = videoOptions(live.rows, { format: sl.format, kind, seconds: secs, clips });
     // A launch film's shots are choreographed to a drawn last frame: only models that take one are offered.
     if (sl.format === "launch") options = options.filter((o) => MODELS[o.key]?.lastFrame);
-    if (!options.length) throw new F.FlowStop("ningún modelo del motor aparece en los precios en vivo; revisa engine/lib/pricing.mjs");
+    if (!options.length) throw new F.FlowStop("no engine model appears in the live prices; check engine/lib/pricing.mjs");
     const baseline = kind === "longform" ? sl.longform?.videoModel : (() => { try { return P.style(sl.style).models?.video; } catch { return null; } })();
     // Speaking formats outside the sitcom are held to the edit's 175 wpm: a model measured faster is not recommended.
     // A launch film's takes are silent (the voice-over is ElevenLabs), so the model's speaking rate doesn't apply.
@@ -259,19 +259,19 @@ const commands = {
     const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm });
     const want = flag("--pick");
     const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
-    if (!pick) throw new F.FlowStop(`--pick ${want} no está entre las opciones: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
+    if (!pick) throw new F.FlowStop(`--pick ${want} is not among the options: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
     const fresh = newFamilies(live.rows);
     sl = P.updateShotlist(slug, (x) => {
       x.priceCheck = { at: now(), seconds: secs, fetched: live.fetched, warning: live.warning || null, options: options.slice(0, 10), recommended: rec, pick, picked: want ? "creator" : "recommended", newOnKie: fresh };
       if (kind === "longform") { x.longform.videoModel = pick.key; x.longform.res = pick.res; }
       else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
     });
-    console.log(`Precios en vivo de APIMart y Kie (cada modelo con el proveedor más barato; APIMart gana empates)${live.fetched ? " (recién descargados)" : ` (de hace ${live.ageH.toFixed(1)} h)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
-    for (const o of options) { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (rápido)" : ""}  ` : ""}${o.note}`); }
-    if (maxWpm && measuredWpm(pick.key) > maxWpm) console.log(`AVISO: ${pick.label} se midió hablando a ${measuredWpm(pick.key)} wpm (máximo ${maxWpm}); díselo al creador antes del book.`);
-    console.log(`\nRecomendado (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Elegido: ${pick.label} ${pick.res}${want ? " (elección del creador)" : ""}.`);
-    if (fresh.length) console.log(`Modelos en Kie que el motor aún no usa: ${fresh.join(", ")}. Si alguno promete más calidad o menos costo para este formato, propón probarlo.`);
-    console.log("Muestra esta tabla al creador; queda también en el Production Book.");
+    console.log(`Live prices from APIMart and Kie (each model on the cheaper provider; APIMart wins ties)${live.fetched ? " (just fetched)" : ` (${live.ageH.toFixed(1)} h old)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
+    for (const o of options) { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (fast)" : ""}  ` : ""}${o.note}`); }
+    if (maxWpm && measuredWpm(pick.key) > maxWpm) console.log(`WARNING: ${pick.label} measured speaking at ${measuredWpm(pick.key)} wpm (max ${maxWpm}); tell the creator before the book.`);
+    console.log(`\nRecommended (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Chosen: ${pick.label} ${pick.res}${want ? " (the creator's choice)" : ""}.`);
+    if (fresh.length) console.log(`Models on Kie the engine doesn't use yet: ${fresh.join(", ")}. If one promises better quality or lower cost for this format, propose testing it.`);
+    console.log("Show this table to the creator; it is also in the Production Book.");
   },
 
   // Final QC: one pass over the whole final, every format. Writes sl.finalQc5 tied to the file's hash.
@@ -283,49 +283,49 @@ const commands = {
     // --no-judge --said "...": the creator's call when the vision judge is down. Identity and text read-back are skipped and say so in the receipt;
     // every other check runs, and Claude has watched the whole final frame by frame.
     const noJudge = process.argv.includes("--no-judge");
-    if (noJudge && !flag("--said")) throw new F.FlowStop('qc --no-judge necesita --said "palabras exactas del creador"');
+    if (noJudge && !flag("--said")) throw new F.FlowStop('qc --no-judge needs --said "the creator\'s exact words"');
     if (noJudge) report.judgeSkipped = { said: flag("--said"), at: now() };
     const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,width,height,pix_fmt,codec_type:format=duration,size", "-of", "json", file]).toString());
     const v = probe.streams.find((s) => s.codec_type === "video"), a = probe.streams.find((s) => s.codec_type === "audio");
     const longform = F.kindOf(sl) === "longform";
     const wantH = longform ? { "720p": 720, "1080p": 1080, "1440p": 1440, "2160p": 2160 }[sl.longform?.output || "1080p"] || 1080 : 720;
-    if (!v || v.codec_name !== "h264" || v.pix_fmt !== "yuv420p") issues.push(`video ${v?.codec_name}/${v?.pix_fmt}, se pide H.264 yuv420p`);
-    if (v && Math.min(v.width, v.height) !== wantH) issues.push(`resolución ${v.width}×${v.height}, se pide ${wantH}p`);
-    if (!a) issues.push("sin audio");
+    if (!v || v.codec_name !== "h264" || v.pix_fmt !== "yuv420p") issues.push(`video ${v?.codec_name}/${v?.pix_fmt}, H.264 yuv420p is required`);
+    if (v && Math.min(v.width, v.height) !== wantH) issues.push(`resolution ${v.width}×${v.height}, ${wantH}p is required`);
+    if (!a) issues.push("no audio");
     report.duration = Number(probe.format.duration);
     report.sizeMB = +(Number(probe.format.size) / 1e6).toFixed(1);
     // Format-specific QC the editors already ran (pacing for scenes, loudness and dead air for long-form).
-    if (F.kindOf(sl) !== "clips" && !sl.finalQc?.pass) issues.push(`QC del editor: ${(sl.finalQc?.problems || sl.finalQc?.issues || ["no pasó"]).join("; ")}`);
+    if (F.kindOf(sl) !== "clips" && !sl.finalQc?.pass) issues.push(`editor QC: ${(sl.finalQc?.problems || sl.finalQc?.issues || ["failed"]).join("; ")}`);
     if (!longform) {
       const e = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8" }).stderr;
       report.lufs = Number((e.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
-      if (!(Math.abs(report.lufs - -14) <= 1.5)) issues.push(`volumen ${report.lufs} LUFS, se pide -14`);
+      if (!(Math.abs(report.lufs - -14) <= 1.5)) issues.push(`loudness ${report.lufs} LUFS, -14 is required`);
       // Every scripted line, in order, heard in the final.
       const lines = (sl.shots || []).flatMap((s) => (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${s.id}-${i + 1}`, text: l.text })));
-      if (lines.length) { const d = dialogueCheck(file, lines, sl.lang); report.dialogue = d; issues.push(...d.issues.map((x) => `diálogo: ${x}`)); }
+      if (lines.length) { const d = dialogueCheck(file, lines, sl.lang); report.dialogue = d; issues.push(...d.issues.map((x) => `dialogue: ${x}`)); }
       // Faces and marks across every cut, against each character's locked anchor.
       const cast = F.castIds(sl).filter((id) => { try { return P.character(id).species !== "set"; } catch { return false; } });
       if (cast.length && !noJudge) { const r = await identityCheck(file, cast); report.identity = { pass: r.pass, issues: r.issues, notes: r.notes }; issues.push(...r.issues); }
       // Outside the sitcom: every close-up of a person keeps one background across all scenes.
       if (sl.format !== "sitcom" && cast.length && (sl.scenes || []).length > 1) {
         try { const b = await backgroundCheck(file, sl, cast); report.backgrounds = b; issues.push(...b.issues); }
-        catch (e) { issues.push(`no se pudo revisar los fondos entre escenas: ${e.message.slice(0, 120)}`); }
+        catch (e) { issues.push(`couldn't check the backgrounds across scenes: ${e.message.slice(0, 120)}`); }
       }
     }
     // Launch films: the editor's own QC, the length to the frame at the plan's fps, the voice-over word for word, the
     // composited text read back from the frames, and Claude's heuristic quality report on this exact file.
     if (sl.format === "launch") {
       const plan = L.read(slug, "plan"), fps = plan?.fps || 24;
-      if (!sl.finalQc?.pass) issues.push(`QC del editor: ${(sl.finalQc?.problems || ["no pasó"]).join("; ")}`);
+      if (!sl.finalQc?.pass) issues.push(`editor QC: ${(sl.finalQc?.problems || ["failed"]).join("; ")}`);
       const vs = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-select_streams", "v", "-count_frames", "-show_entries", "stream=r_frame_rate,nb_read_frames", "-of", "json", file]).toString()).streams[0];
       report.frames = Number(vs.nb_read_frames);
-      if (vs.r_frame_rate !== `${fps}/1`) issues.push(`${vs.r_frame_rate} fps, se pide ${fps}`);
-      if (plan && Math.abs(report.frames - Math.round(plan.durationSeconds * fps)) > 1) issues.push(`${report.frames} cuadros; ${plan.durationSeconds} s a ${fps} fps son ${Math.round(plan.durationSeconds * fps)} (tolerancia 1 cuadro)`);
+      if (vs.r_frame_rate !== `${fps}/1`) issues.push(`${vs.r_frame_rate} fps, ${fps} is required`);
+      if (plan && Math.abs(report.frames - Math.round(plan.durationSeconds * fps)) > 1) issues.push(`${report.frames} frames; ${plan.durationSeconds} s at ${fps} fps is ${Math.round(plan.durationSeconds * fps)} (tolerance 1 frame)`);
       const vo = (plan?.shots || []).filter((s) => s.vo).map((s) => ({ id: s.id, text: s.vo }));
-      if (vo.length) { const d = dialogueCheck(file, vo, sl.lang); report.voiceover = d; issues.push(...d.issues.map((x) => `voz en off: ${x}`)); }
+      if (vo.length) { const d = dialogueCheck(file, vo, sl.lang); report.voiceover = d; issues.push(...d.issues.map((x) => `voice-over: ${x}`)); }
       const overlays = (plan?.shots || []).flatMap((s) => (s.text || []).map((o) => ({ text: o.text, t: s.start + ((o.at || 0) + Math.min(o.until ?? s.duration, s.duration)) / 2 })));
       if (!noJudge) try { const tc = await L.textCheck(file, overlays); report.text = tc.read; issues.push(...tc.issues); }
-      catch (e) { issues.push(`no se pudo leer el texto del final: ${e.message.slice(0, 120)}`); }
+      catch (e) { issues.push(`couldn't read the final's text: ${e.message.slice(0, 120)}`); }
       issues.push(...L.qualityRules(L.read(slug, "quality"), F.fileSha(file)));
     }
     // The 4 fps contact sheet (thumbnails for the whole cut). Identity is checked above at full resolution.
@@ -334,9 +334,9 @@ const commands = {
     execFileSync("ffmpeg", ["-v", "error", "-y", "-i", file, "-vf", `fps=${fps},scale=160:-2,tile=12x${longform ? 6 : Math.ceil((report.duration * 4) / 12)}`, "-frames:v", "1", "-q:v", "4", sheet]);
     const res = { pass: !issues.length, issues, report, sheet: P.rel(slug, sheet), sha: F.fileSha(file), at: now() };
     sl = P.updateShotlist(slug, (x) => { x.finalQc5 = res; });
-    console.log(`${res.pass ? "QC DEL FINAL: PASA" : "QC DEL FINAL: FALLA"} · ${report.duration?.toFixed(1)} s · ${report.sizeMB} MB${report.lufs != null ? ` · ${report.lufs} LUFS` : ""}`);
+    console.log(`${res.pass ? "FINAL QC: PASS" : "FINAL QC: FAIL"} · ${report.duration?.toFixed(1)} s · ${report.sizeMB} MB${report.lufs != null ? ` · ${report.lufs} LUFS` : ""}`);
     for (const i of issues) console.log(` - ${i}`);
-    console.log(`Hoja de contacto: ${sheet}\nMírala completa antes de entregar (regla del creador), junto con la transcripción.`);
+    console.log(`Contact sheet: ${sheet}\nLook at all of it before delivering, along with the transcript.`);
     process.exitCode = res.pass ? 0 : 1;
   },
 
@@ -357,18 +357,18 @@ const commands = {
     const b = spawnSync(process.execPath, [path.join(ROOT, "engine", "book.mjs"), slug], { encoding: "utf8" });
     process.stdout.write(b.stdout || "");
     if (b.status !== 0) throw new Error(`book.mjs: ${b.stderr}`);
-    console.log(`\nRecibo: projects/${slug}/delivery.json\nAhora: republica el Production Book, envía ${receipt.file} al creador con cualquier problema conocido, y haz el backup (npm run check, git push). Después: retro.`);
+    console.log(`\nReceipt: projects/${slug}/delivery.json\nNow: republish the Production Book, send ${receipt.file} to the creator with any known problem, and back up (npm run check, then the repo routine). Then: retro.`);
   },
 
   series(args = pos) {
     const [sub, id] = args;
     if (sub !== "new" || !id) throw new F.FlowStop('series new <id> --title "..."');
     const f = seriesFile(id);
-    if (fs.existsSync(f)) throw new F.FlowStop(`la serie ${id} ya existe`);
+    if (fs.existsSync(f)) throw new F.FlowStop(`the series ${id} already exists`);
     const tpl = P.readJSON(path.join(ROOT, "templates", "series.json"));
     delete tpl._how;
     P.writeJSON(f, { ...tpl, id, title: flag("--title", id), approved: null, episodes: [] });
-    console.log(`series/${id}/series.json creado desde la plantilla. Llénalo con the creator (premisa, cast con deseos, mapa de sets, voces, intro, cierre, reglas) y apruébalo con el primer episodio: studio.mjs approve <slug> series --said "..."`);
+    console.log(`series/${id}/series.json created from the template. Fill it in with the creator (premise, cast with wants, set map, voices, intro, ending, rules) and approve it with the first episode: studio.mjs approve <slug> series --said "..."`);
   },
 
   "archive-legacy"() {
