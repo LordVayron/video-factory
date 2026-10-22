@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.2, 2026-10-22: optional PR-only main
+
+- **Optional PR-only main rule in the guard.** In the maintainer's own checkout, the guard refuses a commit or push straight to `main` (branches and tags still allowed). It stays off in a regular install, so your workflow doesn't change.
+- **Tests** for the rule.
+
 ## 2.8.1, 2026-10-22: repos carry only what changed
 
 - **Repos carry only what changed.** The guard refuses a commit message, tag, release note or PR text that names or quotes the repo owner (`scripts/unquote.mjs`), and `npm run check` fails when a code comment or log quotes them.

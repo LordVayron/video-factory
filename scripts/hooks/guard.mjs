@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { carriesInstructions } from "../unquote.mjs";
 
@@ -24,7 +25,13 @@ const MEDIA = /\.(mp4|mov|m4v|webm|mkv|mp3|wav|m4a|aac|flac)$/i;
 const inside = (f, d) => { const r = path.relative(path.join(ROOT, d), path.resolve(ROOT, f)); return !!r && !r.startsWith("..") && !path.isAbsolute(r); };
 const allowedCode = (f) => inside(f, "engine") || inside(f, "scripts");
 
-export function decide({ tool_name: tool, tool_input: input = {} }) {
+// The factory's two repos: main changes only through a reviewed PR (the public one is also protected on GitHub; the
+// private one can't be on the free plan, so this rule is its protection).
+// Only in the owner's private checkout (the one with the publish script); a public install works as it likes.
+export const FACTORY = fs.existsSync(path.join(ROOT, "scripts", "publish-public.mjs")) ? [ROOT, path.resolve(ROOT, "..", "ai-video-factory-public")] : [];
+const branchIn = (dir) => spawnSync("git", ["-C", dir, "rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).stdout?.trim();
+
+export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf = branchIn } = {}) {
   // Rule 1: commands.
   if (/^(Bash|PowerShell)$/.test(tool)) {
     const raw = String(input.command || "");
@@ -42,6 +49,17 @@ export function decide({ tool_name: tool, tool_input: input = {} }) {
       const abs = path.isAbsolute(f) ? f : path.resolve(input.cwd || ROOT, f);
       if (allowedCode(abs) || !fs.existsSync(abs)) continue;
       if (reaches(abs, fs.readFileSync(abs, "utf8"))) return deny(`${f} calls a paid API outside the engine. One-off runner scripts are not allowed (a real failure); add the step to the engine instead.`);
+    }
+    // Rule 4: no commit or push straight to main in the factory's repos; work on a branch and open a PR (2026-10-22).
+    for (const seg of raw.split(/&&|\|\||;|\n/).reduce((acc, p) => { const cd = /^\s*cd\s+("[^"]+"|'[^']+'|\S+)/.exec(p); acc.dir = cd ? path.resolve(acc.dir, cd[1].replace(/^["']|["']$/g, "")) : acc.dir; acc.out.push({ p, dir: acc.dir }); return acc; }, { dir: input.cwd || ROOT, out: [] }).out) {
+      const m = /\bgit\s+(?:-C\s+("[^"]+"|'[^']+'|\S+)\s+)?(commit|push)\b(.*)/.exec(seg.p);
+      if (!m) continue;
+      const dir = m[1] ? path.resolve(seg.dir, m[1].replace(/^["']|["']$/g, "")) : seg.dir;
+      const repo = FACTORY.find((r) => { const x = path.relative(r, dir); return !x.startsWith("..") && !path.isAbsolute(x); });
+      if (!repo) continue;
+      const onMain = branchOf(repo) === "main";
+      const toMain = m[2] === "push" && (/(^|\s|:)main\b/.test(m[3]) || (onMain && !/\s(-u\s+)?origin\s+\S/.test(m[3]) && !/\bv\d+\.\d+\.\d+\b|--tags/.test(m[3])));
+      if ((m[2] === "commit" && onMain) || toMain) return deny(`no ${m[2]} straight to main in ${path.basename(repo)}: work on a branch and open a PR (routine step 0). Merging is done with gh pr merge after the owner approves.`);
     }
     // Rule 3: commit messages, tags and release notes say what changed, never the owner's instructions (2026-10-22).
     if (/\bgit\s+(commit|tag)\b|\bgh\s+(release|pr)\s+(create|edit)\b/.test(raw)) {

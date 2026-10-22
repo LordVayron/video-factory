@@ -59,6 +59,13 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
   t(`no quotes of the owner's instructions in code comments or logs (${quoted.join(", ") || "none"})`, !quoted.length);
   const { decide } = await import("./hooks/guard.mjs");
   const commit = (m) => !!decide({ tool_name: "Bash", tool_input: { command: `git commit -m "${m}"` } });
+  const { FACTORY } = await import("./hooks/guard.mjs");
+  if (FACTORY.length) {
+    const on = (b, c) => !!decide({ tool_name: "Bash", tool_input: { command: c } }, { branchOf: () => b });
+    t("main changes only through a PR: the guard refuses a commit or push straight to main and allows branches and tags", on("main", 'git commit -m "x"') && on("feat", "git push origin main") && on("main", "git push") && !on("feat", 'git commit -m "x"') && !on("feat", "git push -u origin feat") && !on("main", "git push origin v1.2.3"));
+    const pub = fs.readFileSync(path.join(ROOT, "scripts", "publish-public.mjs"), "utf8");
+    t("publishing goes through a PR in the public repo (branch, PR with the file list, squash-merge after approval)", pub.includes('gh("pr", "create"') && pub.includes('"--squash", "--delete-branch"') && pub.includes("carriesInstructions(`${prTitle}"));
+  }
   t("the guard refuses a commit message that names or quotes the owner and lets a plain one through", commit("Providers (asked by the creator)") && commit('Providers: \\"put the main provider first please\\"') && !commit("APIMart is the main provider"));
 }
 
