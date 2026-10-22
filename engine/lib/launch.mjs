@@ -34,11 +34,11 @@ export function customStyleRules(st) {
   const out = [];
   if (st.kind !== "custom") return out;
   const refs = (st.refs || []).filter((f) => fs.existsSync(path.isAbsolute(f) ? f : path.join(st.dir || "", f)));
-  if (refs.length < 2) out.push(`el estilo ${st.id} se hizo desde referencias y tiene ${refs.length}; necesita al menos 2 imágenes del creador`);
-  if ((st.look || "").trim().split(/\s+/).length < 12) out.push(`el estilo ${st.id} no describe su look (al menos 12 palabras: línea, color, textura, luz, profundidad)`);
-  if (!(st.negative || "").trim()) out.push(`el estilo ${st.id} no tiene lista de "nunca" (negative)`);
-  if (!st.launch) out.push(`el estilo ${st.id} no dice cómo se integra el video real (launch.insertTreatment)`);
-  if (!st.madeFrom?.said?.trim()) out.push(`el estilo ${st.id} no tiene las palabras del creador que lo piden`);
+  if (refs.length < 2) out.push(`the ${st.id} style was made from references and has ${refs.length}; it needs at least 2 of the creator's images`);
+  if ((st.look || "").trim().split(/\s+/).length < 12) out.push(`the ${st.id} style doesn't describe its look (at least 12 words: line, color, texture, light, depth)`);
+  if (!(st.negative || "").trim()) out.push(`the ${st.id} style has no "never" list (negative)`);
+  if (!st.launch) out.push(`the ${st.id} style doesn't say how real footage is blended in (launch.insertTreatment)`);
+  if (!st.madeFrom?.said?.trim()) out.push(`the ${st.id} style lacks the creator's words asking for it`);
   return out;
 }
 export const MODES = ["story-driven", "explainer", "motion-graphics", "cinematic", "performance"];
@@ -157,9 +157,9 @@ export const QualityReport = z.object({
 
 // zod's issues as short Spanish lines with the field path.
 const parse = (schema, v, name) => {
-  if (v == null) return { data: null, problems: [`falta ${name}`] };
+  if (v == null) return { data: null, problems: [`${name} is missing`] };
   const r = schema.safeParse(v);
-  return r.success ? { data: r.data, problems: [] } : { data: null, problems: r.error.issues.slice(0, 8).map((i) => `${name}: ${i.path.join(".") || "(raíz)"} ${i.message}`) };
+  return r.success ? { data: r.data, problems: [] } : { data: null, problems: r.error.issues.slice(0, 8).map((i) => `${name}: ${i.path.join(".") || "(root)"} ${i.message}`) };
 };
 
 // ---- brief: facts with sources, assumptions only with the creator's yes
@@ -168,14 +168,14 @@ export function briefRules(raw) {
   if (!b) return problems;
   const out = [];
   const caps = new Set(b.capabilities.map((c) => c.id));
-  for (const a of b.assumptions) if (!a.approved) out.push(`suposición sin aprobar por the creator: ${a.field} = "${a.value}"`);
-  if (b.capabilities.some((c) => c.source === "url") && !b.sources.some((s) => s.kind === "url")) out.push("hay capacidades tomadas de una URL, pero el brief no registra la URL como fuente");
-  for (const s of b.sources) if (s.kind === "url" && !s.retrievedAt) out.push(`la fuente ${s.ref} no tiene fecha de lectura (retrievedAt)`);
-  if (!caps.has(b.message.proofCapability)) out.push(`la prueba (message.proofCapability "${b.message.proofCapability}") no es una capacidad del brief`);
-  if (b.message.differentiator && !caps.has(b.message.differentiatorCapability || "-")) out.push("el diferenciador no apunta a una capacidad comprobada (message.differentiatorCapability); quítalo o compruébalo");
+  for (const a of b.assumptions) if (!a.approved) out.push(`assumption not approved by the creator: ${a.field} = "${a.value}"`);
+  if (b.capabilities.some((c) => c.source === "url") && !b.sources.some((s) => s.kind === "url")) out.push("capabilities come from a URL, but the brief doesn't record the URL as a source");
+  for (const s of b.sources) if (s.kind === "url" && !s.retrievedAt) out.push(`the source ${s.ref} has no read date (retrievedAt)`);
+  if (!caps.has(b.message.proofCapability)) out.push(`the proof (message.proofCapability "${b.message.proofCapability}") is not a capability in the brief`);
+  if (b.message.differentiator && !caps.has(b.message.differentiatorCapability || "-")) out.push("the differentiator doesn't point to a verified capability (message.differentiatorCapability); remove it or verify it");
   // One audience: a film for everyone speaks to no one.
-  if (/\b(everyone|anyone|everybody|all (?:businesses|teams|people)|todos|cualquiera|todo el mundo)\b/i.test(b.message.icp)) out.push(`el ICP "${b.message.icp}" no es uno solo; elige un cliente ideal concreto`);
-  if (!b.interview.length && !b.sources.some((s) => s.kind === "creator")) out.push("sin entrevista: confirma con the creator al menos el ICP, el dolor y el CTA (brief.interview)");
+  if (/\b(everyone|anyone|everybody|all (?:businesses|teams|people)|todos|cualquiera|todo el mundo)\b/i.test(b.message.icp)) out.push(`the ICP "${b.message.icp}" is not a single one; choose one concrete ideal customer`);
+  if (!b.interview.length && !b.sources.some((s) => s.kind === "creator")) out.push("no interview: confirm at least the ICP, the pain and the CTA with the creator (brief.interview)");
   return out;
 }
 
@@ -186,22 +186,22 @@ export function conceptRules(raw, brief) {
   const { data: c, problems } = parse(Concepts, raw, "concepts.json");
   if (!c) return problems;
   const out = [], cfg = c.config;
-  if (!RELEASE.seconds.includes(cfg.durationSeconds)) out.push(`duración ${cfg.durationSeconds} s: todavía no disponible (Release 1: ${RELEASE.seconds.join(", ")} s)`);
-  if (!RELEASE.ar.includes(cfg.aspectRatio)) out.push(`formato ${cfg.aspectRatio}: todavía no disponible (Release 1: ${RELEASE.ar.join(", ")})`);
-  if (!RELEASE.fps.includes(cfg.fps)) out.push(`${cfg.fps} fps: todavía no disponible (Release 1: ${RELEASE.fps.join(", ")})`);
-  if (!RELEASE.styles.includes(cfg.visualStyle)) out.push(`estilo "${cfg.visualStyle}": todavía no disponible (Release 1: ${RELEASE.styles.join(", ")})`);
+  if (!RELEASE.seconds.includes(cfg.durationSeconds)) out.push(`length ${cfg.durationSeconds} s: not available yet (Release 1: ${RELEASE.seconds.join(", ")} s)`);
+  if (!RELEASE.ar.includes(cfg.aspectRatio)) out.push(`format ${cfg.aspectRatio}: not available yet (Release 1: ${RELEASE.ar.join(", ")})`);
+  if (!RELEASE.fps.includes(cfg.fps)) out.push(`${cfg.fps} fps: not available yet (Release 1: ${RELEASE.fps.join(", ")})`);
+  if (!RELEASE.styles.includes(cfg.visualStyle)) out.push(`style "${cfg.visualStyle}": not available yet (Release 1: ${RELEASE.styles.join(", ")})`);
   if (c.concepts.length < cfg.conceptCount) out.push(`${c.concepts.length} conceptos; se pidieron ${cfg.conceptCount}`);
   const ids = c.concepts.map((x) => x.id);
-  if (new Set(ids).size !== ids.length) out.push("dos conceptos con el mismo id");
+  if (new Set(ids).size !== ids.length) out.push("two concepts with the same id");
   for (let i = 0; i < c.concepts.length; i++) for (let j = i + 1; j < c.concepts.length; j++) {
     const a = c.concepts[i], b = c.concepts[j];
-    if (overlap(a.visualMetaphor, b.visualMetaphor) > 0.5 || overlap(a.creativeThesis, b.creativeThesis) > 0.6) out.push(`los conceptos ${a.id} y ${b.id} se parecen demasiado (misma metáfora o tesis); tienen que ser ángulos distintos, no paráfrasis`);
+    if (overlap(a.visualMetaphor, b.visualMetaphor) > 0.5 || overlap(a.creativeThesis, b.creativeThesis) > 0.6) out.push(`concepts ${a.id} and ${b.id} are too alike (same metaphor or thesis); they must be different angles, not paraphrases`);
   }
-  if (!ids.includes(c.selected)) out.push(`el concepto elegido "${c.selected}" no existe`);
+  if (!ids.includes(c.selected)) out.push(`the selected concept "${c.selected}" doesn't exist`);
   // A concept launches the product (a rental store, a night crew and a pop-up book told stories and were
   // rejected as "not launch videos"): its thesis or its metaphor's mapping names the product or its category.
   const pn = brief?.product?.name?.toLowerCase(), cat = (brief?.product?.category || "").toLowerCase().split(/\W+/).filter((w) => w.length > 3);
-  if (pn) for (const x of c.concepts) { const t = `${x.creativeThesis} ${x.metaphorMapsTo}`.toLowerCase(); if (!t.includes(pn) && !cat.some((w) => t.includes(w))) out.push(`${x.id}: la tesis y la metáfora no nombran el producto ("${brief.product.name}") ni su categoría; un concepto lanza el producto, no solo cuenta una historia`); }
+  if (pn) for (const x of c.concepts) { const t = `${x.creativeThesis} ${x.metaphorMapsTo}`.toLowerCase(); if (!t.includes(pn) && !cat.some((w) => t.includes(w))) out.push(`${x.id}: the thesis and the metaphor name neither the product ("${brief.product.name}") nor its category; a concept launches the product, it doesn't only tell a story`); }
   return out;
 }
 
@@ -218,30 +218,30 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const cfg = concepts?.config, msg = brief?.message;
   const caps = new Set((brief?.capabilities || []).map((c) => c.id));
   const dur = cfg?.durationSeconds ?? plan.durationSeconds;
-  if (concepts && plan.conceptId !== concepts.selected) out.push(`el plan es del concepto ${plan.conceptId}, pero el elegido es ${concepts.selected}`);
-  if (plan.durationSeconds !== dur) out.push(`el plan dice ${plan.durationSeconds} s y la película se pidió de ${dur} s`);
-  if (cfg && plan.fps !== cfg.fps) out.push(`el plan dice ${plan.fps} fps y la película se pidió a ${cfg.fps}`);
+  if (concepts && plan.conceptId !== concepts.selected) out.push(`the plan is for concept ${plan.conceptId}, but the selected one is ${concepts.selected}`);
+  if (plan.durationSeconds !== dur) out.push(`the plan says ${plan.durationSeconds} s and the film was asked for at ${dur} s`);
+  if (cfg && plan.fps !== cfg.fps) out.push(`the plan says ${plan.fps} fps and the film was asked for at ${cfg.fps}`);
   // Timing: contiguous, positive, and the sum within ±0.25 s of the length (the edit then lands it to the frame).
   let t = 0;
   for (const s of plan.shots) {
-    if (!near(s.start, t, 0.05)) out.push(`${s.id}: empieza en ${s.start} s y el anterior termina en ${+t.toFixed(2)} s (sin huecos ni encimados)`);
-    if (s.duration < 1) out.push(`${s.id}: dura ${s.duration} s (mínimo 1 s; menos no se lee)`);
-    if (s.duration > 8) out.push(`${s.id}: dura ${s.duration} s (máximo 8 s por toma; divídela)`);
+    if (!near(s.start, t, 0.05)) out.push(`${s.id}: starts at ${s.start} s and the previous one ends at ${+t.toFixed(2)} s (no gaps or overlaps)`);
+    if (s.duration < 1) out.push(`${s.id}: lasts ${s.duration} s (min 1 s; shorter doesn't read)`);
+    if (s.duration > 8) out.push(`${s.id}: lasts ${s.duration} s (max 8 s per shot; split it)`);
     t = s.start + s.duration;
   }
   const sum = plan.shots.reduce((n, s) => n + s.duration, 0);
-  if (!near(sum, dur, 0.25)) out.push(`las tomas suman ${+sum.toFixed(2)} s y la película dura ${dur} s (tolerancia ±0.25 s)`);
+  if (!near(sum, dur, 0.25)) out.push(`the shots add up to ${+sum.toFixed(2)} s and the film lasts ${dur} s (tolerance ±0.25 s)`);
   const ids = plan.shots.map((s) => s.id);
-  if (new Set(ids).size !== ids.length) out.push("dos tomas con el mismo id");
+  if (new Set(ids).size !== ids.length) out.push("two shots with the same id");
   // Beats: about 8-12 for 30 s, most of them in the 2-5 s band (the reference rhythm), adjusted by length.
   const [lo, hi] = [Math.round(dur / 5), Math.round(dur / 2.2)];
-  if (plan.shots.length < lo || plan.shots.length > hi) out.push(`${plan.shots.length} tomas para ${dur} s (rango ${lo}-${hi})`);
+  if (plan.shots.length < lo || plan.shots.length > hi) out.push(`${plan.shots.length} shots for ${dur} s (range ${lo}-${hi})`);
   const band = plan.shots.filter((s) => s.duration >= 1.5 && s.duration <= 5.5).length;
-  if (band < Math.ceil(plan.shots.length * 0.6)) out.push(`solo ${band} de ${plan.shots.length} tomas duran entre 2 y 5 s; el ritmo de referencia necesita la mayoría en esa banda`);
+  if (band < Math.ceil(plan.shots.length * 0.6)) out.push(`only ${band} of ${plan.shots.length} shots last 2 to 5 s; the reference rhythm needs most of them in that band`);
   // Voice-over: short lines that fit their shot, about 45-65 words for 30 s, measured later on the real audio.
   const voWords = plan.shots.reduce((n, s) => n + wc(s.vo), 0);
-  if (cfg && !cfg.voiceover && voWords) out.push("el plan tiene voz en off y la película se pidió sin voz");
-  if (cfg?.voiceover && !voWords) out.push("la película se pidió con voz en off y el plan no tiene ninguna línea");
+  if (cfg && !cfg.voiceover && voWords) out.push("the plan has a voice-over and the film was asked for without one");
+  if (cfg?.voiceover && !voWords) out.push("the film was asked for with a voice-over and the plan has no lines");
   // NARRATION SPINE (a strong reference runs about 2.8 words per second of film, voice over nearly all of it, no gap
   // over 1 s; one-line fragments feel disconnected). A narrated film is carried by one
   // continuous narration: every shot but the brand ending speaks, and the density sits near the reference's.
@@ -250,38 +250,38 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
     const ref = reference?.narration?.wordsPerSecondOfFilm;
     const [lo, hi] = ref ? [ref * 0.75, ref * 1.2] : cinematic ? [1.0, 2.0] : [2.0, 3.0];
     const wps = voWords / dur;
-    if (wps < lo || wps > hi) out.push(`${voWords} palabras de narración en ${dur} s (${wps.toFixed(2)} por segundo; el rango es ${lo.toFixed(2)}-${hi.toFixed(2)}${ref ? `, la referencia tiene ${ref}` : ""})`);
-    for (const s of plan.shots.slice(0, -1)) if (!s.vo) out.push(`${s.id}: sin narración; en un film narrado la voz no se detiene (solo el cierre de marca puede ir sin voz)`);
-    for (const s of plan.shots) if (s.vo && wc(s.vo) > Math.floor(s.duration * 3.3) + 2) out.push(`${s.id}: ${wc(s.vo)} palabras en ${s.duration} s de toma (máximo ~3.3 por segundo)`);
+    if (wps < lo || wps > hi) out.push(`${voWords} words of narration in ${dur} s (${wps.toFixed(2)} per second; the range is ${lo.toFixed(2)}-${hi.toFixed(2)}${ref ? `, the reference has ${ref}` : ""})`);
+    for (const s of plan.shots.slice(0, -1)) if (!s.vo) out.push(`${s.id}: no narration; in a narrated film the voice doesn't stop (only the brand ending may be silent)`);
+    for (const s of plan.shots) if (s.vo && wc(s.vo) > Math.floor(s.duration * 3.3) + 2) out.push(`${s.id}: ${wc(s.vo)} words in a ${s.duration} s shot (max ~3.3 per second)`);
   }
   // Every cut has a reason, inside one world, along one thread, under one light.
   for (const [i, s] of plan.shots.entries()) {
     if (!i) continue;
     const prev = plan.shots[i - 1];
-    if (!s.connect) { out.push(`${s.id}: no dice cómo sigue de ${prev.id} (connect: action, object, push-in, pull-out, same-place o pov, y cómo)`); continue; }
+    if (!s.connect) { out.push(`${s.id}: doesn't say how it follows ${prev.id} (connect: action, object, push-in, pull-out, same-place or pov, and how)`); continue; }
     const envs = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));
     const a = envs(prev), b = envs(s);
-    if (s.connect.type === "same-place" && a.size && b.size && ![...b].some((e) => a.has(e))) out.push(`${s.id}: dice "same-place" pero cambia de escenario; une los lugares con action, object, push-in, pull-out o pov`);
+    if (s.connect.type === "same-place" && a.size && b.size && ![...b].some((e) => a.has(e))) out.push(`${s.id}: says "same-place" but changes setting; join the places with action, object, push-in, pull-out or pov`);
   }
   // slideup / slidedown read as one camera tilt between two heights of the same place (a board and the desk below
   // it); circles, wipes and sideways slides stay out of this style.
-  for (const s of plan.shots) if (s.transitionIn && !["cut", "fade", "ripple", "slideup", "slidedown"].includes(s.transitionIn)) out.push(`${s.id}: transición "${s.transitionIn}"; en este estilo se corta por acción, con un fundido corto (≤ 0.35 s) o con un paneo vertical entre dos alturas del mismo lugar (slideup/slidedown), no con círculos ni barridos`);
-  for (const s of plan.shots) if (["slideup", "slidedown"].includes(s.transitionIn) && s.connect?.type !== "same-place") out.push(`${s.id}: ${s.transitionIn} es un paneo vertical: solo entre dos alturas del mismo lugar (connect same-place)`);
+  for (const s of plan.shots) if (s.transitionIn && !["cut", "fade", "ripple", "slideup", "slidedown"].includes(s.transitionIn)) out.push(`${s.id}: transition "${s.transitionIn}"; this style cuts on action, with a short dissolve (≤ 0.35 s) or a vertical tilt between two heights of the same place (slideup/slidedown), never circles or wipes`);
+  for (const s of plan.shots) if (["slideup", "slidedown"].includes(s.transitionIn) && s.connect?.type !== "same-place") out.push(`${s.id}: ${s.transitionIn} is a vertical tilt: only between two heights of the same place (connect same-place)`);
   // zoomInto: the camera flies into a screen at the end of a shot and the next shot is what the screen showed.
-  for (const [i, s] of plan.shots.entries()) if (s.zoomInto && !["fade", "ripple"].includes(plan.shots[i + 1]?.transitionIn)) out.push(`${s.id}: zoomInto entra a la pantalla; la toma siguiente debe entrar con fade`);
-  for (const s of plan.shots) if (s.transitionIn === "fade" && s.transitionSecs > 0.35) out.push(`${s.id}: fundido de ${s.transitionSecs} s (máximo 0.35 s)`);
+  for (const [i, s] of plan.shots.entries()) if (s.zoomInto && !["fade", "ripple"].includes(plan.shots[i + 1]?.transitionIn)) out.push(`${s.id}: zoomInto enters the screen; the next shot must come in with a fade`);
+  for (const s of plan.shots) if (s.transitionIn === "fade" && s.transitionSecs > 0.35) out.push(`${s.id}: ${s.transitionSecs} s dissolve (max 0.35 s)`);
   if (style) {
-    if (!style.thread) out.push("el style bible no tiene hilo conductor (thread: el personaje u objeto que guía los cortes, como la mano del usuario en Town)");
+    if (!style.thread) out.push("the style bible has no thread (thread: the character or object that leads the cuts, such as the user's hand)");
     else {
       const has = plan.shots.map((s) => s.assets.includes(style.thread));
       const third = Math.ceil(has.length / 3);
-      if (has.filter(Boolean).length < Math.ceil(has.length * 0.4)) out.push(`el hilo ${style.thread} aparece en ${has.filter(Boolean).length} de ${has.length} tomas (mínimo 40 %)`);
-      if (!has.slice(0, third).some(Boolean) || (!has.slice(-third).some(Boolean) && !plan.threadCloseWaived)) out.push(`el hilo ${style.thread} tiene que abrir y cerrar la película (primer y último tercio)`);
+      if (has.filter(Boolean).length < Math.ceil(has.length * 0.4)) out.push(`the thread ${style.thread} appears in ${has.filter(Boolean).length} of ${has.length} shots (min 40 %)`);
+      if (!has.slice(0, third).some(Boolean) || (!has.slice(-third).some(Boolean) && !plan.threadCloseWaived)) out.push(`the thread ${style.thread} must open and close the film (first and last third)`);
     }
     const TIME = /\b(dawn|sunrise|morning|noon|midday|afternoon|golden hour|late afternoon|sunset|dusk|evening|twilight|night|moonlit)\b/gi;
     const flat = (x) => String(x).toLowerCase().replace(/-/g, " ");
     const allowed = new Set((flat(style.lighting).match(TIME) || []).map(flat));
-    for (const s of plan.shots) for (const w of flat(`${s.prompt} ${s.motion || ""}`).match(TIME) || []) if (!allowed.has(w) && ![...allowed].some((x) => x.includes(w))) out.push(`${s.id}: "${w}" cambia la hora del día; todo el film va con la luz del style bible (${style.lighting})`);
+    for (const s of plan.shots) for (const w of flat(`${s.prompt} ${s.motion || ""}`).match(TIME) || []) if (!allowed.has(w) && ![...allowed].some((x) => x.includes(w))) out.push(`${s.id}: "${w}" changes the time of day; the whole film keeps the style bible's light (${style.lighting})`);
   }
   for (const c of style?.continuity || []) for (const s of plan.shots) {
     const text = `${s.prompt} ${s.motion || ""}`.toLowerCase();
@@ -289,108 +289,108 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   }
   // The brand ending breathes: at least 3.5 s on screen.
   const end = plan.shots.at(-1);
-  if (end.role === "brand" && end.duration < 3.5) out.push(`${end.id}: el cierre de marca dura ${end.duration.toFixed(2)} s (mínimo 3.5 s para que respire)`);
-  if (cfg?.voiceover && cfg?.music && /\b(drums?|kick|snare|hi-?hats?|beat|hip hop|trap|breakbeat)\b/i.test(plan.musicPrompt || "") && !/\bno (drums|percussion|beat)\b/i.test(plan.musicPrompt || "")) out.push("la música lleva batería o beat y compite con la narración; pide la misma vibra sin batería (no drums)");
+  if (end.role === "brand" && end.duration < 3.5) out.push(`${end.id}: the brand ending lasts ${end.duration.toFixed(2)} s (min 3.5 s so it can breathe)`);
+  if (cfg?.voiceover && cfg?.music && /\b(drums?|kick|snare|hi-?hats?|beat|hip hop|trap|breakbeat)\b/i.test(plan.musicPrompt || "") && !/\bno (drums|percussion|beat)\b/i.test(plan.musicPrompt || "")) out.push("the music has drums or a beat and competes with the narration; ask for the same vibe without drums (no drums)");
   // Exact text is composited by the engine, never drawn by the video or image model.
   for (const s of plan.shots) {
-    if (/"[^"]{2,}"|“[^”]{2,}”/.test(s.prompt)) out.push(`${s.id}: el prompt pide texto entre comillas; el texto exacto lo compone el motor (shot.text), no el modelo`);
-    if (/\b(logo|lettering|caption|subtitle|headline|the words|that reads|reading)\b/i.test(s.prompt)) out.push(`${s.id}: el prompt pide letras o logo al modelo; van en shot.text / shot.logo`);
-    if (s.source !== "card" && !s.prompt.trim()) out.push(`${s.id}: sin prompt de imagen`);
-    if (s.source === "generate" && !s.motion?.trim()) out.push(`${s.id}: sin dirección de animación (shot.motion)`);
+    if (/"[^"]{2,}"|“[^”]{2,}”/.test(s.prompt)) out.push(`${s.id}: the prompt asks for quoted text; the engine composites exact text (shot.text), not the model`);
+    if (/\b(logo|lettering|caption|subtitle|headline|the words|that reads|reading)\b/i.test(s.prompt)) out.push(`${s.id}: the prompt asks the model for letters or a logo; they go in shot.text / shot.logo`);
+    if (s.source !== "card" && !s.prompt.trim()) out.push(`${s.id}: no image prompt`);
+    if (s.source === "generate" && !s.motion?.trim()) out.push(`${s.id}: no animation direction (shot.motion)`);
     if (s.source === "generate") {
       // The animation is choreographed here, never left to the video model: a physical action with a cause, an end
       // state drawn as the last frame, and what stays still.
       const locked = /\blocked\b/i.test(s.camera);
-      if (!locked && wc(s.end) < 8) out.push(`${s.id}: sin final coreografiado (shot.end: qué muestra el último cuadro, al menos 8 palabras)`);
-      if (!s.still.length) out.push(`${s.id}: no dice qué se queda quieto (shot.still)`);
+      if (!locked && wc(s.end) < 8) out.push(`${s.id}: no choreographed end (shot.end: what the last frame shows, at least 8 words)`);
+      if (!s.still.length) out.push(`${s.id}: doesn't say what stays still (shot.still)`);
       const m = s.motion || "";
       const vague = m.match(/\b(comes? alive|bustles?|bustling|magically|magic|sparkles?|swirls?|faster and faster|keeps? (?:fluttering|falling|coming)|out of nowhere)\b/i);
-      if (vague) out.push(`${s.id}: "${vague[0]}" deja que el modelo invente; describe la acción física exacta`);
-      if (/\b(from above|from the top of the frame|from the sky)\b/i.test(m) && !/\b(hand|held|holding)\b/i.test(m)) out.push(`${s.id}: algo cae "desde arriba" sin causa visible; di qué lo mueve`);
-      if (/\b(falls?|drops?|rolls?|slides?|flutters?|tumbles?|pours?|tips?)\b/i.test(m) && !/\b(into|onto|on|in|inside|lands?)\b/i.test(s.end || "")) out.push(`${s.id}: algo cae o rueda y el final no dice dónde termina (into/onto ...)`);
+      if (vague) out.push(`${s.id}: "${vague[0]}" lets the model invent; describe the exact physical action`);
+      if (/\b(from above|from the top of the frame|from the sky)\b/i.test(m) && !/\b(hand|held|holding)\b/i.test(m)) out.push(`${s.id}: something falls "from above" with no visible cause; say what moves it`);
+      if (/\b(falls?|drops?|rolls?|slides?|flutters?|tumbles?|pours?|tips?)\b/i.test(m) && !/\b(into|onto|on|in|inside|lands?)\b/i.test(s.end || "")) out.push(`${s.id}: something falls or rolls and the end doesn't say where it lands (into/onto ...)`);
     }
     // EVERYTHING MOVES: no still with a zoom, no flat card. Every shot is an animated generation;
     // exact text and the logo are composited over moving picture.
-    if (s.source !== "generate") out.push(`${s.id}: es "${s.source}"; en un launch film todas las tomas van animadas (source generate), nunca una imagen fija con zoom ni una tarjeta plana`);
-    if (s.inserts.length && !/\b(locked|static camera|camera (?:does not|doesn't|never) move|tripod)\b/i.test(`${s.camera} ${s.motion || ""}`)) out.push(`${s.id}: lleva footage real dentro de pantallas; la cámara tiene que quedar fija (camera "locked") para que los clips no se salgan de las pantallas`);
-    if (s.inserts.length && !/\b(?:solid |pure )?bright green\b/i.test(s.prompt)) out.push(`${s.id}: lleva footage real; el prompt tiene que pedir las pantallas en verde brillante sólido (ahí entra el clip)`);
+    if (s.source !== "generate") out.push(`${s.id}: is "${s.source}"; in a launch film every shot is animated (source generate), never a zoomed still or a flat card`);
+    if (s.inserts.length && !/\b(locked|static camera|camera (?:does not|doesn't|never) move|tripod)\b/i.test(`${s.camera} ${s.motion || ""}`)) out.push(`${s.id}: carries real footage inside screens; the camera must stay fixed (camera "locked") so the clips stay inside the screens`);
+    if (s.inserts.length && !/\b(?:solid |pure )?bright green\b/i.test(s.prompt)) out.push(`${s.id}: carries real footage; the prompt must ask for the screens in solid bright green (the clip goes there)`);
     for (const o of s.text) {
       const n = wc(o.text), max = o.kind === "ui" ? 14 : 8;
-      if (n > max) out.push(`${s.id}: el texto "${o.text}" tiene ${n} palabras (máximo ${max} para ${o.kind})`);
+      if (n > max) out.push(`${s.id}: the text "${o.text}" has ${n} words (max ${max} for ${o.kind})`);
       const on = Math.min(o.until ?? s.duration, s.duration) - o.at;
-      if (on < 0.6 + 0.25 * n) out.push(`${s.id}: "${o.text}" queda ${+on.toFixed(2)} s en pantalla (necesita ${+(0.6 + 0.25 * n).toFixed(2)} s para leerse)`);
+      if (on < 0.6 + 0.25 * n) out.push(`${s.id}: "${o.text}" stays ${+on.toFixed(2)} s on screen (it needs ${+(0.6 + 0.25 * n).toFixed(2)} s to be read)`);
     }
     // Claims: a number, a superlative or a promise of speed needs a capability from the brief behind it.
     const said = [s.vo, ...s.text.map((o) => o.text)].filter(Boolean).join(" ");
-    if (s.claim && brief && !caps.has(s.claim)) out.push(`${s.id}: la afirmación apunta a "${s.claim}", que no es una capacidad del brief`);
-    if (CLAIMY.test(said) && !s.claim) out.push(`${s.id}: "${said.slice(0, 60)}" afirma algo medible; apúntalo a una capacidad comprobada (shot.claim) o quítalo`);
+    if (s.claim && brief && !caps.has(s.claim)) out.push(`${s.id}: the claim points to "${s.claim}", which is not a capability in the brief`);
+    if (CLAIMY.test(said) && !s.claim) out.push(`${s.id}: "${said.slice(0, 60)}" claims something measurable; point it to a verified capability (shot.claim) or remove it`);
     // Continuity: every drawn shot lives in an environment of the style bible, and its assets exist there.
     if (style && s.source !== "card") {
       const known = new Set([...(style.characters || []).map((c) => c.id), ...(style.environments || []).map((e) => e.id)]);
-      for (const a of s.assets) if (!known.has(a)) out.push(`${s.id}: el asset "${a}" no está en el style bible`);
-      if (!s.assets.some((a) => (style.environments || []).some((e) => e.id === a))) out.push(`${s.id}: no dice en qué escenario del style bible pasa (assets)`);
+      for (const a of s.assets) if (!known.has(a)) out.push(`${s.id}: the asset "${a}" is not in the style bible`);
+      if (!s.assets.some((a) => (style.environments || []).some((e) => e.id === a))) out.push(`${s.id}: doesn't say which style bible setting it happens in (assets)`);
     }
   }
   // Story by intent. Brand: curiosity → friction → possibility → behavior → better reality → branded ending.
   // Conversion: pain → consequence → solution → demo → proof → a direct next step.
   const roles = plan.shots.map((s) => s.role), last = plan.shots.at(-1), first = plan.shots[0];
   const proofShot = plan.shots.find((s) => s.role === "proof" || s.claim === msg?.proofCapability);
-  if (!proofShot) out.push("ninguna toma muestra la prueba (role proof, o shot.claim = message.proofCapability)");
-  else if (msg && proofShot.claim !== msg.proofCapability) out.push(`la toma de prueba ${proofShot.id} no apunta a la capacidad de la prueba (${msg.proofCapability})`);
-  if (!roles.some((r) => ["interaction", "demo"].includes(r))) out.push("ninguna toma muestra el producto en acción (role interaction o demo)");
+  if (!proofShot) out.push("no shot shows the proof (role proof, or shot.claim = message.proofCapability)");
+  else if (msg && proofShot.claim !== msg.proofCapability) out.push(`the proof shot ${proofShot.id} doesn't point to the proof capability (${msg.proofCapability})`);
+  if (!roles.some((r) => ["interaction", "demo"].includes(r))) out.push("no shot shows the product in action (role interaction or demo)");
   const name = brief?.product?.name || style?.brand?.name;
   const named = (s) => s.logo || (name && s.text.some((o) => o.text.toLowerCase().includes(name.toLowerCase())));
   const tail = plan.shots.filter((s) => s.start + s.duration > dur - 4.01);
-  if (!tail.some(named)) out.push(`la marca no aparece en los últimos 4 s (logo o "${name || "el nombre"}" en pantalla)`);
+  if (!tail.some(named)) out.push(`the brand doesn't appear in the last 4 s (logo or "${name || "the name"}" on screen)`);
   if (cfg?.intent === "conversion" || concepts?.concepts?.find((c) => c.id === plan.conceptId)?.storyMode === "performance") {
-    if (!["hook", "problem", "friction"].includes(first.role)) out.push(`conversion: la primera toma tiene que abrir en el dolor (role hook, problem o friction), no en ${first.role}`);
-    if (!(first.vo || first.text.length) && !(plan.shots[1] && plan.shots[1].start < 3 && (plan.shots[1].vo || plan.shots[1].text.length))) out.push("conversion: el dolor tiene que decirse o leerse antes de 3 s");
+    if (!["hook", "problem", "friction"].includes(first.role)) out.push(`conversion: the first shot must open on the pain (role hook, problem or friction), not on ${first.role}`);
+    if (!(first.vo || first.text.length) && !(plan.shots[1] && plan.shots[1].start < 3 && (plan.shots[1].vo || plan.shots[1].text.length))) out.push("conversion: the pain must be said or read within 3 s");
     const cta = brief?.cta?.label;
-    if (!(last.role === "cta" && last.text.some((o) => o.kind === "cta" && (!cta || o.text.toLowerCase().includes(cta.toLowerCase()))))) out.push(`conversion: la última toma es el CTA visible ("${cta || "CTA"}" como texto kind cta)`);
-  } else if (!["brand", "cta"].includes(last.role)) out.push(`brand: la película termina en la marca (role brand o cta), no en ${last.role}`);
+    if (!(last.role === "cta" && last.text.some((o) => o.kind === "cta" && (!cta || o.text.toLowerCase().includes(cta.toLowerCase()))))) out.push(`conversion: the last shot is the visible CTA ("${cta || "CTA"}" as text of kind cta)`);
+  } else if (!["brand", "cta"].includes(last.role)) out.push(`brand: the film ends on the brand (role brand or cta), not on ${last.role}`);
   // Outcome before the brand, proof before the outcome: show the result before explaining it is fine, but the
   // ending pays it off.
   const at = (r) => roles.lastIndexOf(r);
-  if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("el resultado (outcome) llega después de la marca; la marca cierra");
-  if (cfg?.music && !plan.musicPrompt?.trim()) out.push("la película lleva música y el plan no tiene musicPrompt");
+  if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("the outcome comes after the brand; the brand closes");
+  if (cfg?.music && !plan.musicPrompt?.trim()) out.push("the film has music and the plan has no musicPrompt");
   // Every launch film rule is checked here, for any video model.
   // ONE CONTINUOUS STORY: two shots in the same place are one set. "exact" starts on the previous shot's drawn last
   // frame (gen.mjs frame copies it, free); "same-set" is drawn from the previous shot's frame, same framing.
   const envOf = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));
   for (const [i, s] of plan.shots.entries()) {
-    if (!i) { if (s.chain && s.chain !== "cut") out.push(`${s.id}: la primera toma no tiene anterior a la que encadenarse`); continue; }
+    if (!i) { if (s.chain && s.chain !== "cut") out.push(`${s.id}: the first shot has no previous shot to chain to`); continue; }
     const prev = plan.shots[i - 1], a = envOf(prev), through = prev.zoomInto || (s.transitionIn && s.transitionIn !== "cut"); // flying into a screen changes place
     const same = s.connect?.type === "same-place" || (!through && [...envOf(s)].some((e) => a.has(e)));
-    if (same && !["exact", "same-set"].includes(s.chain)) out.push(`${s.id}: pasa en el mismo lugar que ${prev.id}; encadénala (chain "exact": empieza en el último cuadro de ${prev.id}; "same-set": se dibuja desde el cuadro de ${prev.id}, mismo set y encuadre)`);
-    if (s.chain === "exact" && !prev.end?.trim()) out.push(`${s.id}: chain "exact" empieza en el último cuadro de ${prev.id}, y ${prev.id} no tiene final coreografiado (shot.end)`);
-    if (s.chain === "exact" && s.transitionIn && s.transitionIn !== "cut") out.push(`${s.id}: chain "exact" es un corte invisible; no lleva transición`);
+    if (same && !["exact", "same-set"].includes(s.chain)) out.push(`${s.id}: happens in the same place as ${prev.id}; chain it (chain "exact": starts on ${prev.id}'s last frame; "same-set": drawn from ${prev.id}'s frame, same set and framing)`);
+    if (s.chain === "exact" && !prev.end?.trim()) out.push(`${s.id}: chain "exact" starts on ${prev.id}'s last frame, and ${prev.id} has no choreographed end (shot.end)`);
+    if (s.chain === "exact" && s.transitionIn && s.transitionIn !== "cut") out.push(`${s.id}: chain "exact" is an invisible cut; it takes no transition`);
   }
   // NO TRANSITION, ZOOM, EFFECT OR TEXT THE CREATOR DID NOT ASK FOR (a slide-up nobody asked for was rejected).
-  for (const s of plan.shots) if (s.transitionIn && s.transitionIn !== "cut" && !s.transitionAsked?.said?.trim()) out.push(`${s.id}: transición "${s.transitionIn}" sin las palabras del creador que la piden (transitionAsked.said)`);
-  for (const s of plan.shots) if (s.zoomInto && !s.zoomInto.said?.trim()) out.push(`${s.id}: zoomInto sin las palabras del creador que lo piden (zoomInto.said)`);
-  for (const [n, d] of Object.entries(plan.sfx || {})) if (!d.said?.trim()) out.push(`efecto "${n}" sin las palabras del creador que lo piden o lo aprueban (sfx.${n}.said)`);
-  for (const s of plan.shots) for (const o of s.text) if (o.kind !== "cta" && !o.said?.trim()) out.push(`${s.id}: el texto "${o.text}" no lo pidió el creador (text.said); sin pedirse solo van la marca y el CTA`);
+  for (const s of plan.shots) if (s.transitionIn && s.transitionIn !== "cut" && !s.transitionAsked?.said?.trim()) out.push(`${s.id}: transition "${s.transitionIn}" without the creator's words asking for it (transitionAsked.said)`);
+  for (const s of plan.shots) if (s.zoomInto && !s.zoomInto.said?.trim()) out.push(`${s.id}: zoomInto without the creator's words asking for it (zoomInto.said)`);
+  for (const [n, d] of Object.entries(plan.sfx || {})) if (!d.said?.trim()) out.push(`effect "${n}" without the creator's words asking for or approving it (sfx.${n}.said)`);
+  for (const s of plan.shots) for (const o of s.text) if (o.kind !== "cta" && !o.said?.trim()) out.push(`${s.id}: the creator didn't ask for the text "${o.text}" (text.said); unasked, only the brand and the CTA go on screen`);
   // NOTHING IDLES: every character in an animated shot does something named in its motion.
   for (const s of plan.shots) if (s.source === "generate" && !/\blocked\b/i.test(s.camera || "")) for (const a of s.assets) {
     let c; try { c = P.character(a); } catch { continue; }
     if (c.species === "set") continue;
     const names = [c.name, ...(c.aliases || []), /hand/i.test(`${a} ${c.name}`) ? "hand" : null].filter(Boolean).map((x) => x.toLowerCase());
-    if (!names.some((n) => (s.motion || "").toLowerCase().includes(n))) out.push(`${s.id}: ${c.name} está en cuadro y la animación no dice qué hace (nada se queda quieto sin razón; nómbralo en shot.motion)`);
+    if (!names.some((n) => (s.motion || "").toLowerCase().includes(n))) out.push(`${s.id}: ${c.name} is in frame and the animation doesn't say what they do (nothing stays still without a reason; name it in shot.motion)`);
   }
   // NOTHING FALLS NEAR A PILE: video models animate piles on their own (cards turned see-through, tapes jumped out).
-  for (const s of plan.shots) if (/\b(falls?|drops?|tumbles?|spills?|slides? down)\b/i.test(s.motion || "") && /\b(pile|stack|heap|full of|crowded)\b/i.test(`${s.prompt} ${s.motion || ""}`)) out.push(`${s.id}: algo cae junto a una pila; los modelos de video animan las pilas solos; quita la caída o la pila`);
+  for (const s of plan.shots) if (/\b(falls?|drops?|tumbles?|spills?|slides? down)\b/i.test(s.motion || "") && /\b(pile|stack|heap|full of|crowded)\b/i.test(`${s.prompt} ${s.motion || ""}`)) out.push(`${s.id}: something falls next to a pile; video models animate piles on their own; remove the fall or the pile`);
   // THE PAIN IS READABLE BY 8 S (a metaphor so clever the viewer can't tell the problem fails).
-  if (!plan.shots.some((s) => s.start < 8 && ["hook", "friction", "problem"].includes(s.role))) out.push("ninguna toma muestra el dolor antes de los 8 s (role hook, friction o problem)");
+  if (!plan.shots.some((s) => s.start < 8 && ["hook", "friction", "problem"].includes(s.role))) out.push("no shot shows the pain before 8 s (role hook, friction or problem)");
   // ONE HAND PER SHOT and ONE ACTION PER SHOT (extra hands appeared; four characters moving at once looked rushed).
   const handThread = /hand/i.test(style?.thread || "");
-  for (const s of plan.shots) if (handThread && s.assets.includes(style.thread) && /\b(two hands|another hand|second hand|other hand|two arms)\b/i.test(`${s.prompt} ${s.motion || ""}`)) out.push(`${s.id}: una sola mano por toma; los modelos inventan manos de más`);
+  for (const s of plan.shots) if (handThread && s.assets.includes(style.thread) && /\b(two hands|another hand|second hand|other hand|two arms)\b/i.test(`${s.prompt} ${s.motion || ""}`)) out.push(`${s.id}: one hand per shot; models invent extra hands`);
   const acts = (m) => m.split(/;|\bthen\b/i).map((x) => x.trim()).filter((x) => x && !/^the camera\b/i.test(x) && !/\b(move|moves) gently|at a natural pace|stays? (still|in place)\b/i.test(x));
-  for (const s of plan.shots) if (s.source === "generate" && acts(s.motion || "").length > 3) out.push(`${s.id}: más de tres acciones en una toma; una sola acción definida por toma (divídela)`);
+  for (const s of plan.shots) if (s.source === "generate" && acts(s.motion || "").length > 3) out.push(`${s.id}: more than three actions in one shot; one defined action per shot (split it)`);
   // THE FIRST SECOND HOOKS.
   const f0 = plan.shots[0];
-  if (f0 && !["hook", "friction", "problem"].includes(f0.role)) out.push(`${f0.id}: la primera toma engancha (role hook, friction o problem), no ${f0.role}`);
-  if (f0?.vo && f0.voAt > 0.5) out.push(`${f0.id}: la voz entra a ${f0.voAt} s; el primer segundo engancha (máximo 0.5 s)`);
-  for (const s of plan.shots) for (const x of s.sfx) { const n = typeof x === "string" ? x : x.name; if (!plan.sfx[n]) out.push(`${s.id}: el efecto "${n}" no está definido en plan.sfx`); }
+  if (f0 && !["hook", "friction", "problem"].includes(f0.role)) out.push(`${f0.id}: the first shot hooks (role hook, friction or problem), not ${f0.role}`);
+  if (f0?.vo && f0.voAt > 0.5) out.push(`${f0.id}: the voice comes in at ${f0.voAt} s; the first second hooks (max 0.5 s)`);
+  for (const s of plan.shots) for (const x of s.sfx) { const n = typeof x === "string" ? x : x.name; if (!plan.sfx[n]) out.push(`${s.id}: the effect "${n}" is not defined in plan.sfx`); }
   return out;
 }
 
@@ -400,15 +400,15 @@ export function styleRules(raw, { slug, cast = [] } = {}) {
   if (!st) return problems;
   const out = [];
   const abs = (f) => (path.isAbsolute(f) ? f : path.join(P.projectDir(slug), f));
-  if (st.brand.logo && slug && !fs.existsSync(abs(st.brand.logo))) out.push(`no existe el logo ${st.brand.logo}`);
-  if (st.text.fontFile && slug && !fs.existsSync(abs(st.text.fontFile))) out.push(`no existe la fuente ${st.text.fontFile}`);
-  for (const e of st.environments) if (e.ref && slug && !fs.existsSync(abs(e.ref))) out.push(`no existe la imagen del escenario ${e.id}: ${e.ref}`);
+  if (st.brand.logo && slug && !fs.existsSync(abs(st.brand.logo))) out.push(`the logo ${st.brand.logo} doesn't exist`);
+  if (st.text.fontFile && slug && !fs.existsSync(abs(st.text.fontFile))) out.push(`the font ${st.text.fontFile} doesn't exist`);
+  for (const e of st.environments) if (e.ref && slug && !fs.existsSync(abs(e.ref))) out.push(`the setting image ${e.id} doesn't exist: ${e.ref}`);
   // The style bible's preset is a style launch films can use, and a custom one passes its own rules.
-  if (!launchStyles().includes(st.preset)) out.push(`el estilo "${st.preset}" no está disponible para launch films (${launchStyles().join(", ")}, o uno propio con launch.mjs style-from-refs)`);
+  if (!launchStyles().includes(st.preset)) out.push(`the style "${st.preset}" is not available for launch films (${launchStyles().join(", ")}, or your own with launch.mjs style-from-refs)`);
   else { try { out.push(...customStyleRules(P.style(st.preset))); } catch (e) { out.push(e.message); } }
   for (const c of st.characters) {
-    try { P.character(c.id); } catch { out.push(`el personaje ${c.id} no está en la biblia (bible/characters/${c.id}); créalo con cast.mjs`); }
-    if (cast.length && !cast.includes(c.id)) out.push(`el personaje ${c.id} está en el style bible pero no en el cast del proyecto`);
+    try { P.character(c.id); } catch { out.push(`the character ${c.id} is not in the bible (bible/characters/${c.id}); create it with cast.mjs`); }
+    if (cast.length && !cast.includes(c.id)) out.push(`the character ${c.id} is in the style bible but not in the project's cast`);
   }
   return out;
 }
@@ -466,7 +466,7 @@ export async function textCheck(file, overlays) {
   overlays.forEach((o, k) => {
     const r = (json.frames || []).find((x) => x.frame === k + 1) || {};
     read.push({ t: o.t, want: o.text, got: r.text || "", legible: !!r.legible });
-    if (!norm(r.text).includes(norm(o.text))) issues.push(`texto en ${o.t.toFixed(2)} s: se pidió "${o.text}", se lee "${r.text || "nada"}"`);
+    if (!norm(r.text).includes(norm(o.text))) issues.push(`text at ${o.t.toFixed(2)} s: asked for "${o.text}", reads "${r.text || "nothing"}"`);
     else if (r.legible === false) issues.push(`texto en ${o.t.toFixed(2)} s: "${o.text}" no se lee bien`);
   });
   return { pass: !issues.length, issues, read };
@@ -477,9 +477,9 @@ export function qualityRules(raw, sha) {
   const { data: q, problems } = parse(QualityReport, raw, "quality-report.json");
   if (!q) return problems;
   const out = [];
-  if (q.sha !== sha) out.push("el reporte de calidad es de otra versión del final; mira el final y vuelve a escribirlo");
-  for (const k of SCORE_KEYS) if (!q.reasons[k]?.trim()) out.push(`reporte de calidad: falta la razón de ${k}`);
-  for (const k of SCORE_KEYS) if (q.scores[k] <= 2) out.push(`reporte de calidad: ${k} ${q.scores[k]}/5 (${q.reasons[k] || "sin razón"})`);
+  if (q.sha !== sha) out.push("the quality report is for another version of the final; watch the final and write it again");
+  for (const k of SCORE_KEYS) if (!q.reasons[k]?.trim()) out.push(`quality report: the reason for ${k} is missing`);
+  for (const k of SCORE_KEYS) if (q.scores[k] <= 2) out.push(`quality report: ${k} ${q.scores[k]}/5 (${q.reasons[k] || "no reason"})`);
   for (const f of q.findings.filter((x) => x.severity === "blocker")) out.push(`bloqueo${f.timestampSeconds != null ? ` en ${f.timestampSeconds} s` : ""}${f.shotId ? ` (${f.shotId})` : ""}: ${f.detail}`);
   return out;
 }

@@ -81,38 +81,38 @@ export const isDemo = (L) => !!L?.demo;
 export function meditationRules(sl) {
   const L = sl.longform || {}, out = [];
   const I = intentOf(sl);
-  if (!I) return [`falta longform.intent (${Object.keys(INTENTS).join(", ")})`];
-  if (!L.premise?.trim()) out.push("falta longform.premise: la idea de la meditación en una frase; las imágenes salen de ahí");
+  if (!I) return [`longform.intent is missing (${Object.keys(INTENTS).join(", ")})`];
+  if (!L.premise?.trim()) out.push("longform.premise is missing: the meditation's idea in one sentence; the images come from it");
   for (const sc of L.scenes || []) {
-    if (!sc.premiseLink?.trim()) out.push(`escena ${sc.id}: falta premiseLink (qué parte de la meditación muestra esta imagen)`);
+    if (!sc.premiseLink?.trim()) out.push(`scene ${sc.id}: premiseLink is missing (which part of the meditation this image shows)`);
     // "no people", "no text" are instructions to the image model, not people in the picture
     // The creator's own image is their call: it is not linted, only animated (longform.mjs image).
     const pic = sc.imageBy === "creator" ? "" : String(sc.picture || "").replace(/\bno (\w+ )?(people|person|faces?|text|words|letters|logos?|watermarks?)\b/gi, "");
-    if (PICTURE_BAD.test(pic)) out.push(`escena ${sc.id}: la imagen pide "${pic.match(PICTURE_BAD)[0]}"; una imagen en loop no lleva caras, personas ni texto`);
-    if (sc.motion !== "kenburns" && MOTION_BAD.test(sc.motion || "")) out.push(`escena ${sc.id}: el movimiento "${(sc.motion || "").match(MOTION_BAD)[0]}" rompe el loop; un solo movimiento lento y constante`);
+    if (PICTURE_BAD.test(pic)) out.push(`scene ${sc.id}: the image asks for "${pic.match(PICTURE_BAD)[0]}"; a looping image has no faces, people or text`);
+    if (sc.motion !== "kenburns" && MOTION_BAD.test(sc.motion || "")) out.push(`scene ${sc.id}: the motion "${(sc.motion || "").match(MOTION_BAD)[0]}" breaks the loop; one slow, constant motion`);
   }
   const mp = L.music?.prompt || "";
   const bpm = Number((mp.match(/(\d{2,3})\s*bpm/i) || [])[1]);
-  if (!bpm) out.push(`la música no dice su tempo; pide ${I.bpm[0]}-${I.bpm[1]} bpm para ${I.label}`);
-  else if (bpm < I.bpm[0] || bpm > I.bpm[1]) out.push(`música a ${bpm} bpm; ${I.label} va de ${I.bpm[0]} a ${I.bpm[1]} bpm`);
+  if (!bpm) out.push(`the music doesn't state its tempo; ask for ${I.bpm[0]}-${I.bpm[1]} bpm for ${I.label}`);
+  else if (bpm < I.bpm[0] || bpm > I.bpm[1]) out.push(`music at ${bpm} bpm; ${I.label} runs ${I.bpm[0]} to ${I.bpm[1]} bpm`);
   const musicClean = mp.replace(/\bno (\w+ )?(drums?|vocals?|lyrics|singing)\b/gi, "");
-  if (MUSIC_BAD.test(musicClean)) out.push(`la música pide "${musicClean.match(MUSIC_BAD)[0]}"; meditación = instrumental, sin batería ni voces`);
-  if (!/instrumental|no vocals/i.test(mp)) out.push('la música debe pedir "instrumental, no vocals"');
+  if (MUSIC_BAD.test(musicClean)) out.push(`the music asks for "${musicClean.match(MUSIC_BAD)[0]}"; meditation = instrumental, no drums or vocals`);
+  if (!/instrumental|no vocals/i.test(mp)) out.push('the music must ask for "instrumental, no vocals"');
   const segs = (L.script || []).filter((s) => s.text?.trim());
-  if (!L.voiceFree && !segs.length) out.push("sin guion de voz (o longform.voiceFree: true)");
+  if (!L.voiceFree && !segs.length) out.push("no voice script (or longform.voiceFree: true)");
   // A demo must let the guiding voice be heard: 2-5 s of music between lines, not the full
   // piece's long silences.
   const pause = isDemo(L) ? [2, 5] : I.pause;
   for (const [i, s] of segs.entries()) {
     const p = s.pauseAfter ?? 4, last = i === segs.length - 1;
-    if (!last && p < pause[0]) out.push(`segmento ${i + 1}: pausa de ${p} s; ${isDemo(L) ? "un demo" : I.label} pide ${pause[0]}-${pause[1]} s entre frases`);
-    if (!last && isDemo(L) && p > pause[1]) out.push(`segmento ${i + 1}: pausa de ${p} s en un demo; máximo ${pause[1]} s para que se oiga la voz guiada`);
-    if (L.scriptBy !== "creator" && words(s.text) > 30) out.push(`segmento ${i + 1}: ${words(s.text)} palabras; una frase por respiración (máximo ~30)`);
+    if (!last && p < pause[0]) out.push(`segment ${i + 1}: ${p} s pause; ${isDemo(L) ? "a demo" : I.label} asks for ${pause[0]}-${pause[1]} s between sentences`);
+    if (!last && isDemo(L) && p > pause[1]) out.push(`segment ${i + 1}: ${p} s pause in a demo; max ${pause[1]} s so the guiding voice is heard`);
+    if (L.scriptBy !== "creator" && words(s.text) > 30) out.push(`segment ${i + 1}: ${words(s.text)} words; one sentence per breath (max ~30)`);
   }
   // The creator's written meditation reaches the voice word for word: an edit to the segments is refused.
   if (L.scriptBy === "creator") {
     const norm = (t) => String(t).replace(/\[pause[^\]]*\]/gi, "").replace(/\s+/g, " ").trim();
-    if (norm(segs.map((s) => s.text).join(" ")) !== L.scriptSource) out.push("el guion del creador cambió; su meditación va palabra por palabra (vuelve a importarla con longform.mjs script)");
+    if (norm(segs.map((s) => s.text).join(" ")) !== L.scriptSource) out.push("the creator's script changed; their meditation is kept word for word (import it again with longform.mjs script)");
   }
   // Voice share of the runtime, estimated at the intention's mid pace (the build measures the real one).
   const mid = (I.wpm[0] + I.wpm[1]) / 2;
@@ -120,17 +120,17 @@ export function meditationRules(sl) {
   const total = isDemo(L) ? (L.seconds || 25) : (L.minutes || 0) * 60 || voiceSec + segs.reduce((n, s) => n + (s.pauseAfter ?? 4), 0);
   if (total && segs.length && !isDemo(L)) {
     const share = voiceSec / total;
-    if (share > I.voiceShare[1] + 0.05) out.push(`la voz ocupa ~${Math.round(share * 100)} % del tiempo; ${I.label} va a ${Math.round(I.voiceShare[0] * 100)}-${Math.round(I.voiceShare[1] * 100)} % (más silencio o menos texto)`);
-    if (share < I.voiceShare[0] - 0.05) out.push(`la voz ocupa ~${Math.round(share * 100)} % del tiempo; ${I.label} va a ${Math.round(I.voiceShare[0] * 100)}-${Math.round(I.voiceShare[1] * 100)} % (falta guion para ${L.minutes} min)`);
+    if (share > I.voiceShare[1] + 0.05) out.push(`the voice fills ~${Math.round(share * 100)} % of the time; ${I.label} runs ${Math.round(I.voiceShare[0] * 100)}-${Math.round(I.voiceShare[1] * 100)} % (more silence or less text)`);
+    if (share < I.voiceShare[0] - 0.05) out.push(`the voice fills ~${Math.round(share * 100)} % of the time; ${I.label} runs ${Math.round(I.voiceShare[0] * 100)}-${Math.round(I.voiceShare[1] * 100)} % (not enough script for ${L.minutes} min)`);
   }
   if (isDemo(L)) {
     const secs = L.seconds || 25, n = segs.reduce((k, s) => k + words(s.text), 0);
-    if (secs < 15 || secs > 30) out.push(`demo de ${secs} s; un demo va de 15 a 30 s`);
-    if (n > Math.round((secs - 5) * (I.wpm[1] / 60))) out.push(`demo de ${secs} s con ${n} palabras; caben ~${Math.round((secs - 5) * (I.wpm[1] / 60))} a ${I.wpm[1]} wpm`);
+    if (secs < 15 || secs > 30) out.push(`${secs} s demo; a demo runs 15 to 30 s`);
+    if (n > Math.round((secs - 5) * (I.wpm[1] / 60))) out.push(`${secs} s demo with ${n} words; ~${Math.round((secs - 5) * (I.wpm[1] / 60))} fit at ${I.wpm[1]} wpm`);
   } else if (I.safety.length && !I.safety.every((re) => segs.some((s) => re.test(s.text)))) {
-    out.push(`falta la línea de seguridad de ${I.label}: "${I.safetyText}"`);
+    out.push(`the ${I.label} safety line is missing: "${I.safetyText}"`);
   }
-  if (L.darkAfter != null && I.ending !== "fade") out.push(`pantalla negra (darkAfter) es para meditaciones que no regresan (dormir); ${I.label} regresa al final`);
+  if (L.darkAfter != null && I.ending !== "fade") out.push(`the dark screen (darkAfter) is for meditations that don't come back (sleep); ${I.label} comes back at the end`);
   return out;
 }
 
@@ -141,8 +141,8 @@ export function voicePace(cues, intent) {
   const w = cues.reduce((n, c) => n + words(c.text), 0), sec = cues.reduce((n, c) => n + c.d, 0);
   const wpm = Math.round(w / (sec / 60));
   const issues = [];
-  if (wpm > I.wpm[1] + 10) issues.push(`la voz va a ${wpm} wpm; ${I.label} pide ${I.wpm[0]}-${I.wpm[1]} (baja voice.settings.speed y vuelve a generar la narración)`);
-  if (wpm < I.wpm[0] - 15) issues.push(`la voz va a ${wpm} wpm; ${I.label} pide ${I.wpm[0]}-${I.wpm[1]} (suena arrastrada)`);
+  if (wpm > I.wpm[1] + 10) issues.push(`the voice runs at ${wpm} wpm; ${I.label} asks for ${I.wpm[0]}-${I.wpm[1]} (lower voice.settings.speed and generate the narration again)`);
+  if (wpm < I.wpm[0] - 15) issues.push(`the voice runs at ${wpm} wpm; ${I.label} asks for ${I.wpm[0]}-${I.wpm[1]} (it drags)`);
   return { wpm, issues };
 }
 

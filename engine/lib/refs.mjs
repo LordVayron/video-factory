@@ -35,7 +35,7 @@ export function ingest(src, { note = "" } = {}) {
   const meta = { id, from: isUrl ? { url: src } : { file: path.basename(src) }, note, status: "measured-pending", at: new Date().toISOString() };
   if (isUrl) {
     const r = spawnSync("yt-dlp", ["-f", "mp4/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best", "--merge-output-format", "mp4", "--no-playlist", "--write-info-json", "-o", path.join(d, "source.%(ext)s"), src], { encoding: "utf8", maxBuffer: 1 << 26 });
-    if (r.status !== 0 || !sourceOf(id)) { fs.rmSync(d, { recursive: true, force: true }); throw new Error(`no se pudo bajar el link (yt-dlp): ${(r.stderr || r.stdout || "").trim().split("\n").pop()}`); }
+    if (r.status !== 0 || !sourceOf(id)) { fs.rmSync(d, { recursive: true, force: true }); throw new Error(`couldn't download the link (yt-dlp): ${(r.stderr || r.stdout || "").trim().split("\n").pop()}`); }
     const info = readJSON(path.join(d, "source.info.json"), {});
     meta.from = { url: src, title: info.title || null, uploader: info.uploader || info.channel || null, platform: info.extractor_key || null };
     fs.rmSync(path.join(d, "source.info.json"), { force: true });
@@ -46,7 +46,7 @@ export function ingest(src, { note = "" } = {}) {
 
 // ---- measure: the reference profile plus per-shot timing and motion, the hook, pauses, the bed under the voice, sheets
 export function measure(id, { lang = "en" } = {}) {
-  const src = sourceOf(id); if (!src) throw new Error(`${id}: sin video`);
+  const src = sourceOf(id); if (!src) throw new Error(`${id}: no video`);
   const p = REF.profile(src, { lang });
   const [w, h] = p.size.split("x").map(Number);
   const bounds = [0, ...p.cuts, p.duration];
@@ -93,12 +93,12 @@ export function guessFormat(p) {
   const why = [], wide = p.orientation === "landscape", tall = p.orientation === "portrait";
   if (p.duration > 300 || (wide && p.narration.wpm < 120 && p.motion.mean < 3 && p.cutsPerMin < 4)) return { format: "meditation", confidence: 0.8, why: ["largo o muy lento, poco movimiento, pocos cortes"] };
   // A loud bed under the dialogue and an intro before the first line read as a sitcom (laugh track, theme).
-  if (p.bed?.db > -18 && (p.hook.firstWordAt ?? 0) > 1.5 && p.shotList.length > 5) return { format: "sitcom", confidence: 0.6, why: ["fondo fuerte bajo los diálogos (risas o tema) y una entrada antes de la primera línea"] };
-  if (wide && p.duration <= 120 && p.narration.coverage >= 0.6 && p.cutsPerMin >= 10) return { format: "launch", confidence: 0.7, why: ["horizontal, corto, narración continua, cortes frecuentes"] };
-  if (tall && p.narration.coverage >= 0.55 && p.cutsPerMin < 14 && p.duration <= 90) { why.push("vertical, una voz casi todo el tiempo, pocos cortes"); return { format: "ugc", confidence: 0.5, why: [...why, "puede ser UGC o influencer: se confirma mirando si hay producto"] }; }
-  if (tall && p.cutsPerMin >= 14) return { format: "micro-drama", confidence: 0.5, why: ["vertical y con muchos cortes: drama o ritmo de edición rápida"] };
-  if (wide && p.cutsPerMin >= 6) return { format: "cinematic", confidence: 0.4, why: ["horizontal con cortes: cine, sitcom o lanzamiento"] };
-  return { format: "other", confidence: 0.3, why: ["los números no bastan; se decide mirando"] };
+  if (p.bed?.db > -18 && (p.hook.firstWordAt ?? 0) > 1.5 && p.shotList.length > 5) return { format: "sitcom", confidence: 0.6, why: ["a loud bed under the dialogue (laughs or a theme) and an intro before the first line"] };
+  if (wide && p.duration <= 120 && p.narration.coverage >= 0.6 && p.cutsPerMin >= 10) return { format: "launch", confidence: 0.7, why: ["horizontal, short, continuous narration, frequent cuts"] };
+  if (tall && p.narration.coverage >= 0.55 && p.cutsPerMin < 14 && p.duration <= 90) { why.push("vertical, one voice almost all the time, few cuts"); return { format: "ugc", confidence: 0.5, why: [...why, "could be UGC or influencer: confirm by checking for a product"] }; }
+  if (tall && p.cutsPerMin >= 14) return { format: "micro-drama", confidence: 0.5, why: ["vertical with many cuts: drama or a fast edit rhythm"] };
+  if (wide && p.cutsPerMin >= 6) return { format: "cinematic", confidence: 0.4, why: ["horizontal with cuts: cinematic, sitcom or launch"] };
+  return { format: "other", confidence: 0.3, why: ["the numbers aren't enough; decide by looking"] };
 }
 
 // ---- the breakdown Claude writes after looking at every sheet (contract + rules)
@@ -119,30 +119,30 @@ export const Breakdown = z.object({
 });
 export function breakdownRules(raw, prof) {
   const r = Breakdown.safeParse(raw);
-  if (!r.success) return r.error.issues.map((i) => `breakdown: ${i.path.join(".") || "(raíz)"}: ${i.message}`);
+  if (!r.success) return r.error.issues.map((i) => `breakdown: ${i.path.join(".") || "(root)"}: ${i.message}`);
   const b = r.data, out = [];
   if (prof) {
     const n = Math.min(80, prof.shotList.length);
     const seen = new Set(b.shots.map((s) => s.n));
-    for (let k = 1; k <= n; k++) if (!seen.has(k)) out.push(`toma ${k} sin describir (cada toma medida tiene su entrada, mirando shot-${String(k).padStart(2, "0")}.jpg)`);
-    for (const s of b.shots) if (s.n < Math.min(n, prof.shotList.length) && !s.transitionOut?.how?.trim()) out.push(`toma ${s.n}: sin decir cómo se une con la siguiente (transitionOut.how, mirando join-${String(s.n).padStart(2, "0")}.jpg)`);
-    for (const x of b.structure) if (x.to <= x.from || x.to > prof.duration + 0.5) out.push(`el beat "${x.beat}" va de ${x.from} a ${x.to} s y el video dura ${prof.duration} s`);
-    if (prof.narration.words && !b.voice.who) out.push("el video tiene voz y el desglose no dice de quién es");
-    if (prof.onScreenText?.length && !b.onScreenText.style.trim()) out.push(`se leyó texto en pantalla (${prof.onScreenText.slice(0, 3).map((x) => `"${x.text}" a ${x.from} s`).join(", ")}) y el desglose no describe su estilo (onScreenText.style)`);
-    if (prof.sound?.sfx?.length && !b.sfx.length) out.push(`se midieron ${prof.sound.sfx.length} golpes de sonido fuera de la voz (${prof.sound.sfx.slice(0, 4).map((e) => `${e.at} s`).join(", ")}) y el desglose no lista efectos (sfx)`);
-    if (b.music.present !== !!prof.bed?.music && prof.bed) out.push(`el desglose dice música ${b.music.present ? "sí" : "no"} y lo medido bajo la voz dice ${prof.bed.music ? "sí" : "no"} (${prof.bed.db} dB); míralo de nuevo`);
+    for (let k = 1; k <= n; k++) if (!seen.has(k)) out.push(`shot ${k} not described (every measured shot gets its entry, looking at shot-${String(k).padStart(2, "0")}.jpg)`);
+    for (const s of b.shots) if (s.n < Math.min(n, prof.shotList.length) && !s.transitionOut?.how?.trim()) out.push(`shot ${s.n}: doesn't say how it joins the next (transitionOut.how, looking at join-${String(s.n).padStart(2, "0")}.jpg)`);
+    for (const x of b.structure) if (x.to <= x.from || x.to > prof.duration + 0.5) out.push(`the beat "${x.beat}" runs ${x.from} to ${x.to} s and the video lasts ${prof.duration} s`);
+    if (prof.narration.words && !b.voice.who) out.push("the video has a voice and the breakdown doesn't say whose");
+    if (prof.onScreenText?.length && !b.onScreenText.style.trim()) out.push(`on-screen text was read (${prof.onScreenText.slice(0, 3).map((x) => `"${x.text}" a ${x.from} s`).join(", ")}) and the breakdown doesn't describe its style (onScreenText.style)`);
+    if (prof.sound?.sfx?.length && !b.sfx.length) out.push(`${prof.sound.sfx.length} sound hits outside the voice were measured (${prof.sound.sfx.slice(0, 4).map((e) => `${e.at} s`).join(", ")}) and the breakdown lists no effects (sfx)`);
+    if (b.music.present !== !!prof.bed?.music && prof.bed) out.push(`the breakdown says music ${b.music.present ? "yes" : "no"} and the measurement under the voice says ${prof.bed.music ? "yes" : "no"} (${prof.bed.db} dB); look again`);
   }
   return out;
 }
 
 // ---- approval and the bank
 export function approve(id, { said, formatSaid } = {}) {
-  if (!said?.trim()) throw new Error('aprobar una referencia necesita --said "palabras exactas del creador"');
+  if (!said?.trim()) throw new Error('approving a reference needs --said "the creator\'s exact words"');
   const prof = profileOf(id), b = breakdownOf(id);
-  if (!prof || !b) throw new Error(`${id}: falta medir o escribir el desglose`);
+  if (!prof || !b) throw new Error(`${id}: measure it and write the breakdown first`);
   const bad = breakdownRules(b, prof); if (bad.length) throw new Error(bad.join("; "));
   // The format is the creator's call whenever the numbers and the look disagree, or the numbers were unsure.
-  if ((prof.guess.format !== b.format || prof.guess.confidence < 0.7) && !formatSaid?.trim()) throw new Error(`${id}: el formato "${b.format}" necesita la confirmación del creador (los números sugerían ${prof.guess.format} con ${Math.round(prof.guess.confidence * 100)} %): --format-said "..."`);
+  if ((prof.guess.format !== b.format || prof.guess.confidence < 0.7) && !formatSaid?.trim()) throw new Error(`${id}: the format "${b.format}" needs the creator's confirmation (the numbers suggested ${prof.guess.format} at ${Math.round(prof.guess.confidence * 100)} %): --format-said "..."`);
   const meta = metaOf(id);
   writeJSON(path.join(dirOf(id), "meta.json"), { ...meta, status: "approved", format: b.format, approved: { said, formatSaid: formatSaid || null, at: new Date().toISOString() } });
   return b.format;

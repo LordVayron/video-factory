@@ -236,7 +236,7 @@ function build() {
   for (const sc of scenes) {
     if (sc.motion === "kenburns" || !sc.clip || sc.staticOk) continue;
     const m = sc.motionScore ?? motionScore(P.abs(slug, sc.clip));
-    if (m < MIN_MOTION) throw new FlowStop(`LOOP STATIC: la escena ${sc.id} casi no se mueve (${m}, mínimo ${MIN_MOTION}); se ve como una foto. Rehaz el loop (gen.mjs loops ${slug} --redo con el sí del creador) o sc.staticOk con sus palabras`);
+    if (m < MIN_MOTION) throw new FlowStop(`LOOP STATIC: scene ${sc.id} barely moves (${m}, min ${MIN_MOTION}); it reads as a photo. Remake the loop (gen.mjs loops ${slug} --redo with the creator's yes) or set sc.staticOk with their words`);
   }
   const units = scenes.map((sc) => loopUnit(sc, dir, W, H, draft));
   const totalF = Math.round((darkAt ?? total) * FPS);
@@ -302,7 +302,7 @@ function build() {
   const pace = voicePace(vo.cues, L.intent);
   qc.wpm = pace.wpm;
   qc.issues.push(...pace.issues);
-  if (demo && (total < 15 || total > 30)) qc.issues.push(`demo de ${total.toFixed(1)} s; un demo va de 15 a 30 s`);
+  if (demo && (total < 15 || total > 30)) qc.issues.push(`${total.toFixed(1)} s demo; a demo runs 15 to 30 s`);
   qc.pass = !qc.issues.length;
   if (!sample && !draft) fs.writeFileSync(out.replace(/\.mp4$/, "-youtube.md"), youtubePackage(sl, vo.cues));
   if (!sample && !draft) P.updateShotlist(slug, (x) => { x.finalQc = qc; x.longform.cues = vo.cues; x.cut = { sha: fileSha(out), takes: takesSig(x), at: qc.at }; });
@@ -374,7 +374,7 @@ function importScript() {
   if (!slug || !file || !fs.existsSync(file)) throw new Error("usage: script <slug> --file meditation.txt");
   const sl = P.loadShotlist(slug), L = sl.longform;
   const I = INTENTS[L?.intent];
-  if (!I) throw new FlowStop(`pon primero longform.intent (${Object.keys(INTENTS).join(", ")}): las pausas salen de la intención`);
+  if (!I) throw new FlowStop(`set longform.intent first (${Object.keys(INTENTS).join(", ")}): the pauses come from the intention`);
   const raw = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n").trim();
   const mid = Math.round((I.pause[0] + I.pause[1]) / 2);
   const segs = [];

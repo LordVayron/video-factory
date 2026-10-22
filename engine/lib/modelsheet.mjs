@@ -9,11 +9,11 @@ import path from "node:path";
 // The fields character.json needs for its sheet (sheetSpec).
 export function specProblems(c) {
   const s = c.sheetSpec || {}, out = [];
-  if (!s.label?.trim()) out.push("sheetSpec.label (proyecto o serie, p. ej. \"ACME STUDIOS\")");
-  if (!(s.expressions || []).length || s.expressions.length < 4) out.push("sheetSpec.expressions (4 a 6)");
+  if (!s.label?.trim()) out.push("sheetSpec.label (project or series, e.g. \"ACME STUDIO\")");
+  if (!(s.expressions || []).length || s.expressions.length < 4) out.push("sheetSpec.expressions (4 to 6)");
   if (!(s.poses || []).length || s.poses.length < 3) out.push("sheetSpec.poses (3)");
-  if (!(s.details || []).length || s.details.length < 3) out.push("sheetSpec.details (3 detalles con su rótulo)");
-  if (!((s.palette || []).length === 5 && s.palette.every((h) => /^#[0-9a-f]{6}$/i.test(h)))) out.push("sheetSpec.palette (5 colores hex)");
+  if (!(s.details || []).length || s.details.length < 3) out.push("sheetSpec.details (3 details with their labels)");
+  if (!((s.palette || []).length === 5 && s.palette.every((h) => /^#[0-9a-f]{6}$/i.test(h)))) out.push("sheetSpec.palette (5 hex colors)");
   if (!s.notes?.role?.trim() || !s.notes?.wants?.trim() || !(s.notes.secret || s.notes.flaw || s.notes.bit)?.trim()) out.push("sheetSpec.notes (role, wants y secret, flaw o bit)");
   return out;
 }

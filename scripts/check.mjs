@@ -66,6 +66,12 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
   const storied = srcs.filter((f) => !f.endsWith("check.mjs")).flatMap((f) => fs.readFileSync(path.join(ROOT, f), "utf8").split("\n").map((l, i) => [f, i + 1, l]))
     .filter(([f, , l]) => { const k = l.indexOf(f.endsWith(".py") ? "# " : "// "); return k > -1 && STORY.test(l.slice(k)); }).map(([f, i]) => `${f}:${i}`);
   t(`code comments explain why, without dates or production stories (${storied.slice(0, 5).join(", ") || "none"})`, !storied.length);
+  // The engine speaks English (the agent reads its messages and talks to the creator in their language). Spanish text
+  // stays only where it is data: the claim detector for Spanish scripts and the quote detector.
+  const DATA_ES = /const CLAIMY = |const WHO = /;
+  const spanish = srcs.filter((f) => f.endsWith(".mjs") && !f.endsWith("check.mjs")).flatMap((f) => fs.readFileSync(path.join(ROOT, f), "utf8").split("\n").map((l, i) => [f, i + 1, l]))
+    .filter(([, , l]) => !/^\s*\/\//.test(l) && !DATA_ES.test(l) && /[áéíóúñ¿¡]/.test(l.replace(/\/\/.*$/, ""))).map(([f, i]) => `${f}:${i}`);
+  t(`engine messages are in English (${spanish.slice(0, 5).join(", ") || "none"})`, !spanish.length);
   const { decide } = await import("./hooks/guard.mjs");
   const commit = (m) => !!decide({ tool_name: "Bash", tool_input: { command: `git commit -m "${m}"` } });
   const { FACTORY } = await import("./hooks/guard.mjs");

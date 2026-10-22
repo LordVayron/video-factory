@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.0, 2026-10-22: the engine speaks English
+
+- **The engine speaks English.** Every message, error, step name, intake question and the reference breakdown page is now in English (they were in Spanish). Your agent reads them and talks to you in your own language, so nothing changes in how you work with it.
+- **A check keeps it that way:** `npm test` fails on Spanish text in engine code. The detector of exaggerated claims still understands Spanish scripts.
+
 ## 2.8.4, 2026-10-22: comments explain why
 
 - **Comments explain why.** Code comments across the engine now say why each rule exists, without dates or production anecdotes. No behavior changed.
