@@ -1,6 +1,5 @@
-// A reference video's measurable profile (2026-10-21, a launch film: the Town reference was read with a silence detector
-// only, called "music, no voice", and the film was planned with chopped lines; Town has 83 words of continuous
-// narration). Speech is always transcribed with whisper, never inferred from loudness.
+// A reference video's measurable profile (a silence detector alone can call continuous narration "music, no voice").
+// Speech is always transcribed with whisper, never inferred from loudness.
 //   cuts and shot lengths · narration (words, wpm, words per second of film, coverage, longest gap) ·
 //   loudness band in 2 s windows · brightness and saturation · motion
 import path from "node:path";
@@ -31,7 +30,7 @@ export function loudnessBand(file, dur) {
 export function profile(file, { lang = "en" } = {}) {
   const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,width,height,r_frame_rate:format=duration", "-of", "json", file]).toString());
   const v = probe.streams.find((s) => s.codec_type === "video"), dur = num(probe.format.duration);
-  // Cuts: a sensitive threshold (2026-10-22: at 10 two Town cuts between scenes of one palette were missed), then the
+  // Cuts: a sensitive threshold (at 10, cuts between scenes of one palette are missed), then the
   // detections less than 0.35 s apart are one cut, placed on the frame that changed most (fast motion fires in bursts).
   const det = [...ffErr(["-i", file, "-vf", "scdet=threshold=7", "-an", "-f", "null", "-"]).matchAll(/lavfi\.scd\.score: ([\d.]+)[\s\S]*?lavfi\.scd\.time: ([\d.]+)/g)].map((m) => ({ s: num(m[1]), t: num(m[2]) }));
   const groups = []; for (const d of det) { const g = groups.at(-1); if (g && d.t - g.at(-1).t < 0.35) g.push(d); else groups.push([d]); }

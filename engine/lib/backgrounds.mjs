@@ -1,6 +1,5 @@
-// Backgrounds across the whole cut (2026-10-20, a past drama "Not the Father"): each scene was judged on its own, so Dr.
-// the doctor's close-up showed a window in scene A, a wall of frames in B and a chair and plant in C, and every scene
-// passed. This check looks at the finished film: every close-up of the same person must show the same background
+// Backgrounds across the whole cut: judging each scene on its own lets one person's close-up show a different
+// background in every scene while every scene passes. This check looks at the finished film: every close-up of the same person must show the same background
 // and about the same framing size, matching their locked angle frame when there is one. It fails closed.
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";

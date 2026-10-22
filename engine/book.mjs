@@ -22,8 +22,8 @@ const dir = P.projectDir(slug);
 const sl = P.loadShotlist(slug);
 const kind = F.kindOf(sl);
 const finalPath = F.finalFile(sl);
-// Final mode only while the delivered cut still is the current plan: a project reopened after delivery (a launch film v2,
-// 2026-10-21) builds a gate book again, or its approval would lock the old estimate.
+// Final mode only while the delivered cut still is the current plan: a project reopened after delivery builds a gate
+// book again, or its approval would lock the old estimate.
 const final = !!sl.finalQc5?.pass && sl.finalQc5.sha === F.fileSha(finalPath) && F.stepStatus(sl, "edit").ok && F.stepStatus(sl, "book").ok; // a reopened book is a gate book again
 try { F.requireStep(sl, final ? "deliver" : "book", final ? "book (final)" : "book"); }
 catch (e) { if (e instanceof F.FlowStop) { console.error(`ALTO: ${e.message}`); process.exit(2); } throw e; }
@@ -139,7 +139,7 @@ const animatic = copy(path.join(dir, "out", "animatic.mp4"), "animatic.mp4");
 if (animatic && fs.statSync(path.join(out, animatic)).size > 14e6) execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", path.join(dir, "out", "animatic.mp4"), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "26", "-preset", "slow", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", path.join(out, animatic)]);
 
 // ---- Prompts + estimate
-// Only what is still to film is estimated: a scene or shot with a chosen take costs nothing more. (2026-10-19: a
+// Only what is still to film is estimated: a scene or shot with a chosen take costs nothing more. (a
 // reopened book re-estimated six filmed scenes and the budget lock jumped from $8.80 to $15.86.)
 const filmed = (x) => x.clip != null && !!x.clips?.[x.clip];
 let promptsHtml = "", est = 0, estRows = "";
@@ -163,7 +163,7 @@ if (kind === "clips") {
   const launch = sl.format === "launch";
   promptsHtml = (sl.shots || []).filter((s) => s.source !== "card").map((s) => `<details><summary>Shot ${esc(s.id)} · ${F.films(s) ? `${esc(getModel(s.model || pick.video).label)} · ${s.duration} s` : "still, moved by the editor"}</summary>${s.framePrompt ? `<pre>First frame (GPT Image 2.5):\n${esc(s.framePrompt)}</pre>` : ""}${F.films(s) ? `<pre>${launch ? "Animation:\n" : ""}${esc(P.clipPrompt(sl, s))}</pre>` : ""}</details>`).join("");
   estRows = (sl.shots || []).filter(F.films).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration, ...(launch ? { sound: false } : {}) }); est += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
-  // Frames still to draw (a changed end state drops its last frame) are part of the locked budget too (2026-10-21, a launch film v4).
+  // Frames still to draw (a changed end state drops its last frame) are part of the locked budget too.
   if (launch) { const todo = (sl.shots || []).filter((s) => F.films(s) && !filmed(s)).reduce((n, s) => n + (s.frame ? 0 : 1) + (s.lastPrompt && !s.last ? 1 : 0), 0); if (todo) { const cr = todo * getModel("gpt2.5").cost({ size: "1K" }) * 1.15; est += cr; estRows += `<tr><td>Frames still to draw (GPT Image 2.5, 1K)</td><td class="num">${todo}</td><td class="num">${usd(cr)}</td></tr>`; } }
   if (launch) { const vo = Object.values(sl.launch?.vo || {}); estRows += `<tr><td>Voice-over (ElevenLabs, recorded before the book)</td><td class="num">${vo.reduce((n, v) => n + v.text.length, 0)} chars</td><td class="num">plan</td></tr>`; }
 }

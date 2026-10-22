@@ -60,7 +60,7 @@ async function pool(items, fn) {
 }
 
 // The last decoded video frame of a clip. Seeks back 0.5 s and keeps overwriting one image, so it works when the
-// audio runs past the video (a fixed -sseof -0.05 landed after the last frame and wrote nothing, 2026-10-19).
+// audio runs past the video (a fixed -sseof -0.05 landed after the last frame and wrote nothing).
 function lastFrame(video, out) {
   if (fs.existsSync(out)) fs.unlinkSync(out);
   execFileSync("ffmpeg", ["-v", "error", "-y", "-sseof", "-0.5", "-i", video, "-map", "0:v:0", "-update", "1", "-q:v", "1", out]);
@@ -80,7 +80,7 @@ function mediaDuration(file) {
 // dies mid-wait, "recover" (run automatically by frames/video/queue) collects the
 // finished result instead of paying for it again.
 // A job the engine refuses before anything reaches Kie (BUDGET / PROMPT / DIALOGUE STOP) leaves no lock behind:
-// an empty lock means "a task may be in flight" to recover() (two stale locks after a budget stop, 2026-10-19).
+// an empty lock means "a task may be in flight" to recover() (two stale locks after a budget stop).
 async function job(args) {
   try { return await jobRun(args); } catch (e) {
     const lock = `${args.outBase}.lock`;
@@ -92,9 +92,9 @@ async function job(args) {
 async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   const m = getModel(modelKey);
   let caps = () => {};
-  // PROVIDERS (2026-10-22): cost() is the cheapest provider's live price (APIMart first, Kie second); the job goes there.
+  // PROVIDERS: cost() is the cheapest provider's live price (APIMart first, Kie second); the job goes there.
   let credits = m.cost(req);
-  // BUDGET GUARD (2026-10-13). Once the Production Book is
+  // BUDGET GUARD. Once the Production Book is
   // approved, its estimate is the hard ceiling. Any job that would push the project's spend past it is refused;
   // rerolls need a new approval: node engine/phase.mjs budget <slug> --add <credits> --note "approved by the creator".
   // Jobs in flight count against the cap too: pool() runs 4 at once, and without this every one of them
@@ -102,7 +102,7 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
   if (slug) {
     const sl0 = P.loadShotlist(slug);
     assertV5(sl0);
-    // HARD CAP (2026-10-19): an intake with a fixed budget caps
+    // HARD CAP: an intake with a fixed budget caps
     // every paid job of the project, images and sheets included, before and after the book.
     const hard = sl0.intake?.budget?.mode === "fixed" && sl0.intake.budget.usd ? sl0.intake.budget.usd / 0.005 : null;
     const cap = sl0.budget?.approvedCredits;
@@ -118,14 +118,14 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
     caps(credits);
     // PROMPT TOO LONG: a model with a prompt limit (Kling 3.0: 2,500 characters) is never sent a longer prompt.
     if (m.maxPrompt && typeof req.prompt === "string" && req.prompt.length > m.maxPrompt) throw new FlowStop(`PROMPT STOP: "${label}" is ${req.prompt.length} characters; ${m.label} takes ${m.maxPrompt}.`);
-    // DIALOGUE STOP (2026-10-19, The Glow Up: the clip prompt carried no lines and Seedance improvised a paid take).
+    // DIALOGUE STOP (a clip prompt without the lines lets the model improvise a paid take).
     // Every speaking video job declares its script lines (req.lines) and its prompt must carry each one word for word.
     if (m.kind === "video" && m.speaks && req.sound !== false) {
       if (!Array.isArray(req.lines)) throw new FlowStop(`DIALOGUE STOP: "${label}" doesn't declare its script lines (req.lines); every speaking video job must.`);
       const gone = P.linesMissing(req.prompt, req.lines);
       if (gone.length) throw new FlowStop(`DIALOGUE STOP: the prompt of "${label}" leaves out ${gone.map((l) => `"${l.text}"`).join("; ")}. The script goes to the model word for word.`);
     }
-    // PROMPT CHECK (added after a character lost her freckles between two shots): a video prompt must carry every distinctive mark of the
+    // PROMPT CHECK: a video prompt must carry every distinctive mark of the
     // characters in it (freckles, mole, glasses...). A model only keeps what the prompt says.
     if (m.kind === "video" && req.prompt && !req.allowMissingMarks) {
       const miss = missingMarks(req.prompt, req.cast || castOf(sl0, req.prompt));
@@ -539,7 +539,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     requireStep(sl, "board", "gen frame");
     const s = P.shot(sl, id);
     if (s.source === "card") throw new FlowStop(`${id} is a card: the editor draws it, it has no generated frame`);
-    // Launch films (2026-10-22): no frame is paid for before the creator approved the storyboard animatic of this plan.
+    // Launch films: no frame is paid for before the creator approved the storyboard animatic of this plan.
     if (sl.format === "launch" && has("--planned") && sl.launch?.animaticApproved?.plan !== planSha(sl)) throw new FlowStop(`${id}: el creador no ha aprobado el animatic de este plan (launch.mjs animatic ${slug} --approve --said "...")`);
     // chain "exact": the first frame IS the previous shot's drawn last frame (copied, free), so the cut disappears.
     const i0 = sl.shots.indexOf(s), prev = sl.shots[i0 - 1];
@@ -554,8 +554,8 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const setRef = sl.format === "launch" && which === "first" && s.chain === "same-set" && (prev?.last || prev?.frame) ? [P.abs(slug, prev.last || prev.frame)] : [];
     const miss = missingMarks(prompt, s.characters || castOf(sl, prompt));
     if (miss.length) throw new FlowStop(`PROMPT STOP: the ${which} frame of ${id} leaves out ${miss.join("; ")}`);
-    // Each character's sheet in the project's style first (cast.mjs sheet --style writes looks.<style>.sheet; 2026-10-21,
-    // a launch film: only refs/sheets were read, so no storybook sheet reached the model and six frames drew strangers).
+    // Each character's sheet in the project's style first (cast.mjs sheet --style writes looks.<style>.sheet;
+    // reading only refs/sheets would leave the style's sheet out, and frames would draw strangers).
     // A last frame is drawn from the shot's own first frame, so it is the same scene at its end state.
     const stRefs = (() => { try { const st = P.style(sl.style); return (st.refs || []).map((f) => path.join(st.dir, f)); } catch { return []; } })(); // a style made from the creator's references
     const refs = await Promise.all([...setRef, ...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...stRefs, ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(PV.asUrl));
@@ -569,15 +569,15 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
   // (budget lock, prompt and dialogue checks, ledger, lock file). The prompt is P.clipPrompt: the shot's prompt plus
   // its script word for word. Then every eval runs on the take and is stored on it: identity (face and marks against
   // the locked anchor), jumps (cuts or snaps inside the shot), dialogue. The take is recorded before the evals run,
-  // so a paid take is never lost when an eval can't run (the Kie judge can be down, 2026-10-19): `--eval <n>`
+  // so a paid take is never lost when an eval can't run (the Kie judge can be down): `--eval <n>`
   // re-runs the evals on take n for free. A take that fails is never used by cut.mjs.
   async clip() {
     const slug = pos[0], id = flag("--shot");
     if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo] [--eval <take n>] [--test --model <k> --said \"...\"]");
     await recover(slug);
     const sl = P.loadShotlist(slug);
-    // --test: a motion test of one shot in a given model before the book (2026-10-21, a launch film v4: Kling failed the
-    // same conveyor twice). Only with the creator's words and inside a budget they unlocked; the take is marked a test.
+    // --test: a motion test of one shot in a given model before the book (a model can fail the same motion
+    // repeatedly). Only with the creator's words and inside a budget they unlocked; the take is marked a test.
     const test = has("--test") && !flag("--eval");
     if (test && (!flag("--model") || !flag("--said"))) throw new FlowStop('clip --test needs --model <k> and --said "the creator exact words"');
     if (test) requireStep(sl, "board", "gen clip --test");
@@ -702,8 +702,8 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       }
       if (sc.motion === "kenburns") return [still];
       const url = await PV.upload(still);
-      // First frame only: asked for the same first and last frame, Kling returned a frozen picture (2026-10-20,
-      // Midnight Lake, motion 0.09). The seam is hidden by longform.mjs, which cross-fades the tail into the head.
+      // First frame only: asked for the same first and last frame, the model returns a frozen picture.
+      // The seam is hidden by longform.mjs, which cross-fades the tail into the head.
       const prompt = `${sc.motion}. Clearly visible, slow, continuous ambient motion through the whole clip, from the first second to the last; the camera stays still; nothing enters or leaves the frame; no cuts.`;
       const [clip] = await job({ slug, modelKey: vidModel, req: { prompt, frame: url, ar: sl.ar || "16:9", res, duration: sc.seconds || 8, sound: false }, outBase: nextName(P.abs(slug, "loops"), `${sc.id}-loop`, ".mp4"), label: `${sc.id} loop`, ext: ".mp4" });
       const motion = motionScore(clip);
@@ -748,7 +748,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const settings = V.settings || { stability: 0.75, similarity_boost: 0.8, style: 0, use_speaker_boost: true, speed: 0.9 };
     report(await pool(todo, async (s) => {
       // "..." in a meditation script is a breath inside the line: ElevenLabs v2 ignores it, so it becomes a real
-      // break (2026-10-20, Midnight Lake: the narration ran 167 wpm on a sleep piece that asks for 80-100).
+      // break (otherwise a sleep piece is read far faster than its 80-100 wpm).
       const spoken = (V.model || "eleven_multilingual_v2") === "eleven_v3" ? s.text : s.text.replace(/\s*(\.\.\.|…)\s*/g, `... <break time="${V.breath ?? (L.intent === "sleep" ? 1.3 : 0.8)}s" /> `).trim();
       await eleven.tts({ text: spoken, voice: V.eleven, model: V.model || "eleven_multilingual_v2", settings, seed: V.seed ?? null, out: s.out });
       P.ledger(slug, { ok: true, label: `narration ${s.i + 1}`, model: "elevenlabs-direct", credits: 0, chars: s.text.length, files: [path.relative(ROOT, s.out)] });
@@ -798,8 +798,8 @@ function voiceRefFiles(sl, speakers, slug) {
   const lang = sl.lang || "en";
   // The series voice profile's official sample wins over the bible's, so the video model hears the same voice every episode.
   const found = speakers.map((id) => { const c = P.character(id); const sp = voiceProfile(sl, id).sample; const f = sp && fs.existsSync(sp) ? sp : c.voice?.sample?.[lang] && path.join(c.dir, c.voice.sample[lang]); return f && fs.existsSync(f) ? { char: id, file: f } : null; }).filter(Boolean).slice(0, 3);
-  // A voice reference must never speak the script: Wan repeats what it hears (2026-10-20, a past drama scene B: the patient's
-  // sample said "I know... You will. You're the father." and the take said those lines instead of the doctor's).
+  // A voice reference must never speak the script: the video model repeats what it hears, and a sample that says
+  // another character's line ends up spoken in the take.
   // The sample is transcribed once (cached next to it) and checked against every line of the project.
   const norm = (t) => ` ${String(t).toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim()} `;
   const scriptLines = sl.shots.flatMap((s) => (s.dialogue || []).map((l) => l.text)).filter((t) => t.trim().split(/\s+/).length >= 2);

@@ -103,7 +103,7 @@ const commands = {
     console.log(`${which} approved for ${slug}`);
   },
   // Only after the creator explicitly approves extra spend (a reroll, a refilm):
-  // phase.mjs budget <slug> --add <credits> | --usd <dollars> --said "..." (--add 2.52 once added 3 credits, 2026-10-19)
+  // phase.mjs budget <slug> --add <credits> | --usd <dollars> --said "..." (--add 2.52 once added 3 credits)
   budget() {
     const sl = P.loadShotlist(slug);
     const add = flag("--usd") ? Number(flag("--usd")) / 0.005 : Number(flag("--add", "0"));

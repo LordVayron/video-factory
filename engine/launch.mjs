@@ -33,7 +33,7 @@ const now = () => new Date().toISOString();
 const ff = (args, cwd) => execFileSync("ffmpeg", ["-v", "error", "-y", ...args], { cwd, maxBuffer: 1 << 26 });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 const lufs = (f) => Number((spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", f, "-af", "ebur128", "-f", "null", "-"], { encoding: "utf8" }).stderr.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
-const SFX_LUFS = -36; // effects ~21 dB under the narration (-15 LUFS); 2026-10-21: still too loud at -31
+const SFX_LUFS = -36; // effects ~21 dB under the narration (-15 LUFS); still too loud at -31
 const sha = (v) => crypto.createHash("sha1").update(typeof v === "string" ? v : JSON.stringify(v)).digest("hex").slice(0, 12);
 
 // The creative files, parsed with their defaults. A rule that fails stops the command with the reasons.
@@ -92,15 +92,15 @@ const commands = {
       x.shots = fresh.map((s) => {
         const o = old.get(s.id);
         // --keep S7,S8: a reviewed frame stays even though its prompt text changed (its takes don't).
-        // A still that becomes an animated shot keeps its first frame too (2026-10-21: every launch shot is animated).
+        // A still that becomes an animated shot keeps its first frame too (every launch shot is animated).
         const sameKind = o?.source === s.source || (o?.source === "still" && s.source === "generate");
-        const takeFits = (o, s) => { const t = o.clips?.[o.clip], len = t && fs.existsSync(P.abs(slug, t.file)) ? dur(P.abs(slug, t.file)) : 0; return o.prompt === s.prompt && len > 0; }; // 2026-10-22: a re-timed shot kept dropping a good take; the editor reports a short one
+        const takeFits = (o, s) => { const t = o.clips?.[o.clip], len = t && fs.existsSync(P.abs(slug, t.file)) ? dur(P.abs(slug, t.file)) : 0; return o.prompt === s.prompt && len > 0; }; // a re-timed shot kept dropping a good take; the editor reports a short one
         if (o?.frame && sameKind && (flag("--keep") || "").split(",").includes(s.id) && (o.framePrompt !== s.framePrompt || o.source !== s.source)) { kept++; return { ...s, frame: o.frame, frameKeptFrom: o.framePrompt, ...(takeFits(o, s) ? Object.fromEntries(Object.entries({ clips: o.clips, clip: o.clip, duration: o.duration, cutOut: o.cutOut, cleanPatch: o.cleanPatch, retime: o.retime, splice: o.splice, in: o.in }).filter(([, v]) => v !== undefined)) : {}) }; }
         if (!o || o.framePrompt !== s.framePrompt || o.source !== s.source) return s;
         kept++;
         const keep = { frame: o.frame, firstPrompt: o.firstPrompt, ...(o.lastPrompt === s.lastPrompt ? { last: o.last } : {}) };
         // A filmed take is kept when its animation prompt is the same and it is long enough for the new timing
-        // (2026-10-21: the v2 re-timed shots; re-filming takes that already fit would waste money).
+        // (re-filming a take that already fits would waste money).
         const take = o.clips?.[o.clip], len = take && fs.existsSync(P.abs(slug, take.file)) ? dur(P.abs(slug, take.file)) : 0;
         if (o.prompt === s.prompt && len > 0) Object.assign(keep, { clips: o.clips, clip: o.clip, duration: o.duration, cutOut: o.cutOut, cleanPatch: o.cleanPatch, retime: o.retime, splice: o.splice, in: o.in }); // edit decisions travel with their take
         return { ...s, ...Object.fromEntries(Object.entries(keep).filter(([, v]) => v !== undefined)) };
@@ -154,8 +154,8 @@ const commands = {
   async animatic() {
     const sl = P.loadShotlist(slug);
     F.requireStep(sl, "board", "launch animatic");
-    // --approve --said: the creator watched this plan's animatic (storyboard panels or frames, voice, text, timing).
-    // No frame is paid for before it (2026-10-22: every cut and bridge is judged on the storyboard first).
+    // --approve --said: The creator watched this plan's animatic (storyboard panels or frames, voice, text, timing).
+    // No frame is paid for before it (every cut and bridge is judged on the storyboard first).
     if (has("--approve")) {
       if (!flag("--said")) throw new F.FlowStop('animatic --approve necesita --said "palabras exactas del creador"');
       if (!sl.launch?.animatic || !fs.existsSync(path.join(P.projectDir(slug), "out", "animatic.mp4"))) throw new F.FlowStop("primero arma el animatic (launch.mjs animatic) y enséñaselo al creador");
@@ -167,7 +167,7 @@ const commands = {
     console.log(`${P.rel(slug, out)} · animatic (cuadros, voz y texto al tiempo exacto; sin música)`);
   },
 
-  // A style made from the creator's own references (2026-10-22): their images are copied into the bible, the look is
+  // A style made from the creator's own references: their images are copied into the bible, the look is
   // written out in words, and every frame and character sheet of the project receives the images.
   //   style-from-refs <slug> --name <id> --ref a.png --ref b.png [--ref c.png] --look "..." --negative "..." --said "..."
   "style-from-refs"() {
@@ -196,7 +196,7 @@ const commands = {
     console.log(`estilo propio ${id}: ${copied.length} referencias en bible/styles/${id}; el proyecto usa este estilo. Pon visualStyle "${id}" en concepts.json y preset "${id}" en el style bible; la identidad visual se aprueba igual (studio.mjs approve-look).`);
   },
 
-  // The motion test before the book can be skipped only in the creator's words (2026-10-22).
+  // The motion test before the book can be skipped only in the creator's words.
   "waive-test"() {
     if (!flag("--said")) throw new F.FlowStop('waive-test <slug> --said "palabras exactas del creador"');
     P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), motionTestWaived: { said: flag("--said"), at: now() } }; });
@@ -211,8 +211,8 @@ const commands = {
     await build(sl, draft ? "draft" : "final");
   },
 
-  // TAKE REVIEW (2026-10-21, a launch film v2: thumbnails at 2 fps missed people popping into a screen, tapes sinking into
-  // the ground and a hand that was not the thread). Every take is looked at frame by frame (4 fps, full width) against
+  // TAKE REVIEW: thumbnails at 2 fps miss things that pop in, sink or change mid-shot. Every take is looked at frame
+  // by frame (4 fps, full width) against
   // a checklist before the final may use it; the verdict is tied to that take and its prompt.
   review() {
     const sl = P.loadShotlist(slug);
@@ -223,7 +223,7 @@ const commands = {
     const prevShot = sl.shots[sl.shots.indexOf(s) - 1];
     if (flag("--ok")) {
       // A verdict answers every point of the checklist in words, after the sheets of this exact take were made
-      // (2026-10-22: a take "without things appearing" was approved while it melted, idled and broke the story).
+      // (a take "without things appearing" was approved while it melted, idled and broke the story).
       const pts = { motion: "--motion", join: "--join", logic: "--logic", appear: "--appear", end: "--end" };
       const miss = Object.entries(pts).filter(([, f]) => !flag(f)?.trim() || flag(f).trim().split(/\s+/).length < 2).map(([, f]) => f);
       if (miss.length) throw new F.FlowStop(`${id}: la revisión responde cada punto en palabras: ${miss.join(" ")} (movimiento natural sin deformarse; unión con la toma anterior; lógica de la historia; nada aparece, desaparece o se queda sin hacer nada; el último cuadro es el final planeado)`);
@@ -276,8 +276,8 @@ Luego: launch.mjs review ${slug} --shot ${id} --ok "..." --motion "..." --join "
   },
 };
 
-// ONE TAKE, PICTURE CUT TO IT (2026-10-21, Town vs a launch film). The whole narration is recorded in a single take with
-// the narrator's voice, so the delivery flows like Town's; whisper times every word; each shot then starts where its
+// ONE TAKE, PICTURE CUT TO IT. The whole narration is recorded in a single take with the narrator's voice, so the
+// delivery flows as one performance; whisper times every word; each shot then starts where its
 // line starts in the take (a short lead before the word) and the plan is rewritten with those times. The lines are
 // cut from the take without touching its pauses. Rewriting the plan reopens the script gate, as any timing change does.
 async function takeVoice(plan, lines, V) {
@@ -302,14 +302,14 @@ async function takeVoice(plan, lines, V) {
     let j = -1;
     for (let x = at; x <= ws.length - toks.length && j < 0; x++) if (toks.every((t, q) => ws[x + q].n === t)) j = x;
     if (j < 0) throw new F.FlowStop(`${s.id}: la toma no dice "${s.vo}" palabra por palabra (narration-take-${k}.mp3); vuelve a grabar`);
-    // The words around the line bound its cut: whisper puts word ends early ("Factory" cut at its end lost its "-y",
-    // a launch film v2), so a line ends just before the next word starts, never at a fixed margin after its own.
+    // The words around the line bound its cut: whisper puts word ends early (a cut at a word's end can clip its last
+    // sound), so a line ends just before the next word starts, never at a fixed margin after its own.
     spans.push({ s, a: ws[j].start, b: ws[j + toks.length - 1].end, prevEnd: ws[j - 1]?.end ?? 0, nextStart: ws[j + toks.length]?.start ?? null });
     at = j + toks.length;
   }
   // Retime: line i starts its shot (lead 0.12 s); a closing shot without a line starts 0.3 s after the last word.
   const fps = plan.fps, q = (t) => Math.round(t * fps) / fps, lead = 0.12, n0 = plan.narrationStart;
-  // shot.pause: seconds of breathing after a shot's line, kept on every re-cut (2026-10-22: --recut re-timed the plan
+  // shot.pause: seconds of breathing after a shot's line, kept on every re-cut (--recut re-timed the plan
   // from the narration and dropped the extra second the creator wanted after a line and the full celebration).
   const pauses = plan.shots.map((s) => s.pause || 0), before = (i) => pauses.slice(0, i).reduce((n, v) => n + v, 0);
   const end = n0 + spans.at(-1).b + before(spans.length), last = plan.shots.at(-1), tail = !last.vo;
@@ -344,8 +344,8 @@ async function takeVoice(plan, lines, V) {
   for (const s of p2.shots) console.log(`  ${s.start.toFixed(2).padStart(5)}–${(s.start + s.duration).toFixed(2).padEnd(5)} ${s.id.padEnd(4)} ${s.vo ? `"${s.vo}"` : "(cierre)"}`);
 }
 
-// The voice-over from a recording the creator chose (2026-10-21, a launch film: the creator loved a Voice Design preview that
-// read the whole script, and the saved voice never sounded the same). The recording's words are timed with whisper,
+// The voice-over from a recording the creator chose (a Voice Design preview of the whole script can't be
+// reproduced by the saved voice, so the recording itself is used). The recording's words are timed with whisper,
 // every plan line is found in order word for word (or nothing is written), each line is cut at its words, and only
 // silences longer than 0.35 s inside a line are shortened to 0.3 s. The words themselves are never sped up.
 async function importVoice(plan, lines, from) {
@@ -364,7 +364,7 @@ async function importVoice(plan, lines, from) {
     const next = lines[i + 1];
     const room = +(((next ? next.start + next.voAt : plan.durationSeconds - 0.3) - (s.start + s.voAt))).toFixed(2);
     if (at < 0) {
-      // A line written after the recording (2026-10-21, the new hook): the narrator's saved voice records it in the
+      // A line written after the recording (the new hook): the narrator's saved voice records it in the
       // calmest setting, and it is marked so the creator hears it next to the recording before it is used.
       const V = P.loadShotlist(slug).launch?.voice || {}, out = P.abs(slug, `audio/vo/${s.id}.mp3`);
       if (!V.eleven) throw new F.FlowStop(`${s.id}: "${s.vo}" no está en ${from} y no hay voz guardada para grabarla`);
@@ -449,13 +449,13 @@ async function build(sl, mode) {
       if (mode === "final" && !(t.review?.ok && t.review.file === t.file && t.review.prompt === sha(s.prompt))) throw new F.FlowStop(`${ps.id}: su toma no tiene revisión cuadro por cuadro aprobada (launch.mjs review ${slug} --shot ${ps.id})`);
       // s.cutOut: an edit decision on the filmed take (an unplanned element enters later): used up to here, then the
       // last clean frame holds. It does not reopen the approved plan.
-      // s.retime {upTo}: an edit decision (2026-10-21, a launch film A1/A9: Kling invented motion late in the take): only the
+      // s.retime {upTo}: an edit decision (when the model invents motion late in a take): only the
       // clean part up to here is used, slowed with motion interpolation to fill the planned length (never below 0.65x).
-      // Every edit decision on a take is the creator's call, in their words (2026-10-22).
+      // Every edit decision on a take is the creator's call, in their words.
       if (mode === "final") for (const k of ["retime", "splice", "cutOut", "cleanPatch"]) if (s[k] && !s[k].said?.trim()) throw new F.FlowStop(`${ps.id}: la decisión de edición ${k} no tiene las palabras del creador (${k}.said)`);
       const file = P.abs(slug, t.file), a = s.in ?? 0, b = Math.min(s.retime?.upTo ?? Infinity, s.cutOut?.at ?? Infinity, t.evals?.jumps?.trimAt ?? Infinity, dur(file));
-      // s.splice {keep: [[from, to], ...], fade}: an edit decision (2026-10-21, a launch film S7: Kling made something
-      // appear in the cart mid-pan): the clean pieces of one take joined by short dissolves, slowed to fill the shot.
+      // s.splice {keep: [[from, to], ...], fade}: an edit decision (when something appears mid-take that
+      // shouldn't): the clean pieces of one take joined by short dissolves, slowed to fill the shot.
       const sp = s.splice, fade = sp?.fade ?? 0.3, spLen = sp ? sp.keep.reduce((n, [x, y]) => n + (y - x), 0) - fade * (sp.keep.length - 1) : 0;
       const slow = sp ? (m / fps) / spLen : s.retime ? (m / fps) / (b - a) : 1;
       if (slow > 1 / 0.65) throw new F.FlowStop(`${ps.id}: retime ralentiza ${slow.toFixed(2)}x; el máximo es 1.54x`);
@@ -471,7 +471,7 @@ async function build(sl, mode) {
         join = join.slice(0, -`[${acc}];`.length) + ",";
       }
       // ps.zoomInto: the camera flies into a screen in the last secs of the shot (eased), ending with the screen's rect
-      // filling the frame; the next shot dissolves in as the world that screen showed (2026-10-21, a launch film v5).
+      // filling the frame; the next shot dissolves in as the world that screen showed.
       const z = ps.zoomInto, zoom = z ? (() => {
         const T = n / fps, st = Math.max(0, T - z.secs) /* the zoom completes at the cut; a transition after it plays on the full screen */, p = `min(1,max(0,(n/${fps}-${st.toFixed(3)})/${z.secs}))`, e = `(${p}*${p}*(3-2*${p}))`;
         const k = `(1/(1-(1-${z.w})*${e}))`, ax = z.x / (1 - z.w), ay = z.y / (1 - z.w);
@@ -490,7 +490,7 @@ async function build(sl, mode) {
       used = { card: bg };
     } else {
       if (mode !== "animatic") throw new F.FlowStop(`${ps.id} no tiene cuadro (gen.mjs frame ${slug} ${ps.id} first --planned)`);
-      // A storyboard animatic before any frame is paid for (2026-10-21, a launch film v4): the shot's drawn start panel
+      // A storyboard animatic before any frame is paid for: the shot's drawn start panel
       // dissolves into its end panel (launch/boards/<id>-a.png, -b.png), so the cuts and bridges are judged first.
       const bd = (k) => path.join(P.projectDir(slug), "launch", "boards", `${ps.id}-${k}.png`);
       if (fs.existsSync(bd("a")) && fs.existsSync(bd("b"))) {
@@ -513,7 +513,7 @@ async function build(sl, mode) {
       ps.inserts.forEach((_, k) => {
         const b = boxes[k], x = Math.max(0, Math.round((b.x - pad) * W)), y = Math.max(0, Math.round((b.y - pad) * H));
         const w = Math.min(W - x, Math.round((b.w + 2 * pad) * W)) & ~1, h = Math.min(H - y, Math.round((b.h + 2 * pad) * H)) & ~1;
-        // Real footage graded into the illustrated world (2026-10-21: raw photoreal clips broke the storybook universe).
+        // Real footage graded into the illustrated world (raw photoreal clips broke the storybook universe).
         // The project style says how (bible/styles/<id>/style.json launch.insertTreatment; "none" keeps it raw).
         const lt = (() => { try { return P.style(sl.style).launch?.insertTreatment; } catch { return null; } })();
         const treat = ps.inserts[k].treatment !== "none" && lt && lt !== "none" ? `,${lt}` : "";
@@ -523,7 +523,7 @@ async function build(sl, mode) {
       ff([...input, ...ps.inserts.flatMap((i) => ["-ss", String(i.from), "-i", P.abs(slug, i.file)]), "-filter_complex", g.join(";"), ...enc]);
       used = { ...used, inserts: ps.inserts.map((i, k) => ({ ...i, screen: boxes[k] })) };
     } else if (input && s.cleanPatch && ps.source === "generate" && mode !== "animatic") {
-      // CLEAN PATCH (2026-10-21, a launch film S7: Kling wrote letters on a blank sign mid-shot, camera still): the region
+      // CLEAN PATCH (when the model writes or draws something on a static area mid-shot, camera still): the region
       // from the take's first frame is laid over the whole shot. An edit decision on the take, recorded with its reason.
       const c = s.cleanPatch, sx = W / 1280;
       const [x, y, w, h] = [c.x, c.y, c.w, c.h].map((v) => Math.round(v * sx) & ~1);
@@ -532,8 +532,8 @@ async function build(sl, mode) {
     } else if (input) ff([...input, "-vf", base, ...enc]);
     parts.push({ ps, n, m, seg, used });
   }
-  // ONE LOOK (2026-10-21: a launch film's shots ranged from brightness 114 to 152 and drifted in color; Town holds one
-  // high-key pastel look). Each shot is measured and leveled to the style bible's grade, or to the film's median.
+  // ONE LOOK (generated shots drift in brightness and color from one to the next; a film holds one look).
+  // Each shot is measured and leveled to the style bible's grade, or to the film's median.
   const meas = parts.map((p) => {
     const e = spawnSync("ffmpeg", ["-hide_banner", "-i", p.seg, "-vf", "fps=4,signalstats,metadata=print:key=lavfi.signalstats.YAVG,metadata=print:key=lavfi.signalstats.SATAVG", "-f", "null", "-"], { encoding: "utf8" }).stderr;
     const xs = (k) => [...e.matchAll(new RegExp(`${k}=([\\d.]+)`, "g"))].map((x) => Number(x[1]));
@@ -574,8 +574,7 @@ async function build(sl, mode) {
       const ov = parts[i - 1].m - parts[i - 1].n, out = `x${i}`;
       const tr = parts[i].ps.transitionIn, timing = `duration=${(ov / fps).toFixed(4)}:offset=${((len - ov) / fps).toFixed(4)}`;
       if (ov && tr === "ripple") {
-        // RIPPLE (2026-10-21, a launch film v6): a
-        // ring wave spreads from the touch point (rippleAt), bends both pictures and carries one into the other.
+        // RIPPLE: a ring wave spreads from the touch point (rippleAt), bends both pictures and carries one into the other.
         const at = parts[i].ps.rippleAt || { x: 0.5, y: 0.3 }, cx = (at.x * W).toFixed(1), cy = (at.y * H).toFixed(1);
         // One ring of water travels out from the touch point; only the ring bends the picture, inside it the new world
         // is already clean (a whole-frame wave read as melting).
@@ -600,7 +599,7 @@ async function build(sl, mode) {
     `Style: title,${style.text.font},${size(0.075)},${assColor(style.text.color)},${assColor(style.text.color)},${assColor(box)},&H64000000,1,0,0,0,100,100,0,0,1,0,${Math.round(H * 0.003)},5,${Math.round(W * m)},${Math.round(W * m)},${Math.round(H * m)},1`,
     // Labels sit on footage, so they carry their own paper box (legible over any picture). UI text is a white card,
     // distinct from the cream card background it usually sits on.
-    // The brand reveal: the product's name large enough to own the card (2026-10-21, a launch film: at title size it read small).
+    // The brand reveal: the product's name large enough to own the card (at title size it reads small).
     `Style: brand,${style.text.font},${size(0.15)},${assColor(style.text.color)},${assColor(style.text.color)},${assColor(box)},&H00000000,1,0,0,0,100,100,0,0,1,0,0,5,${Math.round(W * m)},${Math.round(W * m)},${Math.round(H * m)},1`,
     `Style: label,${style.text.font},${size(0.05)},${assColor(style.text.color)},${assColor(style.text.color)},${assColor(box, 0x18)},&H00000000,1,0,0,0,100,100,0,0,3,${Math.round(H * 0.014)},0,2,${Math.round(W * m)},${Math.round(W * m)},${Math.round(H * m)},1`,
     `Style: cta,${style.text.font},${size(0.06)},${assColor(box)},${assColor(box)},${assColor(accent)},&H00000000,1,0,0,0,100,100,0,0,3,${Math.round(H * 0.018)},0,2,${Math.round(W * m)},${Math.round(W * m)},${Math.round(H * m)},1`,
@@ -644,8 +643,8 @@ async function build(sl, mode) {
   for (const { ps } of parts) for (const x of ps.sfx) {
     const e = typeof x === "string" ? { name: x, at: 0, db: -8 } : x, f = P.abs(slug, `audio/sfx-${e.name}.mp3`);
     if (!fs.existsSync(f)) { if (mode === "final") throw new F.FlowStop(`falta el efecto ${e.name} (gen.mjs sfx)`); continue; }
-    // Effects sit under the voice (2026-10-21, a launch film v4: raw ElevenLabs effects ran from -31 to -13 LUFS and the
-    // loud ones buried the film). Each file is measured and brought to SFX_LUFS, peaks held at -14 dBFS; `gain` (dB)
+    // Effects sit under the voice (raw generated effects vary widely in loudness and the loud ones bury the
+    // film). Each file is measured and brought to SFX_LUFS, peaks held at -14 dBFS; `gain` (dB)
     // nudges one cue up or down from there.
     const k = add(f), ms = Math.round((ps.start + e.at) * 1000);
     const lu = Number([...spawnSync("ffmpeg", ["-hide_banner", "-i", f, "-af", "ebur128", "-f", "null", "-"], { encoding: "utf8" }).stderr.matchAll(/I:\s+(-?[\d.]+) LUFS/g)].at(-1)?.[1] ?? -24);
@@ -656,17 +655,17 @@ async function build(sl, mode) {
   const musicFile = config.music && mode !== "animatic" && sl.music?.files?.length ? P.abs(slug, sl.music.files[sl.music.pick ?? 0]) : null;
   if (config.music && mode === "final" && !musicFile) throw new F.FlowStop("falta la música (gen.mjs music)");
   const mix = [];
-  // A gentle compressor evens the narration's own swings between sentences (a launch film v2: the take moved 4.5 dB).
+  // A gentle compressor evens the narration's own swings between sentences.
   if (vo.length) { chains.push(`${vo.join("")}amix=inputs=${vo.length}:normalize=0,acompressor=threshold=0.06:ratio=3:attack=8:release=250:makeup=1.6[vobus]`); }
   if (musicFile) {
     const k = add(musicFile);
-    // Gentle moves only: a bed under a continuous narration stays even (Town's mix moves 2.9 dB across the film).
+    // Gentle moves only: a bed under a continuous narration stays even (a good reference moves about 3 dB across the film).
     const lvl = { low: 0.85, mid: 0.92, high: 1 };
     // Nested from the last shot outwards, so the first shot's test is the outermost one (each shot gets its own level).
     const shape = [...parts].reverse().reduce((e, { ps }) => `if(lt(t,${(ps.start + ps.duration).toFixed(3)}),${lvl[ps.music]},${e})`, "1");
     chains.push(`[${k}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${total},asetpts=PTS-STARTPTS,volume=-10dB,volume='${shape}':eval=frame,afade=t=in:d=0.4,afade=t=out:st=${(total - 1.6).toFixed(2)}:d=1.6[mus]`);
     // The key is padded to the film's length: sidechaincompress stops when its key ends, and the voice ends before the
-    // brand card (2026-10-21, a launch film draft: the music went silent for the last 4 s).
+    // brand card (otherwise the music can go silent before the end).
     if (vo.length) { chains.push("[vobus]asplit=2[vomix][vokey0]", `[vokey0]apad=whole_dur=${total}[vokey]`, "[mus][vokey]sidechaincompress=threshold=0.05:ratio=3:attack=30:release=600[duck]"); mix.push("[vomix]", "[duck]"); }
     else mix.push("[mus]");
   } else if (vo.length) mix.push("[vobus]");
@@ -701,7 +700,7 @@ async function build(sl, mode) {
   const lines = plan.shots.filter((s) => s.vo && sl.launch?.vo?.[s.id]);
   for (const [k, s] of lines.entries()) { const nx = lines[k + 1]; const end = s.start + s.voAt + sl.launch.vo[s.id].secs; if (nx && end > nx.start + nx.voAt + 0.02) problems.push(`${s.id}: la voz se encima con la de ${nx.id}`); }
   const loud = lufs(out);
-  // EVEN MIX: the 2 s windows of the film stay within 6 dB of each other (the fade-out excluded); Town: 2.9 dB.
+  // EVEN MIX: the 2 s windows of the film stay within 6 dB of each other (the fade-out excluded).
   const band = REF.loudnessBand(out, total);
   if (mode === "final" && band.spread > 6) problems.push(`la mezcla salta ${band.spread} dB entre ventanas de 2 s (máximo 6; la referencia ${L.read(slug, "reference")?.loudness?.spread ?? "—"}); revisa huecos de voz y el nivel de la música`);
   if (!silent && !(Math.abs(loud - -14) <= 1)) problems.push(`volumen ${loud} LUFS, se pide -14`);

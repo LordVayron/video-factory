@@ -2,7 +2,7 @@
 // Claude Code PreToolUse guard (flow v5). Two rules that hold even when the agent forgets them:
 //  1. No paid API call outside the engine. A script, an inline `node -e`/`python -c`, or a curl that reaches
 //     APIMart, Kie, ElevenLabs or the vision judge without going through engine/ (budget lock, flow gates, ledger) is denied.
-//     Why: a shot once ran through a one-off runner script, so no gate and no eval ever saw it.
+//     Why: a one-off runner script skips every gate and eval.
 //  2. No video or audio is sent to the creator without a delivery receipt (studio.mjs deliver) whose hash matches the
 //     file. Files named *DRAFT* or *PREVIEW* can be sent to ask him something; they are never deliverables.
 // Configured in .claude/settings.json. Reads the tool call as JSON on stdin; prints a deny decision or nothing.
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { carriesInstructions, subjectProblems } from "../unquote.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-// APIMart (2026-10-22, the main provider) counts like Kie; its public price list (/api/pricing) is free to read.
+// APIMart (the main provider) counts like Kie; its public price list (/api/pricing) is free to read.
 const API = /api\.kie\.ai|api\.apimart\.ai\/(?!api\/pricing)|elevenlabs\.io|lib[\\/](kie|apimart|providers|eleven|judge|identity)\.mjs|\b(kie|apimart|eleven)\.(upload|createTask|waitTask|run|sts|tts|sfx)\(|\bPV\.(run|submit|submitBest)\(|\bidentityCheck\(|\bjudge(JSON)?\(/;
 const CODE = /\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd)$/i;
 // Python and shell can't import the engine's modules, so for them only a direct call to the API hosts counts
@@ -66,7 +66,7 @@ export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf =
       if (allowedCode(abs) || !fs.existsSync(abs)) continue;
       if (reaches(abs, fs.readFileSync(abs, "utf8"))) return deny(`${f} calls a paid API outside the engine. One-off runner scripts are not allowed (a real failure); add the step to the engine instead.`);
     }
-    // Rule 4: no commit or push straight to main in the factory's repos; work on a branch and open a PR (2026-10-22).
+    // Rule 4: no commit or push straight to main in the factory's repos; work on a branch and open a PR.
     for (const seg of raw.split(/&&|\|\||;|\n/).reduce((acc, p) => { const cd = /^\s*cd\s+("[^"]+"|'[^']+'|\S+)/.exec(p); acc.dir = cd ? path.resolve(acc.dir, cd[1].replace(/^["']|["']$/g, "")) : acc.dir; acc.out.push({ p, dir: acc.dir }); return acc; }, { dir: input.cwd || ROOT, out: [] }).out) {
       const m = /\bgit\s+(?:-C\s+("[^"]+"|'[^']+'|\S+)\s+)?(commit|push)\b(.*)/.exec(seg.p);
       if (!m) continue;
@@ -89,7 +89,7 @@ export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf =
       const bad = subjectProblems(prT[2] ?? prT[3], { max: 64 });
       if (bad.length) return deny(`PR title "${prT[2] ?? prT[3]}": ${bad.join("; ")}.`);
     }
-    // Rule 3: commit messages, tags and release notes say what changed, never the owner's instructions (2026-10-22).
+    // Rule 3: commit messages, tags and release notes say what changed, never the owner's instructions.
     if (/\bgit\s+(commit|tag)\b|\bgh\s+(release|pr)\s+(create|edit)\b/.test(raw)) {
       const texts = [...raw.matchAll(/(?:-m|--message|--notes|--title|--body|-b|-t|printf|echo)\s+("((?:[^"\\]|\\.)*)"|'([^']*)')/g)].map((m) => m[2] ?? m[3]);
       for (const h of raw.matchAll(/<<-?\s*['"]?(\w+)['"]?\n([\s\S]*?)\n\1\b/g)) texts.push(h[2]);

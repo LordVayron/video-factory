@@ -1,6 +1,6 @@
 // Guided meditation videos for YouTube: a voice-over, a soundtrack and a looping image that shows the meditation's
 // premise. One universal engine; the intention (sleep, anxiety, higher self, morning...) only changes the numbers.
-// Research and sources: .claude/skills/studio/references/verticals/meditation-longform.md (2026-10-20).
+// Research and sources: .claude/skills/studio/references/verticals/meditation-longform.md.
 //
 // Every intention sets the voice pace, the pauses, the share of the runtime that is voice, the music tempo, how the
 // piece ends, and the safety lines it must carry. `meditationRules(sl)` blocks the script gate on anything outside
@@ -67,8 +67,8 @@ const MUSIC_BAD = /\b(drums?|beat drop|trap|edm|rap|vocals?|lyrics|singing|choir
 export const intentOf = (sl) => INTENTS[sl.longform?.intent];
 
 // How much a loop actually moves: the mean luma difference between consecutive frames at 320 px (0-255 scale).
-// 2026-10-20, Midnight Lake: a Kling loop asked for first frame = last frame came back frozen (0.09) and the demo
-// read as a still picture. Ambient motion that reads on screen measures about 0.3 and up.
+// A loop asked for first frame = last frame can come back frozen (around 0.09) and reads as a still picture. Ambient
+// motion that reads on screen measures about 0.3 and up.
 export const MIN_MOTION = 0.3;
 export function motionScore(file) {
   const e = spawnSync("ffmpeg", ["-hide_banner", "-i", file, "-vf", "scale=320:-2,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG", "-f", "null", "-"], { encoding: "utf8", maxBuffer: 1 << 26 }).stderr || "";
@@ -100,7 +100,7 @@ export function meditationRules(sl) {
   if (!/instrumental|no vocals/i.test(mp)) out.push('la música debe pedir "instrumental, no vocals"');
   const segs = (L.script || []).filter((s) => s.text?.trim());
   if (!L.voiceFree && !segs.length) out.push("sin guion de voz (o longform.voiceFree: true)");
-  // A demo must let the guiding voice be heard (2026-10-20): 2-5 s of music between lines, not the full
+  // A demo must let the guiding voice be heard: 2-5 s of music between lines, not the full
   // piece's long silences.
   const pause = isDemo(L) ? [2, 5] : I.pause;
   for (const [i, s] of segs.entries()) {

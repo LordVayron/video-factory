@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.4, 2026-10-22: comments explain why
+
+- **Comments explain why.** Code comments across the engine now say why each rule exists, without dates or production anecdotes. No behavior changed.
+- **A check keeps it that way:** `npm test` fails when a comment carries a date or a production story.
+
 ## 2.8.3, 2026-10-22: checks on every PR, contribution templates
 
 - **Checks on every pull request.** GitHub runs the offline checks (`npm test`: no keys, no paid calls) on every PR and on `main`; the README shows the result.

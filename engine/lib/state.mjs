@@ -18,7 +18,7 @@ export function planCheck(sl) {
   let state = null;
   for (const sc of sl.scenes || []) {
     if (!sc.seats) { problems.push(`scene ${sc.id}: no "seats" (where each character is at the start of the scene)`); continue; }
-    // POSE PLAN (2026-10-19, a past drama pilot: a character stood in one shot and sat in the next): outside the sitcom every
+    // POSE PLAN (otherwise a character stands in one shot and sits in the next): outside the sitcom every
     // character's pose is planned (seats.<char>.pose: standing | seated) and only a shot with moves can change it.
     if (sl.format !== "sitcom") for (const [id, p] of Object.entries(sc.seats)) if (!p.pose) problems.push(`scene ${sc.id}: ${character(id).name} has no pose (seats.${id}.pose: standing | seated)`);
     // A scene marked timeJump ("the next morning") starts fresh: nobody has to be shown moving across the cut.
@@ -43,8 +43,8 @@ export function planCheck(sl) {
       states[s.id] = { ...state };
     }
   }
-  // Pre-production: the set plate the video model will see must match each scene's time of day (a past production: a
-  // daytime dining-room plate pulled night wides to the wrong angle and into daylight).
+  // Pre-production: the set plate the video model will see must match each scene's time of day (a daytime
+  // plate pulls night wides to the wrong angle and into daylight).
   // Each scene is checked against its own set (sc.set) or the project's.
   for (const sc of sl.scenes || []) {
     const setId = sc.set || sl.set;

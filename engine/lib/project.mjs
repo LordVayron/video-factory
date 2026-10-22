@@ -173,8 +173,8 @@ export function motionPrompt(sl, s, { voiceRefs = [], refMode = false } = {}) {
   return parts.filter(Boolean).join(" ");
 }
 
-// The script travels word for word in every speaking prompt (2026-10-19, The Glow Up: gen clip sent only the
-// visual prompt, so Seedance improvised its lines and a paid take was lost). Match ignores case, spacing,
+// The script travels word for word in every speaking prompt (a visual-only prompt lets the model improvise its
+// lines, and the paid take is lost). Match ignores case, spacing,
 // quote styles and escapes, so a line inside a JSON prompt still counts.
 const normLine = (t) => String(t || "").toLowerCase().replace(/\\/g, "").replace(/[“”"‘’`']/g, "'").replace(/…/g, "...").replace(/\s+/g, " ").trim();
 export const linesMissing = (prompt, lines = []) => {
@@ -182,8 +182,8 @@ export const linesMissing = (prompt, lines = []) => {
   return lines.filter((l) => l.text?.trim() && !p.includes(normLine(l.text)));
 };
 
-// Clips formats: the shot's prompt plus every spoken line of the script, verbatim and at a natural pace
-// (). A prompt that already quotes every line is sent as written.
+// Clips formats: the shot's prompt plus every spoken line of the script, verbatim and at a natural pace.
+// A prompt that already quotes every line is sent as written.
 export function clipPrompt(sl, s) {
   const base = (s.prompt || "").trim();
   const lines = (s.dialogue || []).filter((l) => l.text?.trim());
@@ -206,7 +206,7 @@ export function scene(sl, id) {
 export const findItem = (sl, id) => (sl.scenes || []).find((x) => x.id === id) || shot(sl, id);
 export const sceneShots = (sl, sc) => sc.shots.map((id) => shot(sl, id));
 // The prompt for one shot of a scene filmed shot by shot (first-frame models with a prompt limit: Kling 3.0 takes
-// 2,500 characters, 2026-10-19). Compact but complete: the first frame, every character's look with its marks, the
+// 2,500 characters). Compact but complete: the first frame, every character's look with its marks, the
 // scene light, the shot's structured spec (place, pose, props, action, dialogue word for word, must-nots), the pace.
 export function shotPrompt(sl, sc, s, max = 2500) {
   const st = styleOf(sl), cast = sceneCast(sl, sc);
@@ -237,8 +237,8 @@ export function takeFilters(sc) {
   };
 }
 // Everyone in the scene: the characters of its shots AND everyone seated in it (sc.seats). A seated character is in
-// frame in wide shots, so the model needs their marks and references (2026-10-19, a past drama: scene A named a character in
-// its blocking without her references; the prompt check stopped it before any spend).
+// frame in wide shots, so the model needs their marks and references (a character named in the blocking without
+// references is stopped by the prompt check before any spend).
 export const sceneCast = (sl, sc) => [...new Set([...sceneShots(sl, sc).flatMap((s) => s.characters || []), ...Object.keys(sc.seats || {})])];
 
 // Grid layout for n vertical panels and the nearest image aspect ratio the image models support.
@@ -266,9 +266,8 @@ const POS = (k, cols, rows) => {
 };
 
 // The references a scene uses, in order. Image 1.. = character views, then the set plate.
-// Coverage angles (2026-10-20, a past drama "Not the Father"): every scene opened on a panel from its own storyboard grid, each
-// grid drawn on its own, and the reverse angle was invented by the video model, so the doctor's close-up had a window
-// in scene A, a wall of frames in B and a chair and plant in C. Outside the sitcom, every person with close-ups in
+// Coverage angles: when every scene opens on a panel from its own storyboard grid, the video model invents the
+// reverse angle and one person's close-up gets a different background in every scene. Outside the sitcom, every person with close-ups in
 // more than one scene gets ONE locked angle frame (gen.mjs angles): the exact framing and background of all their
 // close-ups, sent to every storyboard and every scene that has one of their singles.
 export const singleOf = (s) => (s.characters || []).length === 1 && /close|single|\bcu\b/i.test(s.framing || "") && !/wide|two-shot|group/i.test(s.framing || "") ? s.characters[0] : null;
@@ -303,12 +302,12 @@ export function sceneRefs(sl, sc) {
     const c = character(id);
     const v = characterLook(c, st.id).views;
     // c.refView: the sheet view sent as the face reference (one with a neutral pose: a hand on the chin in the front
-    // view was copied into a shot of a past drama).
+    // view would be copied into the shot).
     const f = [c.refView && v[c.refView], v.front, v.threeQuarter].filter(Boolean).map((x) => path.join(c.dir, x)).find((x) => fs.existsSync(x))
       || existing(c.dir, c.refs || c.sheets || ["sheet.png"])[0];
     if (f) out.push({ role: "character", id, name: c.name, look: characterLook(c, st.id).look, file: f });
-    // The full-body view too, so the wardrobe is locked when a scene opens on someone else (2026-10-19: a character's
-    // black gown turned wine, then ivory, in a scene that opened on a character's close-up and only had her face).
+    // The full-body view too, so the wardrobe is locked when a scene opens on someone else (a face-only
+    // reference lets the outfit change color).
     const full = v.full && path.join(c.dir, v.full);
     if (full && fs.existsSync(full) && full !== f) out.push({ role: "character", id, name: `${c.name} (full body, exact wardrobe)`, look: characterLook(c, st.id).look, file: full });
   }
@@ -350,8 +349,8 @@ export function boardGridPrompt(sl, sc, refs) {
 // Removes the style's own light words ("flat bright overhead soundstage lighting") when a scene locks its lighting.
 const stripLight = (look) => look.replace(/[^,.:]*\b(lighting|lit|daylight|sunlight)\b[^,.]*[,.]?/gi, "").replace(/\s+,/g, ",").replace(/\s{2,}/g, " ");
 
-// Seat lock + dirty singles (a sidekick once ended up on the floor; singles showed an empty cushion).
-// sc.seats = { milo: { place: "the LEFT cushion of the plaid couch", side: "left" }, ... }
+// Seat lock + dirty singles (without them a character can end up in the wrong place, or a single shows an empty seat).
+// sc.seats = { cat: { place: "the LEFT cushion of the plaid couch", side: "left" }, ... }
 // Where everyone is at the START of a shot: scene seats, then every earlier shot's moves (see lib/state.mjs).
 export function placesAt(sl, shotId) {
   let st = {};
@@ -403,8 +402,8 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     const lines = (s.dialogue || []).map((l) => `${character(l.char).name}${l.delivery ? ` (${l.delivery})` : ""} says: "${l.text}" Lip sync.`).join(" ");
     // Per-shot light reminder: close-ups are where Wan drifts back to the style's default daylight.
     const light = sc.lighting ? `Same lighting as Shot 1${/night/i.test(sc.lighting) ? "; any window in frame shows dark night outside, never daylight" : ""}.` : "";
-    // Every format but the sitcom gets a structured spec per shot (2026-10-19, a past drama pilot: a character toasted an empty
-    // table and sat down between two shots of the same moment): who is in frame, the exact place, pose and props of
+    // Every format but the sitcom gets a structured spec per shot (otherwise props and poses change between two
+    // shots of the same moment): who is in frame, the exact place, pose and props of
     // everyone in the room at that moment, the action, the dialogue, and what must not happen.
     if (sl.format !== "sitcom") {
       const st0 = placesAt(sl, s.id), cast = sceneCast(sl, sc);
@@ -416,8 +415,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
         "anyone resting a chin or cheek on a hand, or touching their face, unless the action says so",
         "a character not listed here appearing, or a listed character missing from a wide shot",
         "any change of outfit, hair, jewelry or props", "on-screen text or subtitles",
-        // 2026-10-20, a past drama pilot: on a "fixed camera" close-up Wan pulled back mid-shot and a ceiling and a second
-        // wall frame appeared ().
+        // A "fixed camera" close-up can pull back mid-shot and reveal new set pieces.
         "the camera zooming, pulling back or drifting, or the background changing (a ceiling, extra wall frames, a different window) during the shot or from earlier shots of the same person",
       ];
       const spec = { shot: k + 1, time: head.slice(head.indexOf("[") + 1, head.indexOf("]")), cut: k ? (s.continuous ? "no cut: same framing as the previous shot" : "hard cut") : "opens on Image 1", framing: s.framing || "medium shot", lens: s.lens || "35mm lens", camera: cam, in_frame: inFrame.length ? inFrame : all, everyone_in_the_room: where, action: [s.motion, moveNote(s)].filter(Boolean).join(" "), dialogue: (s.dialogue || []).length ? s.dialogue.map((l) => ({ speaker: character(l.char).name, delivery: l.delivery || "", says_exactly: l.text, lip_sync: true })) : "none", sound: s.sfx || undefined, must_not: mustNot };
@@ -436,7 +434,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     sc.lighting ? `LIGHTING LOCK, overrides any other light description: ${sc.lighting}. The lighting, time of day and color temperature are identical in every shot of this scene.` : "",
     voices,
     `All dialogue is spoken in ${lang}.`,
-    // Wan rushed every line of a past drama (191 wpm, 2026-10-19): the pace is part of every scene prompt.
+    // Video models rush lines without it: the pace is part of every scene prompt.
     sl.format === "sitcom" ? "" : "Every line is spoken at a calm, natural pace, about 140-160 words per minute, with a short natural pause between lines and a held beat on every reaction; never rushed, never overlapping.",
     ...body,
     st.motion || "",

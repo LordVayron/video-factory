@@ -1,4 +1,4 @@
-// APIMart client (2026-10-22, the studio's main provider; Kie is the second one).
+// APIMart client (the studio's main provider; Kie is the second one).
 //   POST https://api.apimart.ai/v1/videos/generations | /v1/images/generations   → { data: [{ task_id }] }
 //   GET  https://api.apimart.ai/v1/tasks/{task_id}                              → { data: { status, cost, result } }
 //   POST https://api.apimart.ai/v1/uploads/images (multipart "file")            → { url }   (kept 72 h)

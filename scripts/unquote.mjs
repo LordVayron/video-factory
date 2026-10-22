@@ -1,4 +1,4 @@
-// What goes into a repo says what changed, never the owner's instructions (2026-10-22). This finds and strips
+// What goes into a repo says what changed, never the owner's instructions. This finds and strips
 // quotes of the owner and "who said it" attributions in code comments, logs and commit messages.
 // Used by publish-public.mjs (public tree), check.mjs (private sources and logs) and the guard (commit messages).
 const Q = String.raw`"(?:[^"\n]|\n\s*(?:\/\/|#) ?)*?"`;
@@ -7,14 +7,14 @@ const D = String.raw`\d{4}-\d{2}-\d{2}`;
 
 export function unquote(s) {
   return s
-    .replace(new RegExp(String.raw`,\s*${WHO}:\s*${Q}`, "g"), "")                  // (2026-10-22)
-    .replace(new RegExp(String.raw`\(${WHO},?\s*(${D}):\s*${Q}\)`, "g"), "($1)")   // (2026-10-13)
-    .replace(new RegExp(String.raw`${WHO},?\s*(${D}):\s*${Q}`, "g"), "$1")         // 2026-10-19
+    .replace(new RegExp(String.raw`,\s*${WHO}:\s*${Q}`, "g"), "")                  // (date, owner: "...")
+    .replace(new RegExp(String.raw`\(${WHO},?\s*(${D}):\s*${Q}\)`, "g"), "($1)")   // (owner, date: "...")
+    .replace(new RegExp(String.raw`${WHO},?\s*(${D}):\s*${Q}`, "g"), "$1")         // owner, date: "..."
     .replace(new RegExp(String.raw`${WHO}:\s*${Q}`, "g"), "")                       // 
-    .replace(new RegExp(String.raw`\((${D}):\s*${Q}\)`, "g"), "($1)")               // (2026-10-22)
-    .replace(new RegExp(String.raw`\(${WHO},\s*(${D})\)`, "g"), "($1)")             // (2026-10-21)
-    .replace(new RegExp(String.raw`\(${WHO},\s*(${D})`, "g"), "($1")                // (2026-10-21: the ending...)
-    .replace(new RegExp(String.raw`\b${WHO} (${D}):`, "g"), "$1:");                 // 2026-10-21: ...
+    .replace(new RegExp(String.raw`\((${D}):\s*${Q}\)`, "g"), "($1)")               // (date: "...")
+    .replace(new RegExp(String.raw`\(${WHO},\s*(${D})\)`, "g"), "($1)")             // (owner, date)
+    .replace(new RegExp(String.raw`\(${WHO},\s*(${D})`, "g"), "($1")                // (owner, date: why...)
+    .replace(new RegExp(String.raw`\b${WHO} (${D}):`, "g"), "$1:");                 // owner date: ...
 }
 
 // Commit subjects and PR titles in the factory's repos follow Conventional Commits: a type, an optional scope, a short

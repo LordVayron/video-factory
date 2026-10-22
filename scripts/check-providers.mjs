@@ -1,4 +1,4 @@
-// Offline checks of the two providers (2026-10-22): APIMart is the main one, Kie the second; every job goes to the
+// Offline checks of the two providers: APIMart is the main one, Kie the second; every job goes to the
 // cheaper live price (APIMart wins ties), a refused APIMart submit moves to Kie at a re-checked budget, the ledger
 // keeps what APIMart says it charged, the guard treats APIMart like Kie, and no key ever reaches a repo.
 // No paid call: price files are written to a temp copy and restored.

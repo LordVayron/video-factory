@@ -1,9 +1,8 @@
-// The studio's standard character sheet (2026-10-21): one sheet per character, never a group, the same layout
-// and level of detail for every character in every vertical, drawn in the project's style. Modeled on a long-running
-// series' sheets: name and project, turnaround (front,
+// The studio's standard character sheet: one sheet per character, never a group, the same layout
+// and level of detail for every character in every vertical, drawn in the project's style: name and project, turnaround (front,
 // 3/4, side, back), expressions, poses, details with callouts, color palette with hex codes, notes (role, wants, a
 // secret, flaw or running bit). The whole sheet is the reference every image and video model receives.
-// Why: a single sheet for a group of four creators let the model invent strangers in six frames (a launch film).
+// Why: a single sheet for a group lets the model invent strangers.
 import fs from "node:fs";
 import path from "node:path";
 

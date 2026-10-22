@@ -72,7 +72,7 @@ async function evalTake(sc, ci) {
   const clip = sc.clips[ci];
   let file = path.join(dir, clip.file);
   // sc.cutOut: the ranges the edit drops are dropped here too, so the take is judged as it will be cut
-  // (2026-10-19, a past drama: an improvised tail that the edit removes failed the whole take).
+  // (an improvised tail that the edit removes must not fail the whole take).
   if (sc.cutOut?.length || sc.muteOut?.length) {
     const tf = P.takeFilters(sc);
     const trimmed = path.join(dir, "out", `_eval-${sc.id}-${ci + 1}.mp4`);
@@ -127,7 +127,7 @@ async function evalTake(sc, ci) {
       if (!id || movers.has(id) || c.visible === "no" || c.visible === "edge") continue;
       const want = st[id];
       // A planned pose wins (standing beside a chair is standing); any chair or seat accepts the judge's chair words.
-      // (2026-10-19, a past drama: a dinner table read as "other" and failed a correct take.)
+      // (otherwise a table reads as "other" and fails a correct take.)
       const wantOn = /stand/i.test(want.pose || "") ? ["standing"] : /(cushion|on the) (of the )?(plaid )?(couch|sofa)|couch cushion/i.test(want.place) ? ["couch"] : /floor|rug/i.test(want.place) ? ["floor"] : /chair|seat|stool|bench/i.test(want.place) || /seat|sit/i.test(want.pose || "") ? ["armchair", "chair", "other"] : null;
       // A close-up can't show whether someone stands or sits: place is judged only on wider framings.
       const tight = /close|insert|single|cu\b/i.test(fr.shot.framing || "") && !/medium|wide/i.test(fr.shot.framing || "");
@@ -147,14 +147,14 @@ async function evalTake(sc, ci) {
   const realGeography = (v) => v.type === "geography" && /door|kitchen|exit|wrong (side|direction|wall)|eyeline|looking (the )?wrong/i.test(v.detail);
   const realTeleport = (v) => v.type === "teleport" && !frames[v.frame - 1]?.shot.moves && !frames[v.frame - 2]?.shot.moves;
   // Outside the sitcom the camera is locked and every single of a person has one background: a background or room
-  // change on a fixed-camera shot fails the take (2026-10-20, a past drama pilot: the set changed in the last 1.5 s of a3).
+  // change on a fixed-camera shot fails the take (sets often change in the last second or two).
   // Trim it with cutOut and re-judge, or reroll.
   const fixedCam = (fr) => fr && /fixed|tripod|locked|static/i.test(fr.shot.camera || "");
   const realBackground = (v) => sl.format !== "sitcom" && ["background", "room"].includes(v.type) && fixedCam(frames[v.frame - 1])
     && !/acceptable|expected|reverse (angle|shot)|opposite (angle|direction)|consistent/i.test(v.detail); // a reverse angle sees another wall
   const issues = [...facts, ...judged.filter((v) => realBackground(v) || realTeleport(v) || realIdentity(v) || realGeography(v) || (v.type === "physics" && /through|clip|merg|pass(es|ing)? (into|through)|vanish|appear|intersect|inside the|fus/i.test(v.detail)))].map(fmt);
   const notes = judged.filter((v) => (!majorTypes.has(v.type) || v.type === "room") && !realBackground(v)).map(fmt);
-  // Dialogue check on the take itself: every line said, nothing extra, no stutters (a past take said "set foot... foot").
+  // Dialogue check on the take itself: every line said, nothing extra, no stutters ("set foot... foot").
   const vocal = (l) => l.vocal || /^(mwa|ha|awoo|woof|meow|grr|hm+|ah+|oh+)[-a-z! ]*$/i.test(l.text.trim());
   const sLines = shots.flatMap((s) => (s.dialogue || []).filter((l) => !vocal(l)).map((l, i) => ({ id: `${s.id}-${i + 1}`, text: l.text })));
   const tmpL = path.join(dir, "out", `_lines-${sc.id}.json`), tmpA = path.join(dir, "out", `_align-${sc.id}.json`);
@@ -176,8 +176,8 @@ async function evalTake(sc, ci) {
     notes.push(...idr.notes.map((x) => `${sc.id} ${x}`));
   } catch (e) { issues.push(`${sc.id} identity check could not run: ${e.message.slice(0, 120)}`); }
   const result = { pass: !issues.length, issues, notes, judge: model, frames: frames.length, at: new Date().toISOString() };
-  // A passing take becomes the scene's chosen take unless one is already chosen and passing (2026-10-20, a past drama:
-  // three passing scenes still read "sin toma elegida", so the flow could not reach the edit).
+  // A passing take becomes the scene's chosen take unless one is already chosen and passing (otherwise passing
+  // scenes still read as having no chosen take, and the flow can't reach the edit).
   P.updateShotlist(slug, (x) => {
     const s = P.scene(x, sc.id);
     s.clips[ci].continuity = result;
@@ -189,7 +189,7 @@ async function evalTake(sc, ci) {
 
 // A background change only in the last seconds of a take (the camera creeping wider as the generation ends) is cut
 // off automatically and the take judged again, when no line is spoken there and a beat of the last shot remains
-// (2026-10-20, a past drama: both A and C drifted in their last 1.5-2 s and the trims were set by hand).
+// (takes often drift in their last 1.5-2 s).
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 async function evalWithTailTrim(sc, ci) {
   const r = await evalTake(sc, ci);

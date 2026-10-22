@@ -1,6 +1,6 @@
-// The reference engine (2026-10-22): any video the creator likes, as a file or a link, becomes a measured profile, a
+// The reference engine: any video the creator likes, as a file or a link, becomes a measured profile, a
 // frame-by-frame breakdown the creator approves, and a pattern in the bank that productions of that format calibrate to.
-// Lessons from the Town reference are rules here: speech is always transcribed (never inferred from silence), every
+// Rules: speech is always transcribed (never inferred from silence), every
 // shot and every join gets its own 4 fps sheet, and nothing enters the bank without the creator's words.
 // Nothing here calls a paid API: measuring is local (ffmpeg, whisper); the understanding is Claude's, written into
 // breakdown.json and checked by breakdownRules.
@@ -44,7 +44,7 @@ export function ingest(src, { note = "" } = {}) {
   return id;
 }
 
-// ---- measure: the Town profile plus per-shot timing and motion, the hook, pauses, the bed under the voice, sheets
+// ---- measure: the reference profile plus per-shot timing and motion, the hook, pauses, the bed under the voice, sheets
 export function measure(id, { lang = "en" } = {}) {
   const src = sourceOf(id); if (!src) throw new Error(`${id}: sin video`);
   const p = REF.profile(src, { lang });
@@ -61,7 +61,7 @@ export function measure(id, { lang = "en" } = {}) {
   // The bed: the loudest part where nobody talks (music or ambience), measured in the longest pause or after the voice.
   const gap = [...pauses].sort((a, b) => b.secs - a.secs)[0] || (ws.length && p.duration - ws.at(-1).end > 0.8 ? { at: ws.at(-1).end, secs: p.duration - ws.at(-1).end } : null) || (!ws.length ? { at: 0, secs: Math.min(10, p.duration) } : null);
   const bedDb = gap ? Number((ffErr(["-ss", String(gap.at), "-t", String(Math.min(gap.secs, 5)), "-i", src, "-af", "volumedetect", "-f", "null", "-"]).match(/mean_volume: (-?[\d.]+)/) || [])[1] ?? -91) : null;
-  // Sound and on-screen text, measured (2026-10-22: the creator wants none of it left to Claude's eyes and ears).
+  // Sound and on-screen text, measured (the creator wants none of it left to Claude's eyes and ears).
   const media = (mode) => { const r = spawnSync("python", [path.join(ROOT, "engine", "lib", "ref_media.py"), mode, src], { encoding: "utf8", maxBuffer: 1 << 26 }); if (r.status !== 0) throw new Error(`ref_media.py ${mode}: ${(r.stderr || "").trim().split("\n").pop()}`); return JSON.parse(r.stdout); };
   const au = media("audio"), ocr = media("ocr");
   const inSpeech = (t) => ws.some((x) => t >= x.start - 0.12 && t <= x.end + 0.12);
@@ -75,7 +75,7 @@ export function measure(id, { lang = "en" } = {}) {
 }
 
 // One sheet per shot (4 fps; long shots sampled to 16 frames) and one per join (the last and first half second at
-// 8 fps), plus an overview. 2026-10-21: a 2 fps thumbnail strip missed what a frame-by-frame look caught.
+// 8 fps), plus an overview. A 2 fps thumbnail strip misses what a frame-by-frame look catches.
 export function sheets(id, prof = profileOf(id)) {
   const src = sourceOf(id), d = path.join(dirOf(id), "sheets"); fs.rmSync(d, { recursive: true, force: true }); fs.mkdirSync(d, { recursive: true });
   const n = Math.min(60, Math.ceil(prof.duration * 2)), every = prof.duration / n;

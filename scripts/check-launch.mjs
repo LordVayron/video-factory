@@ -27,7 +27,7 @@ export default function checkLaunch(t, ROOT) {
   t("launch: a measurable claim without a proven capability is blocked", L.planRules(claimy, { brief, concepts }).some((x) => /afirma algo medible/.test(x)));
   const lettered = structuredClone(plan); lettered.shots[0].prompt += ' with a sign that reads "SALE"';
   t("launch: a prompt that asks the model for exact text is blocked (the editor composites text)", L.planRules(lettered, { brief, concepts }).some((x) => /entre comillas/.test(x)));
-  // ---- every lesson of the first launch film is a rule (2026-10-22)
+  // ---- every launch film rule
   const R = (p) => L.planRules(p, { brief, concepts, style: { ...style, thread: "sample-founder" } }).join(" | ");
   const unchained = structuredClone(plan); delete unchained.shots[1].chain;
   t("launch: two shots in the same place must be chained (exact last frame or the same set)", /encadénala/.test(R(unchained)));
@@ -58,7 +58,7 @@ export default function checkLaunch(t, ROOT) {
   const busy = structuredClone(plan); busy.shots[1].motion = "a; b; c; d";
   t("launch: one clear action per shot (more than three is refused)", /más de tres acciones/.test(R(busy)));
   t("launch: the board asks for the animatic again once every frame is drawn", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("no ha visto el animatic con los cuadros dibujados"));
-  // ---- art styles (2026-10-22): bible styles with a launch block, or the creator's own from references
+  // ---- art styles: bible styles with a launch block, or the creator's own from references
   const ls = L.launchStyles();
   t("launch: films can use storybook, anime or hyperreal; phone UGC and podcast styles are not offered", ["storybook", "anime", "hyperreal"].every((x) => ls.includes(x)) && !ls.includes("ugc-phone") && !ls.includes("podcast"));
   const anime = structuredClone(concepts); anime.config.visualStyle = "anime"; const phone = structuredClone(concepts); phone.config.visualStyle = "ugc-phone";
@@ -99,7 +99,7 @@ export default function checkLaunch(t, ROOT) {
     t("gen frame sends each character's sheet in the project's style", fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("P.characterLook(ch, sl.style).sheet"));
   }
   {
-    // The standard character sheet (2026-10-21): one per character, same layout and detail for every vertical.
+    // The standard character sheet: one per character, same layout and detail for every vertical.
     const c = { name: "Checky", look: "a woman with a short black bob and a mustard sweater", sheetSpec: { label: "Check", expressions: ["happy", "curious", "surprised", "proud"], poses: ["waving", "thinking", "pointing"], details: ["bob haircut", "mustard sweater", "brown shoes"], palette: ["#111111", "#222222", "#333333", "#444444", "#555555"], notes: { role: "r", wants: "w", secret: "s" } } };
     const pr = MS.prompt(c, { look: "storybook", negative: "3D render, written text, letters" });
     t("standard sheet: one character per sheet (a group look is refused)", MS.isGroup("a group of four storybook creators") && MS.isGroup("three thumb-sized factory workers") && !MS.isGroup(c.look));
@@ -109,7 +109,7 @@ export default function checkLaunch(t, ROOT) {
   const still = structuredClone(plan); still.shots[1].source = "still"; still.shots[2].source = "card";
   t("launch: every shot is animated (a still with a zoom or a flat card is refused)", L.planRules(still, { brief, concepts }).filter((x) => /todas las tomas van animadas/.test(x)).length === 2);
   {
-    // The Town lessons (2026-10-21): a continuous narration, motivated cuts, one thread, one light, no beat under the voice.
+    // Story rules: a continuous narration, motivated cuts, one thread, one light, no beat under the voice.
     const sb = { ...style, thread: "sample-founder" }, rules = (p) => L.planRules(p, { brief, concepts, style: sb }).join(" | ");
     const thin = structuredClone(plan); thin.shots.forEach((s, i) => { if (i % 2) delete s.vo; });
     t("launch: a narrated film keeps talking (density near the reference, no silent shot but the ending)", /palabras de narración/.test(rules(thin)) && /la voz no se detiene/.test(rules(thin)) && /la referencia tiene 2.76/.test(L.planRules(thin, { brief, concepts, style: sb, reference: { narration: { wordsPerSecondOfFilm: 2.76 } } }).join()));
@@ -125,7 +125,7 @@ export default function checkLaunch(t, ROOT) {
     t("launch: a reference is profiled by transcription, never by silence detection", fs.readFileSync(path.join(ROOT, "engine", "lib", "reference.mjs"), "utf8").includes("words(file, lang)"));
   }
   {
-    // Choreography (2026-10-21): an end state, what stays still, a cause for anything that falls, no vague verbs.
+    // Choreography: an end state, what stays still, a cause for anything that falls, no vague verbs.
     const loose = structuredClone(plan); delete loose.shots[1].end; loose.shots[2].still = []; loose.shots[3].motion = "cards fall from above, faster and faster";
     const r = L.planRules(loose, { brief, concepts }).join(" | ");
     t("launch: every animated shot is choreographed (end, still, a cause for what falls, no vague verbs)", /sin final coreografiado/.test(r) && /se queda quieto/.test(r) && /sin causa visible/.test(r) && /deja que el modelo invente/.test(r));
