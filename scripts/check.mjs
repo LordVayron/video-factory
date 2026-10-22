@@ -48,6 +48,7 @@ t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", 
 (await import("./check-launch.mjs")).default(t, ROOT);
 (await import("./check-refs.mjs")).default(t, ROOT);
 await (await import("./check-providers.mjs")).default(t, ROOT);
+(await import("./check-camera.mjs")).default(t, ROOT);
 
 // What goes into a repo says what changed, never the owner's instructions: no quotes of the owner in
 // code comments or logs, and the guard refuses commit messages, tags and release notes that carry them.

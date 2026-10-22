@@ -1,0 +1,25 @@
+[
+  {
+    "id": "camera-test-1",
+    "date": "2026-10-22",
+    "model": "gpt2.5",
+    "scene": "a woman at a café window table holding a coffee cup, medium close-up, eye level, late afternoon sun",
+    "variants": {
+      "A": "no camera terms",
+      "B": "film-cooke",
+      "C": "digital-zeiss",
+      "D": "phone",
+      "E": "anamorphic",
+      "F": "vintage-16"
+    },
+    "findings": {
+      "A": "bright, evenly sharp, generic stock-photo look",
+      "B": "warm natural skin, darker softer background, believable window light; the strongest lift for people",
+      "C": "clean, neutral, the setting readable behind; commercial and product look",
+      "D": "wider, nearly everything in focus, slightly tilted; reads as a real phone photo",
+      "E": "horizontal blue flare and oval bokeh; cinematic, the flare needs a strong light source",
+      "F": "grain, soft contrast, swirling bokeh; a stylized vintage look"
+    },
+    "decision": "film-cooke, digital-zeiss, phone and anamorphic are the recommended kits by format; vintage-16 and every part stay available on request"
+  }
+]

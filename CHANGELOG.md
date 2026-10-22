@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.10.0, 2026-10-22: camera kits
+
+- **Camera kits.** Choose how a production is shot: 6 kits (film 35mm + Cooke, digital cinema + Zeiss, phone, anamorphic large format, 16mm vintage, IMAX landscape) built from 6 bodies, 8 lenses, 8 focal lengths and 4 apertures. The optics go into every still the video models start from (frames, storyboards, angle frames) and are held in each video prompt so the look stays.
+- **Camera moves.** 20 moves for the video (push-in, orbit, crane, handheld, rack focus, crash zoom, dolly zoom and more), one per shot, written the way video models follow best.
+- **A recommendation per format, and full freedom.** Every photographic format has a recommended kit; pick any other, change one part for the whole film, or set a different kit or move on a single shot (a flashback in 16mm, a close-up at 85mm). `studio.mjs camera <slug> --list` shows them; the choice is recorded in the creator's words and shown in the Production Book.
+- **Rules that protect the shot:** unknown gear, two moves in one shot, more than one bold move per film, and a lens wider than 24mm on a face are refused unless the creator asks for them.
+- `gen.mjs still --kit <id>` for camera tests.
+
 ## 2.9.0, 2026-10-22: the engine speaks English
 
 - **The engine speaks English.** Every message, error, step name, intake question and the reference breakdown page is now in English (they were in Spanish). Your agent reads them and talks to you in your own language, so nothing changes in how you work with it.

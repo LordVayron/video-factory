@@ -16,6 +16,7 @@ import { planCheck } from "./state.mjs";
 import * as L from "./launch.mjs";
 import * as MS from "./modelsheet.mjs";
 import * as RF from "./refs.mjs";
+import * as CAM from "./camera.mjs";
 
 // What each format films and how. "scenes": multi-shot generations from storyboard grids (sitcom pipeline).
 // "clips": one first/last-frame generation per shot (influencer, UGC, cinematic...). "longform": loops + narration.
@@ -94,15 +95,25 @@ function intakeCheck(sl) {
   return ok(`${FORMATS[sl.format]?.label} · ${a.series}`);
 }
 
+// CAMERA KIT: projects created with the camera step choose their kit in the creator's words (the format's
+// recommended kit or any other, whole or in parts) when the style is photographic; every kit, part and move must be
+// in the catalog, one move per shot, one bold move per film, no wide lens on a face.
+export function cameraProblems(sl) {
+  const st = (() => { try { return P.style(sl.style); } catch { return null; } })();
+  const out = [...CAM.cameraRules(sl)];
+  if (sl.cameraRequired && CAM.opticsFor({ camera: { kit: "film-cooke" } }, {}, st) && !sl.camera?.said?.trim()) out.push(`choose the camera kit in the creator's words (recommended for ${sl.format}: ${CAM.recommendedKit(sl.format) || "none"}): studio.mjs camera ${sl.slug} --kit <id> --said "..." (studio.mjs camera ${sl.slug} --list)`);
+  return out;
+}
 function castCheck(sl) {
-  if (sl.format !== "launch") return castCheckChars(sl);
+  const cam = cameraProblems(sl);
+  if (sl.format !== "launch") { const r = castCheckChars(sl); return cam.length ? no([...(r.ok ? [] : [r.detail]), ...cam].join("; ")) : r; }
   // Launch films: the style bible is valid and its files exist, the narrator has a voice, any characters pass the
   // usual cast gate, and the visual identity is locked: one key image of the world, approved in the creator's words.
-  const bad = [...L.styleRules(launchJSON(sl, "style"), { slug: sl.slug, cast: castIds(sl) })];
+  const bad = [...L.styleRules(launchJSON(sl, "style"), { slug: sl.slug, cast: castIds(sl) }), ...cam];
   if (launchJSON(sl, "concepts")?.config?.voiceover && !sl.launch?.voice?.eleven) bad.push("the film has a voice-over and the narrator has no voice (sl.launch.voice.eleven)");
   if (castIds(sl).length) { const c = castCheckChars(sl); if (!c.ok) bad.push(c.detail); }
   if (!(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('the visual identity is not locked yet: one key image of the world in the style (gen.mjs still --project), approved with studio.mjs approve-look <slug> --file <image> --said "..."');
-  return bad.length ? no(bad.join("; ")) : ok(`style bible "${launchJSON(sl, "style").name}" fijado`);
+  return bad.length ? no(bad.join("; ")) : ok(`style bible "${launchJSON(sl, "style").name}" locked`);
 }
 
 function castCheckChars(sl) {
@@ -253,7 +264,7 @@ function boardCheck(sl) {
       if (!s.duration) bad.push(`${s.id}: no duration`);
     }
   }
-  return bad.length ? no(bad.join("; ")) : ok("storyboard y prompts revisados");
+  return bad.length ? no(bad.join("; ")) : ok("storyboard and prompts reviewed");
 }
 
 // Launch films before the book: the plan still passes, the shotlist is the plan applied (launch.mjs apply), every
@@ -394,7 +405,7 @@ const both = (...rs) => rs.find((r) => !r.ok) || ok(rs.map((r) => r.detail).filt
 function launchConcept(sl) {
   const c = launchJSON(sl, "concepts");
   const bad = [...L.briefRules(launchJSON(sl, "brief")), ...L.conceptRules(c, launchJSON(sl, "brief"))];
-  return bad.length ? no(bad.join("; ")) : ok(`concepto ${c.selected} de ${c.concepts.length}`);
+  return bad.length ? no(bad.join("; ")) : ok(`concept ${c.selected} of ${c.concepts.length}`);
 }
 function launchScript(sl) {
   const plan = launchJSON(sl, "plan");

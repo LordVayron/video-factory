@@ -58,7 +58,7 @@ Every recipe ends the same way: `studio.mjs qc` (identity across every cut, tran
 | Series bible (new series only) | the creator | `series/<id>/series.json` filled (premise, cast with wants, room map, voices, intro, ending, rules) and approved |
 | Concept | the creator | `concept.md` approved |
 | Script | the creator | the shotlist's dialogue approved; editing it later reopens the gate |
-| Cast | the creator | every character exists in the bible with a written look **that names its marks** (freckles, moles, glasses, earrings...), a sheet or reference, a voice if it speaks, and an approved sheet (`cast.mjs approve` or `studio.mjs approve-character <id> --said "..."`) |
+| Cast | the creator | every character exists in the bible with a written look **that names its marks** (freckles, moles, glasses, earrings...), a sheet or reference, a voice if it speaks, and an approved sheet (`cast.mjs approve` or `studio.mjs approve-character <id> --said "..."`); for photographic styles, the **camera kit** chosen in the creator's words (`studio.mjs camera <slug> --list` shows the format's recommendation and every kit; offer the recommendation first and two alternatives with buttons, then `studio.mjs camera <slug> --kit <id> [--lens/--focal/--aperture/--body] --said "..."`) |
 | Radio cut | engine | pacing passes (scenes formats) |
 | Storyboard / frames | engine | grids + animatic + continuity plan (scenes) or first/last frames (clips); no prompt leaves out a character's marks |
 | Live prices | engine | `studio.mjs prices` ran in the last 7 days and its pick is the project's video model (the book estimates and the film uses that same model) |

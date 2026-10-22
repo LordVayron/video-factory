@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./env.mjs";
+import * as CAM from "./camera.mjs";
 
 export const PROJECTS = path.join(ROOT, "projects");
 export const BIBLE = path.join(ROOT, "bible");
@@ -128,10 +129,12 @@ export function imagePrompt(sl, s, { withBoard = false } = {}) {
   const setId = s.set || sl.set;
   const where = setId ? set(setId).look : "";
   const realistic = st.kind === "realistic";
+  const optics = CAM.opticsFor(sl, s, st);
   return [
     st.look,
+    optics,
     withBoard && s.board?.file ? "The first reference is the approved storyboard frame: keep its exact composition, staging and framing." : "",
-    `${s.framing || "medium shot"}, ${s.lens || "35mm lens"}.`,
+    `${s.framing || "medium shot"}${optics ? (s.lens ? `, ${s.lens}` : "") : `, ${s.lens || "35mm lens"}`}.`,
     s.image,
     cast.length ? `Characters (same individuals as their reference images): ${cast.join(" | ")}.` : "",
     // Realistic styles: re-photograph characters inside the scene; never paste the reference in.
@@ -150,9 +153,10 @@ export function motionPrompt(sl, s, { voiceRefs = [], refMode = false } = {}) {
   const lang = sl.lang === "es" ? "Mexican Spanish" : "English";
   const parts = [
     refMode ? "@image1 is the opening frame: start exactly on it. The other images are character and set references." : "",
-    s.camera ? `Camera: ${s.camera}.` : "Camera: locked off.",
+    CAM.moveText(s) ? `Camera: ${CAM.moveText(s).replace(/\.$/, "")}.` : "Camera: locked off.",
+    CAM.opticsHold(sl, s, st),
     // Video models drift and invent new rooms unless told very plainly to keep the camera still.
-    !s.camera || /locked|static|tripod/i.test(s.camera)
+    CAM.isStatic(s)
       ? "The camera is on a locked tripod and does not move at all: no pan, no zoom, no push-in, no dolly. The background and room stay exactly as in the first frame for the whole shot; nothing new enters the frame unless described."
       : "Keep the same location as the first frame; reveal nothing that isn't already in the set.",
     s.motion,
@@ -185,7 +189,8 @@ export const linesMissing = (prompt, lines = []) => {
 // Clips formats: the shot's prompt plus every spoken line of the script, verbatim and at a natural pace.
 // A prompt that already quotes every line is sent as written.
 export function clipPrompt(sl, s) {
-  const base = (s.prompt || "").trim();
+  const st = styleOf(sl, s);
+  const base = [(s.prompt || "").trim(), s.move && CAM.MOVES[s.move] ? CAM.MOVES[s.move].prompt : "", CAM.opticsHold(sl, s, st)].filter(Boolean).join(" ");
   const lines = (s.dialogue || []).filter((l) => l.text?.trim());
   if (!lines.length) return s.audioMode === "silent" || /no dialogue/i.test(base) ? base : `${base} No dialogue: nobody speaks.`;
   if (!linesMissing(base, lines).length) return base;
@@ -285,6 +290,7 @@ export function anglePrompt(sl, id) {
   const c = character(id);
   return [
     st.look,
+    CAM.opticsFor(sl, s, st),
     `ONE frame, the locked camera angle for every close-up of ${c.name} in this film: ${s.framing || "close-up"}, ${s.lens || "50mm lens"}, eye level, camera on a tripod.`,
     `${c.name}: ${characterLook(c, st.id).look}. Neutral, attentive expression, mouth closed, hands still.`,
     `The room: ${sc.blocking}`,
@@ -332,6 +338,7 @@ export function boardGridPrompt(sl, sc, refs) {
   const lock = refs.map((r, i) => r.role === "set" ? `the location is reference image ${i + 1} (${r.look})` : r.role === "angle" ? `every close-up of ${character(r.id).name} copies reference image ${i + 1} exactly: same framing size and the same background` : `${r.name} is reference image ${i + 1} (${r.look})`).join("; ");
   return [
     st.look,
+    CAM.opticsFor(sl, {}, st),
     `A film storyboard sheet: a ${cols}x${rows} grid of ${shots.length} consecutive frames from ONE continuous scene, read left to right, top to bottom.`,
     `Identity and place locks for every panel: ${lock}.`,
     `Blocking that never changes between panels: ${sc.blocking}.`,
@@ -398,7 +405,7 @@ export function scenePrompt(sl, sc, refs, { voiceRefs = [] } = {}) {
     const d = shotSecs(s);
     const head = `Shot ${k + 1} [${t}-${t + d}s]:`;
     t += d;
-    const cam = s.camera && !/locked|static|tripod/i.test(s.camera) ? s.camera : "fixed camera on a tripod, no camera movement";
+    const cam = !CAM.isStatic(s) ? CAM.moveText(s).replace(/\.$/, "") : "fixed camera on a tripod, no camera movement";
     const lines = (s.dialogue || []).map((l) => `${character(l.char).name}${l.delivery ? ` (${l.delivery})` : ""} says: "${l.text}" Lip sync.`).join(" ");
     // Per-shot light reminder: close-ups are where Wan drifts back to the style's default daylight.
     const light = sc.lighting ? `Same lighting as Shot 1${/night/i.test(sc.lighting) ? "; any window in frame shows dark night outside, never daylight" : ""}.` : "";
