@@ -8,11 +8,10 @@
 - **Reference engine.** Give the agent any video you like (a file or a TikTok/Reel/YouTube link): it measures it locally (transcript, cuts, per-shot timing and motion, hook, pauses, music tempo, sound hits, on-screen text, look), cuts per-shot and per-join sheets, writes a frame-by-frame breakdown, and adds it to your bank in your words. Productions pick their references before the concept, are calibrated to them, and never repeat their lines. New `references` skill; `requirements.txt` adds yt-dlp, rapidocr and scipy.
 - **Likeness in your words.** A character based on a real person other than you goes ahead on your statement that they authorized it (`cast.mjs likeness <id> --kind real-person --said "..."`); the cast gate enforces it.
 
-## 2.7.0, 2026-10-22: launch films in any style, and the launch film on the landing
+## 2.7.0, 2026-10-22: launch films in any style
 
 - **Art styles for launch films.** Pick storybook, anime or photoreal (any bible style with a `launch` block, which says how real footage is graded into that world), or bring your own: `launch.mjs style-from-refs <slug> --name <id> --ref a.png --ref b.png --look "..." --negative "..." --said "..."` copies your images into the bible and sends them to every frame and character sheet. A style from references needs two or more images, a written look, a never-list, a footage treatment and your words; the visual identity is still approved with `studio.mjs approve-look`.
 - **The interview asks for the style** (or your reference images) along with the ICP, the pain and the CTA.
-- **Landing:** the Video Factory launch film now plays in the hero, in a big CRT inside the VHS box, muted until you press "Watch with sound".
 
 ## 2.6.1, 2026-10-22: every launch rule in code
 
@@ -40,7 +39,7 @@ A new vertical: a 30–35 s product launch film from a landing page or launch co
 
 ## 2.5.0, 2026-10-20: universal guided meditations
 
-Guided meditation videos for YouTube: a voice-over, a soundtrack and a looping image that shows the meditation's premise. Shipped as the landing's *Midnight Lake* preview.
+Guided meditation videos for YouTube: a voice-over, a soundtrack and a looping image that shows the meditation's premise.
 
 - **One engine, any intention.** `engine/lib/meditation.mjs` defines sleep, anxiety, higher self, manifestation, morning, self-love, breathwork and focus. Each intention sets the voice pace, pauses, voice share, music tempo, picture, ending and safety line. The script gate refuses a meditation without an intention and a premise, or a scene that doesn't show the premise. It also refuses faces or text in the picture, fast motion, off-tempo music, music with drums or vocals, and pauses that are too short.
 - **Bring your own material.** `longform.mjs script <slug> --file meditation.txt` keeps a written meditation word for word: it is split into breaths, and a blank line or `[pause 12]` sets the pauses. `longform.mjs image <slug> --file picture.png` animates your own picture. The music, voice, mix and loop are made for you.
@@ -48,11 +47,10 @@ Guided meditation videos for YouTube: a voice-over, a soundtrack and a looping i
 - **Loops that move.** Loops start from the still only, because asking for the same first and last frame froze the motion. Every loop's motion is measured, and a frozen one stops the build (**LOOP STATIC**).
 - **Demo mode** (15–30 s previews: voice by 1.5 s, short fades). **Dark screen** after N minutes for pieces that fade out. A **YouTube package** (`-youtube.md`) with a literal title, chapters and the AI note.
 - Build outputs no longer reopen an approved book; `studio.mjs new` turns a meditation of 30 s or less into a demo.
-- Landing: a wide CRT player for 16:9 tapes.
 
 ## 2.4.0, 2026-10-20: micro-dramas that hold together
 
-Everything learned shipping the landing's micro-drama sample, *Not the Father*, is now a gate or a check in code.
+Everything learned shipping a micro-drama is now a gate or a check in code.
 
 - **Coverage angles.** Anyone with close-ups in more than one scene gets one locked angle frame (`gen.mjs angles <slug>`) before the storyboards: the exact framing and background of all their close-ups. The board step refuses missing angles, or grids drawn before them; every storyboard and scene with that person's close-up gets the angle as a reference.
 - **Backgrounds across the whole film.** `studio.mjs qc` compares every close-up's background across scenes and fails a different wall, window or set dressing behind the same person. Inside a take, a fixed-camera shot whose background changes fails continuity, and a drift only in a silent tail is trimmed and judged again automatically.
