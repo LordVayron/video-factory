@@ -28,7 +28,8 @@ import * as F from "./lib/flow.mjs";
 import { identityCheck } from "./lib/identity.mjs";
 import { backgroundCheck } from "./lib/backgrounds.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
-import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm, needsOf, fitOf, NEEDS, FIT } from "./lib/pricing.mjs";
+import * as PR from "./lib/pricing.mjs";
+import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm, needsOf, NEEDS, testedModels, forTheJob, evidenceOf, recordFit, fitOf } from "./lib/pricing.mjs";
 import * as L from "./lib/launch.mjs";
 import * as CAM from "./lib/camera.mjs";
 
@@ -255,6 +256,18 @@ const commands = {
     console.log(`take ${n} of ${id} accepted in the creator's words; it is recorded in the Production Book.`);
   },
 
+  // A motion test, reviewed frame by frame, becomes evidence of how well that model does this video's need.
+  fit() {
+    const slug = pos[0], key = flag("--model"), fit = Number(flag("--fit")), note = flag("--note");
+    if (!slug || !key || !Number.isFinite(fit) || fit < 0 || fit > 10 || !note) throw new F.FlowStop('fit <slug> --model <k> --fit <0-10> --note "what the test showed"');
+    const sl = P.loadShotlist(slug);
+    if (!PR.testedModels(sl)[key]) throw new F.FlowStop(`${key} has no motion test in ${slug}: test it first (gen.mjs clip ${slug} --shot <id> --test --model ${key} --said "...")`);
+    const needs = needsOf(sl, (() => { try { return P.style(sl.style); } catch { return null; } })());
+    if (!needs.length) throw new F.FlowStop(`${slug} has no need to score (no people acting)`);
+    for (const n of needs) recordFit(n, key, fit, note, slug);
+    console.log(`evidence recorded: ${key} ${fit}/10 for ${needs.join(", ")} (${slug})`);
+  },
+
   override() {
     const [slug, step] = pos;
     F.override(slug, step, flag("--said"), flag("--reason"));
@@ -295,9 +308,18 @@ const commands = {
       else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
     });
     console.log(`Live prices from APIMart and Kie (each model on the cheaper provider; APIMart wins ties)${live.fetched ? " (just fetched)" : ` (${live.ageH.toFixed(1)} h old)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
-    if (needs.length) console.log(`This video needs: ${needs.map((n) => NEEDS[n]).join('; ')}. Models are ranked by how well they did that in tests first, then by price.
-`);
-    for (const o of options) { const w = measuredWpm(o.key); const fit = needs.length ? fitOf(o.key, needs) : undefined; console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (fast)" : ""}  ` : ""}${needs.length ? `fit ${fit ?? 'untested'}${fit != null ? ` (${needs.map((n) => FIT[n]?.[o.key]?.note).filter(Boolean).join('; ')})` : ''}  ` : ''}${o.note}`); }
+    const tested = testedModels(sl), job = forTheJob(options, needs);
+    const row = (o, tag) => { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} ${tag.padEnd(14)} $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (fast)" : ""}  ` : ""}${needs.length ? (evidenceOf(o.key, needs).map((e) => e.note).join("; ") || o.note) : o.note}`); };
+    if (needs.length) {
+      // Only models that do this job well are offered; untested ones are listed to try, poor ones are left out.
+      console.log(`This video needs: ${needs.map((n) => NEEDS[n]).join("; ")}.
+Good for this job (best first, then cheapest):`);
+      for (const o of [...job.good].sort((x, y) => y.fit - x.fit || x.credits - y.credits)) row(o, `fit ${o.fit}/10`);
+      if (!job.good.length) console.log("   none tested yet: test at least two candidates on one representative shot (gen.mjs clip --test)");
+      if (job.untested.length) { console.log("To test on this job (no evidence yet):"); for (const o of job.untested) row(o, `calidad ${o.q}/10`); }
+      if (job.poor.length) console.log(`Left out (did this job poorly in tests): ${job.poor.map((o) => `${o.key} ${o.fit}/10`).join(", ")}.`);
+      console.log(`Tested in this project: ${Object.keys(tested).join(", ") || "none yet"}. Record each test's fit after the review: studio.mjs fit ${slug} --model <k> --fit <0-10> --note "...".`);
+    } else for (const o of options) row(o, `calidad ${o.q}/10`);
     if (maxWpm && measuredWpm(pick.key) > maxWpm) console.log(`WARNING: ${pick.label} measured speaking at ${measuredWpm(pick.key)} wpm (max ${maxWpm}); tell the creator before the book.`);
     console.log(`\nRecommended (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Chosen: ${pick.label} ${pick.res}${want ? " (the creator's choice)" : ""}.`);
     if (fresh.length) console.log(`Models on Kie the engine doesn't use yet: ${fresh.join(", ")}. If one promises better quality or lower cost for this format, propose testing it.`);

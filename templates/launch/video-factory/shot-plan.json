@@ -69,7 +69,11 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "visualHook": {
+        "what": "the hand pulls a sticky idea card off a corkboard crammed with ideas",
+        "at": 0.5
+      }
     },
     {
       "id": "S2",
@@ -481,10 +485,17 @@
     }
   ],
   "musicBrief": {
+    "premise": "a creator with more ideas than time finds a studio that makes them",
     "emotion": "relief turning into excitement: the idea finally gets made",
-    "intent": "brand launch: make creators want a studio of their own",
-    "style": "light acoustic and pizzicato strings, playful and warm, matching a friendly storybook world",
+    "context": "an AI video studio for creators of every format, shown as a friendly storybook town",
     "narrator": "warm, fast and friendly; the music stays under the voice, no drums",
+    "approach": {
+      "instruments": "light acoustic and pizzicato strings, glockenspiel",
+      "tempo": "about 100 bpm",
+      "energy": "curious and a little tired, then gentle momentum, then a warm resolve",
+      "why": "a playful storybook world and a warm narrator ask for light, friendly color; the arc follows the creator from stuck to making"
+    },
+    "voiceRoom": "sparse under the lines, the melody moves in the gaps",
     "turns": [
       {
         "at": 0,
