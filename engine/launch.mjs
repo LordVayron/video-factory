@@ -244,7 +244,7 @@ const commands = {
     const pt = prevShot?.clips?.[prevShot.clip ?? prevShot.clips.length - 1];
     if (pt && fs.existsSync(P.abs(slug, pt.file))) {
       const pf = P.abs(slug, pt.file), a = Math.max(0, dur(pf) - 1), b = s.in ?? 0;
-      ff(["-ss", String(a), "-t", "1", "-i", pf, "-ss", String(b), "-t", "1", "-i", P.abs(slug, t.file), "-filter_complex", "[0:v]fps=6,scale=480:-2[a];[1:v]fps=6,scale=480:-2[b];[a][b]concat=n=2:v=1:a=0,tile=6x2", "-frames:v", "1", "-q:v", "3", joinSheet]);
+      ff(["-ss", String(a), "-t", "1", "-i", pf, "-ss", String(b), "-t", "1", "-i", P.abs(slug, t.file), "-filter_complex", "[0:v]fps=6,scale=480:270,setsar=1[a];[1:v]fps=6,scale=480:270,setsar=1[b];[a][b]concat=n=2:v=1:a=0,tile=6x2", "-frames:v", "1", "-q:v", "3", joinSheet]);
       console.log(`join with ${prevShot.id}: ${joinSheet}`);
     }
     const st = L.read(slug, "style") || {};
@@ -283,7 +283,11 @@ Then: launch.mjs review ${slug} --shot ${id} --ok "..." --motion "..." --join ".
 async function takeVoice(plan, lines, V) {
   const d = P.projectDir(slug);
   let k = 1; while (fs.existsSync(path.join(d, "audio", `narration-take-${k}.mp3`))) k++;
-  const text = lines.map((s) => s.vo.trim()).join(" ");
+  // shot.voDirection is the performance text sent to the voice (the line with delivery tags such as [softly]);
+  // the take is still checked against shot.vo word for word.
+  // take.paragraphs: each line goes to the voice as its own paragraph, so the model breathes between lines by
+  // itself inside one continuous generation (nothing is cut or spliced afterwards).
+  const text = lines.map((s) => (s.voDirection || s.vo).trim()).join((P.loadShotlist(slug).launch?.voice?.take || {}).paragraphs ? "\n\n" : " ");
   // --recut: the latest take again (the one the creator approved), only cut anew.
   if (has("--recut")) { if (k === 1) throw new F.FlowStop("no narration take to cut"); k--; }
   const take = path.join(d, "audio", `narration-take-${k}.mp3`);
@@ -291,10 +295,26 @@ async function takeVoice(plan, lines, V) {
   if (!has("--recut")) {
     const T = V.take || { model: "eleven_v3", settings: { stability: 0.5 } };
     await eleven.tts({ text, voice: V.eleven, model: T.model, settings: T.settings, out: take });
+    // take.tempo (< 1 slows down): some voice models ignore a speed setting, so the whole take is stretched evenly,
+    // pitch and formants kept, which preserves the one continuous performance.
+    if (T.tempo && T.tempo !== 1) {
+      const raw = take.replace(/\.mp3$/, "-raw.mp3");
+      fs.renameSync(take, raw);
+      ff(["-i", raw, "-af", `rubberband=tempo=${T.tempo}:pitchq=quality:formant=preserved`, "-c:a", "libmp3lame", "-q:a", "2", take]);
+    }
     P.ledger(slug, { ok: true, label: `narration take ${k}`, model: "elevenlabs-direct", credits: 0, chars: text.length, files: [P.rel(slug, take)] });
   }
   const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
-  const ws = REF.words(take, L.read(slug, "concepts")?.config?.language === "es" ? "es" : "en").map((w) => ({ ...w, n: norm(w.w) })).filter((w) => w.n);
+  const heard = REF.words(take, L.read(slug, "concepts")?.config?.language === "es" ? "es" : "en").map((w) => ({ ...w, n: norm(w.w) })).filter((w) => w.n);
+  // Whisper splits compound brand names ("Brandname" heard as "Brand name"): two adjacent heard words that join into a
+  // script word, when neither is one on its own, count as that one word.
+  const vocab = new Set(lines.flatMap((s) => s.vo.split(/\s+/).map(norm).filter(Boolean)));
+  const ws = [];
+  for (let x = 0; x < heard.length; x++) {
+    const a = heard[x], b = heard[x + 1];
+    if (b && !vocab.has(a.n) && vocab.has(a.n + b.n)) { ws.push({ ...a, ...(b.end != null ? { end: b.end } : {}), w: a.w + b.w, n: a.n + b.n }); x++; }
+    else ws.push(a);
+  }
   const spans = [];
   let at = 0;
   for (const s of lines) {
@@ -327,12 +347,17 @@ async function takeVoice(plan, lines, V) {
   if (short.length) throw new F.FlowStop(`with this take ${short.map((s) => `${s.id} dura ${s.duration.toFixed(2)} s`).join(", ")}; spread the text (a shot needs at least 1 s)`);
   P.writeJSON(L.fileOf(slug, "plan"), p2);
   const vo = {};
+  fs.mkdirSync(P.abs(slug, "audio/vo"), { recursive: true });
   for (const [i, x] of spans.entries()) {
     const out = P.abs(slug, `audio/vo/${x.s.id}.mp3`), s = p2.shots[i];
     const a = x.ca, b = x.cb;
     ff(["-i", take, "-af", `atrim=${a.toFixed(3)}:${b.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.02,afade=t=out:st=${Math.max(0, b - a - 0.03).toFixed(3)}:d=0.03`, "-c:a", "libmp3lame", "-q:a", "2", out]);
     // Each cut line is heard again: its first and last words must come out whole.
-    const want = x.s.vo.split(/\s+/).map(norm).filter(Boolean), got = REF.words(out, "en").map((w) => norm(w.w)).filter(Boolean);
+    const want = x.s.vo.split(/\s+/).map(norm).filter(Boolean), got = [];
+    for (const n of REF.words(out, "en").map((w) => norm(w.w)).filter(Boolean)) {
+      const prev = got.at(-1);
+      if (prev != null && !vocab.has(prev) && vocab.has(prev + n)) got[got.length - 1] = prev + n; else got.push(n);
+    }
     if (got[0] !== want[0] || got.at(-1) !== want.at(-1)) throw new F.FlowStop(`${x.s.id}: the cut sounds like "${got.join(" ")}" and the line is "${want.join(" ")}"; check the take`);
     const nx = p2.shots[i + 1];
     const room = +(((nx?.vo ? nx.start + nx.voAt : p2.durationSeconds - 0.3) - (s.start + s.voAt))).toFixed(2);
@@ -541,8 +566,9 @@ async function build(sl, mode) {
     return { y: mean(xs("YAVG")), s: mean(xs("SATAVG")) };
   });
   const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
-  const look = style.grade || { brightness: med(meas.map((x) => x.y)), saturation: med(meas.map((x) => x.s)) };
-  parts.forEach((p, i) => {
+  const look = (style.grade && style.grade !== false && style.grade) || { brightness: med(meas.map((x) => x.y)), saturation: med(meas.map((x) => x.s)) };
+  // style.grade false: the takes keep their own light (leveling to an average darkens bright, backlit shots).
+  if (style.grade !== false) parts.forEach((p, i) => {
     if (p.used?.card || p.used?.placeholder || p.used?.boards) return; // storyboard panels keep their drawing
     const b = Math.max(-0.25, Math.min(0.25, (look.brightness - meas[i].y) / 255)), sat = Math.max(0.7, Math.min(1.35, look.saturation / Math.max(1, meas[i].s)));
     if (Math.abs(b) < 0.01 && Math.abs(sat - 1) < 0.03) return;
@@ -609,9 +635,12 @@ async function build(sl, mode) {
   const events = [];
   for (const { ps } of parts) {
     for (const o of ps.text) {
-      const a = ps.start + o.at, b = ps.start + Math.min(o.until ?? ps.duration, ps.duration);
+      // The CTA on a logo shot enters with the logo: same start, same fade-in and grow (brand.logoIn).
+      const withLogo = o.kind === "cta" && ps.logo && style.brand.logo && style.brand.logoIn;
+      const a = withLogo ? ps.start + (ps.logoAt ?? 0) : ps.start + o.at, b = ps.start + Math.min(o.until ?? ps.duration, ps.duration);
       const pos = ALIGN[o.position] ?? 2, mv = o.position === "lower-third" ? `,0,0,${size(0.2)}` : ",0,0,0";
-      events.push(`Dialogue: 1,${assTime(a)},${assTime(b)},${o.kind},,${mv.slice(1)},,{\\an${pos}\\fad(120,120)}${assText(o.text)}`);
+      const ms = Math.round((style.brand.logoIn || 0) * 1000), anim = withLogo ? `\\fad(${ms},120)\\fscx90\\fscy90\\t(0,${ms},\\fscx100\\fscy100)` : "\\fad(120,120)";
+      events.push(`Dialogue: 1,${assTime(a)},${assTime(b)},${o.kind},,${mv.slice(1)},,{\\an${pos}${anim}}${assText(o.text)}`);
     }
     // No logo file: the brand name is set in the title style (deterministic, never a model's lettering).
     if (ps.logo && !style.brand.logo) events.push(`Dialogue: 1,${assTime(ps.start + (ps.logoAt ?? 0))},${assTime(ps.start + ps.duration)},brand,,0,0,${Math.round(H * 0.06)},,{\\an8\\fad(200,0)}${assText(style.brand.name)}`); // in the sky, above the picture's subject
@@ -679,7 +708,12 @@ async function build(sl, mode) {
   if (style.brand.logo && parts.some((p) => p.ps.logo)) {
     const k = add(P.abs(slug, style.brand.logo), ["-loop", "1"]);
     const on = parts.filter((p) => p.ps.logo).map((p) => `between(t,${(p.ps.start + (p.ps.logoAt ?? 0)).toFixed(3)},${(p.ps.start + p.ps.duration).toFixed(3)})`).join("+");
-    vchain.push(`[${k}:v]scale=${Math.round(W * 0.28)}:-1,format=rgba[logo]`, `${vin}[logo]overlay=x=(W-w)/2:y=(H-h)/2:shortest=1:enable='${on}'[vl]`);
+    // brand.logoWidth: the logo's width as a share of the frame (default 0.28).
+    // brand.logoIn: the logo's entrance, in seconds. It fades in from black while it grows from 90 % to its size.
+    const lw = Math.round(W * (style.brand.logoWidth || 0.28)), lin = style.brand.logoIn || 0;
+    const t0 = parts.find((p) => p.ps.logo); const at = t0 ? t0.ps.start + (t0.ps.logoAt ?? 0) : 0;
+    const grow = lin ? `scale=w='trunc(${lw}*(0.9+0.1*min(1,max(0,(t-${at.toFixed(3)})/${lin})))/2)*2':h=-2:eval=frame,fade=t=in:st=${at.toFixed(3)}:d=${lin}:alpha=1` : `scale=${lw}:-1`;
+    vchain.push(`[${k}:v]format=rgba,${grow}[logo]`, `${vin}[logo]overlay=x=(W-w)/2:y=H*${(style.brand.logoY || 0.5).toFixed(3)}-h/2:shortest=1:eval=frame:enable='${on}'[vl]`);
     vin = "[vl]";
   }
   vchain.push(`${vin}subtitles=out/_launch/text.ass${fontsdir},format=yuv420p[v]`);

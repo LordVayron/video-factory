@@ -542,7 +542,9 @@ export function approve(slug, id, said, extra = {}) {
       const spent = P.ledgerTotal(slug);
       const hard = sl.intake?.budget?.mode === "fixed" && sl.intake.budget.usd ? sl.intake.budget.usd / 0.005 : null;
       if (hard != null && spent + sl.bookEstimate > hard) throw new FlowStop(`the book (spent ${(spent * 0.005).toFixed(2)} + estimate ${(sl.bookEstimate * 0.005).toFixed(2)}) passes the fixed cap of ${sl.intake.budget.usd}: lower the model, the resolution or the length`);
-      sl.budget = { approvedCredits: Math.ceil(spent + sl.bookEstimate), approvedAt: new Date().toISOString(), history: [{ add: sl.bookEstimate, note: `Production Book approved: "${said.trim()}"` }] };
+      // A re-approved book never takes back headroom the creator already approved (top-ups or an earlier book).
+      const prev = sl.budget?.approvedCredits ?? 0, next = Math.max(Math.ceil(spent + sl.bookEstimate), prev);
+      sl.budget = { approvedCredits: next, approvedAt: new Date().toISOString(), history: [...(sl.budget?.history || []), { add: next - prev, note: `Production Book approved: "${said.trim()}"` }] };
     }
   });
 }

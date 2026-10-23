@@ -1,5 +1,59 @@
 [
  {
+  "model": "kling 4.0, keyframe-to-video, 1080P",
+  "type": "video",
+  "credits": 42.5,
+  "usd": 0.2125,
+  "unit": "per second",
+  "official": 0.235,
+  "page": "https://kie.ai/kling-4-0?model=kling-4.0%2Fkeyframe-to-video"
+ },
+ {
+  "model": "kling 4.0, keyframe-to-video, 720P",
+  "type": "video",
+  "credits": 28.5,
+  "usd": 0.1425,
+  "unit": "per second",
+  "official": 0.157,
+  "page": "https://kie.ai/kling-4-0?model=kling-4.0%2Fkeyframe-to-video"
+ },
+ {
+  "model": "kling 4.0, reference-to-video, 1080P with video input",
+  "type": "video",
+  "credits": 25.5,
+  "usd": 0.1275,
+  "unit": "per second",
+  "official": 0.141,
+  "page": "https://kie.ai/kling-4-0?model=kling-4.0%2Freference-to-video"
+ },
+ {
+  "model": "kling 4.0, reference-to-video, 720P with video input",
+  "type": "video",
+  "credits": 17,
+  "usd": 0.085,
+  "unit": "per second",
+  "official": 0.094,
+  "page": "https://kie.ai/kling-4-0?model=kling-4.0%2Freference-to-video"
+ },
+ {
+  "model": "kling 4.0, reference-to-video, 1080P no video input",
+  "type": "video",
+  "credits": 42.5,
+  "usd": 0.2125,
+  "unit": "per second",
+  "official": 0.235,
+  "page": "https://kie.ai/kling-4-0?model=kling-4.0%2Freference-to-video"
+ },
+ {
+  "model": "kling 4.0, reference-to-video, 720P no video input",
+  "type": "video",
+  "credits": 28.5,
+  "usd": 0.1425,
+  "unit": "per second",
+  "official": 0.157,
+  "page": "https://kie.ai/kling-4-0?model=kling-4.0%2Freference-to-video"
+ },
+ {
   "model": "Black Forest Labs Flux 3 Klein, image editing, 4K",
   "type": "image",
   "credits": 6.5,

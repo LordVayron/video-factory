@@ -74,7 +74,7 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
     .filter(([, , l]) => !/^\s*\/\//.test(l) && !DATA_ES.test(l) && /[áéíóúñ¿¡]/.test(l.replace(/\/\/.*$/, ""))).map(([f, i]) => `${f}:${i}`);
   t(`engine messages are in English (${spanish.slice(0, 5).join(", ") || "none"})`, !spanish.length);
   const { decide } = await import("./hooks/guard.mjs");
-  const commit = (m) => !!decide({ tool_name: "Bash", tool_input: { command: `git commit -m "${m}"` } });
+  const commit = (m) => !!decide({ tool_name: "Bash", tool_input: { command: `git commit -m "${m}"` } }, { branchOf: () => "feat" });
   const { FACTORY } = await import("./hooks/guard.mjs");
   if (FACTORY.length) {
     const on = (b, c) => !!decide({ tool_name: "Bash", tool_input: { command: c } }, { branchOf: () => b });

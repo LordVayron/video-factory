@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.11.0, 2026-10-23: characters that act, voices that breathe
+
+- **Characters that act.** A launch shot with people takes an `acting` direction (intention, reactions, body language). It lifts the style's "small actions" rule for that shot while faces, clothes, the set and every object stay locked, so painted characters feel alive instead of moving their mouths.
+- **The model fits the job.** `studio.mjs prices` reads what the video needs (painted characters that act, photoreal people) and ranks models by how well they did that job in side-by-side tests, then by price. Untested models are shown as untested and are never recommended over a proven fit.
+- **Voices that breathe.** `voDirection` sends delivery tags to the voice while the take is still checked word for word against the script; `take.paragraphs` gives every line its own paragraph so the narrator breathes inside one generation; `take.tempo` slows a whole take evenly. A brand name heard as two words ("Brand name") matches its one script word.
+- **Music designed from the film.** A launch with music needs a `musicBrief`: the emotion to evoke, the intent, the style, the narrator, and where the music turns on the script's lines. The launch template carries one.
+- **Motion tests before the book.** A test take can run before the Production Book (which requires one) inside its own capped allowance, raised per project in the creator's words; test takes are marked in the ledger, also when recovered.
+- **Logo and look.** `brand.logoWidth`, `brand.logoY` and `brand.logoIn` set the logo's size, height and fade-and-grow entrance, and the CTA enters with the logo. `style.grade: false` keeps each take's own light instead of leveling it to an average.
+- **Fixes.** Re-approving the book keeps the budget already approved. Take names are claimed atomically, so two jobs started at once never overwrite each other. The review join sheet works with takes of different heights; a chained frame copy keeps its `.png`; the voice folder is created before cutting; the commit-message test passes on `main`.
+
 ## 2.10.0, 2026-10-22: camera kits
 
 - **Camera kits.** Choose how a production is shot: 6 kits (film 35mm + Cooke, digital cinema + Zeiss, phone, anamorphic large format, 16mm vintage, IMAX landscape) built from 6 bodies, 8 lenses, 8 focal lengths and 4 apertures. The optics go into every still the video models start from (frames, storyboards, angle frames) and are held in each video prompt so the look stays.

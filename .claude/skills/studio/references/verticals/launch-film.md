@@ -194,6 +194,17 @@ Mode and visual style are separate choices. **Art styles:** any bible style with
 - automatic URL ingestion inside the engine (Claude reads the page and records the source);
 - A/B variants.
 
+## Characters that act, and the model that can (calibrated on a second launch film)
+
+- A shot with people gets an `acting` direction: intention, reactions to each other, body language. Without it, painted characters only move their mouths.
+- Pick the model by what the video needs, from side-by-side tests of the same shot, not by a general score. For painted characters that act, a stable image-to-video model with start and end frames that acts (Seedance 2.0 Fast in our tests) beat a stiff one (Kling 3.0) and an inventive one (Veo, which added a new character and moved hands out of their frames).
+- A shot chained to the previous one starts on that shot's real last frame (`frame: "@C5:last"`), not on a frame drawn apart.
+
+## Voice and music (calibrated on a second launch film)
+
+- One expressive take, never lines chopped and joined: `voDirection` for delivery, `take.paragraphs` for natural breaths. Measure pace and pauses against the reference before showing a take.
+- `musicBrief` first: emotion, intent, style, narrator, and turns on the script's lines; then the prompt. A launch is about momentum and inspiration, never sleepy; no drums under the narration, the rhythm can live in strings, piano or bass.
+
 ## Failure modes to watch
 
 - **Concepts that tell a story but don't launch the product** (2026-10-21, the first launch film: a tiny rental store, a night crew and a pop-up book were rejected as "not launch videos"). Every concept must present the product: what it is, who it's for (the real range of its users, not one narrow persona) and what it makes. A metaphor is good only when it carries those three. The product's own name is often the best metaphor.

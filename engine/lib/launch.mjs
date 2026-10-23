@@ -100,7 +100,7 @@ export const PlannedShot = z.object({
   source: z.enum(["generate", "still", "card"]),
   visual: str, subject: z.string().optional(), action: str, shotType: str, camera: str,
   composition: z.string().optional(), layers: z.string().optional(), continuity: z.array(z.string()).default([]),
-  vo: z.string().optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
+  vo: z.string().optional(), voDirection: z.string().optional(), acting: z.string().optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
   sfx: z.array(Sfx).default([]), music: z.enum(["low", "mid", "high"]).default("mid"),
   // The transition into this shot from the previous one (xfade names; "cut" or none is a hard cut).
   chain: z.enum(["exact", "same-set", "cut"]).optional(), pause: z.number().min(0).max(2).optional(), transitionAsked: z.object({ said: z.string().trim().min(2) }).optional(),
@@ -123,6 +123,9 @@ export const PlannedShot = z.object({
 export const ShotPlan = z.object({
   conceptId: z.string(), durationSeconds: z.number(), fps: z.number(), shots: z.array(PlannedShot).min(1),
   musicPrompt: z.string().optional(),
+  // The score is designed from the film, not picked by genre: the emotion to evoke, what the film is for, the style
+  // that fits its world and narrator, and where the music turns on the script's lines.
+  musicBrief: z.object({ emotion: z.string().min(3), intent: z.string().min(3), style: z.string().min(3), narrator: z.string().optional(), turns: z.array(z.object({ at: z.number().min(0), line: z.string().optional(), music: z.string().min(3) })).default([]) }).optional(),
   // The creator can waive the thread closing the film, in their words (when an idle thread in the last shot makes no sense).
   threadCloseWaived: z.object({ said: z.string().trim().min(2), reason: z.string().trim().min(2) }).optional(),
   // A narrated film is cut to its narration: one take, every line placed where it falls in that take.
@@ -136,12 +139,12 @@ export const StyleBible = z.object({
   negative: z.array(z.string()).min(3),
   characters: z.array(z.object({ id: z.string(), role: str, scale: z.string().optional(), props: z.array(z.string()).default([]) })).default([]),
   environments: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), name: str, layout: str, props: z.array(z.string()).default([]), ref: z.string().optional() })).min(1),
-  brand: z.object({ name: z.string().trim().min(1), logo: z.string().optional(), safeMargin: z.number().min(0.03).max(0.15).default(0.06), uiLabels: z.array(z.string()).default([]) }),
+  brand: z.object({ name: z.string().trim().min(1), logo: z.string().optional(), logoWidth: z.number().min(0.1).max(0.95).optional(), logoIn: z.number().min(0).max(3).optional(), logoY: z.number().min(0.2).max(0.8).optional(), safeMargin: z.number().min(0.03).max(0.15).default(0.06), uiLabels: z.array(z.string()).default([]) }),
   // One world and one thread (one place, and one recurring character or object leading every cut).
   world: z.string().optional(),
   thread: z.string().optional(),
   // The look every shot is graded to in the edit (mean brightness 0-255, mean saturation); omitted: the film's median.
-  grade: z.object({ brightness: z.number().min(60).max(235), saturation: z.number().min(4).max(60) }).optional(),
+  grade: z.union([z.literal(false), z.object({ brightness: z.number().min(60).max(235), saturation: z.number().min(4).max(60) })]).optional(),
   // World continuity: how a recurring thing always behaves (otherwise it can move one way in one shot and the
   // opposite way in the next). Every shot that shows the subject restates the rule in its prompt or motion.
   continuity: z.array(z.object({ subject: z.string(), rule: z.string() })).default([]),
@@ -353,6 +356,9 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const at = (r) => roles.lastIndexOf(r);
   if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("the outcome comes after the brand; the brand closes");
   if (cfg?.music && !plan.musicPrompt?.trim()) out.push("the film has music and the plan has no musicPrompt");
+  if (cfg?.music && !plan.musicBrief) out.push("the film has music and no musicBrief: write the emotion to evoke, the intent, the style and where the music turns on the script before the musicPrompt");
+  else if (cfg?.music && plan.musicBrief.turns.length < 2) out.push("musicBrief.turns: tie at least two turns of the music to the script's lines (at = seconds)");
+  else if (cfg?.music) for (const t of plan.musicBrief.turns) if (t.at > plan.durationSeconds) out.push(`musicBrief: a turn at ${t.at} s is past the film's end`);
   // Every launch film rule is checked here, for any video model.
   // ONE CONTINUOUS STORY: two shots in the same place are one set. "exact" starts on the previous shot's drawn last
   // frame (gen.mjs frame copies it, free); "same-set" is drawn from the previous shot's frame, same framing.
@@ -428,11 +434,16 @@ export function framePrompt(st, look, s, cast = []) {
     `Never: ${[...st.negative, s.negative].filter(Boolean).join(", ")}.`, "No text, no letters, no numbers, no logos anywhere in the frame.",
     s.inserts?.length ? `Exactly ${s.inserts.length} screen${s.inserts.length > 1 ? "s" : ""}, each filled edge to edge with one flat solid bright green (#00FF00), no reflections, no glare, nothing drawn on ${s.inserts.length > 1 ? "them" : "it"}; nothing else in the picture is green.` : ""].filter(Boolean).join(" ");
 }
+// shot.acting: a performance direction for the people in the shot. The style's "small actions" rule makes people
+// stiff, so with acting the people move fully and naturally while the set, objects and identities stay locked.
 export function clipPromptOf(st, motionRule, s) {
-  return [s.motion.trim().replace(/\.?$/, "."), s.end ? `The shot ends exactly on the last frame image: ${s.end.trim().replace(/\.?$/, ".")}` : "",
+  const acting = s.acting?.trim();
+  return [s.motion.trim().replace(/\.?$/, "."), acting ? `Acting: ${acting.replace(/\.?$/, ".")} The people are fully alive, like real actors in a real conversation: expressive faces, real reactions to each other, natural breathing, weight shifts, head turns and hand gestures with intention; never a frozen pose or a mouth that only moves.` : "",
+    s.end ? `The shot ends exactly on the last frame image: ${s.end.trim().replace(/\.?$/, ".")}` : "",
     `Camera: ${s.camera}.`, s.still?.length ? `These stay exactly as they are and do not move: ${s.still.join("; ")}.` : "",
-    "Only what is described moves. Nobody and nothing appears, disappears, multiplies, sinks into the ground or slides out of the frame unless described; no people, hands or creatures that are not described.",
-    motionRule || "", `Keep the exact drawing style, line, palette and characters of the first frame; ${st.camera}.`,
+    acting ? "The set, the frames and every object move only as described. Nobody and nothing appears, disappears, multiplies or slides out of the frame; no people, hands or creatures that are not described; faces, hair and clothes never change."
+      : "Only what is described moves. Nobody and nothing appears, disappears, multiplies, sinks into the ground or slides out of the frame unless described; no people, hands or creatures that are not described.",
+    acting ? "" : motionRule || "", `Keep the exact drawing style, line, palette and characters of the first frame; ${st.camera}.`,
     "No text, no letters, no logos. No cuts inside the shot. No dialogue: nobody speaks."].filter(Boolean).join(" ");
 }
 export function toShots(plan, st, styleDef, cast = []) {
