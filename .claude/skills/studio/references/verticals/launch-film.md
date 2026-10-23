@@ -16,7 +16,7 @@ Measured with `launch.mjs reference <slug> --file <video>` (whisper transcript, 
 | Cuts | hard cuts motivated by the hand or the object | slides, a circle wipe | only `cut` or `fade` ≤ 0.35 s |
 | Look | brightness 187, saturation 15, one flat high-key light | 114–152, light changed to golden hour | one time of day (the style bible's); the editor **levels every shot** to `style.grade` or the film's median |
 | Proof | the product drawn inside the world (chat bubbles, documents) | photoreal clips in the TVs | real footage gets the **storybook treatment** (warm grade, softer saturation, paper grain) |
-| Mix | 2.9 dB across 2 s windows | 10 dB | **≤ 6 dB** (editor QC); music without drums under a narration; gentle ducking |
+| Mix | 2.9 dB across 2 s windows | 10 dB | **≤ 6 dB** (editor QC); the score leaves room for the voice (`musicBrief.voiceRoom`); gentle ducking |
 
 ## The reference, and what we take from it
 
@@ -194,16 +194,20 @@ Mode and visual style are separate choices. **Art styles:** any bible style with
 - automatic URL ingestion inside the engine (Claude reads the page and records the source);
 - A/B variants.
 
-## Characters that act, and the model that can (calibrated on a second launch film)
+## Characters that act, and the model for the job
 
-- A shot with people gets an `acting` direction: intention, reactions to each other, body language. Without it, painted characters only move their mouths.
-- Pick the model by what the video needs, from side-by-side tests of the same shot, not by a general score. For painted characters that act, a stable image-to-video model with start and end frames that acts (Seedance 2.0 Fast in our tests) beat a stiff one (Kling 3.0) and an inventive one (Veo, which added a new character and moved hands out of their frames).
-- A shot chained to the previous one starts on that shot's real last frame (`frame: "@C5:last"`), not on a frame drawn apart.
+- A shot with people gets an `acting` direction: intention, reactions to each other, body language. Without it, characters only move their mouths.
+- Name what the film asks of the model (people who act, photoreal people, camera motion). The pick is the best model for that job first, then the cheapest of the best. Fit comes from reviewed side-by-side tests of the same shot, recorded per need (`studio.mjs fit`); `studio.mjs prices` offers only models good for the job, then the untested ones to try. With no evidence for the need yet, compare at least two candidates before the book.
+- A shot chained to the previous one starts on that shot's real last frame (`frame: "@<shot>:last"`), not on a frame drawn apart.
 
-## Voice and music (calibrated on a second launch film)
+## Voice and music
 
 - One expressive take, never lines chopped and joined: `voDirection` for delivery, `take.paragraphs` for natural breaths. Measure pace and pauses against the reference before showing a take.
-- `musicBrief` first: emotion, intent, style, narrator, and turns on the script's lines; then the prompt. A launch is about momentum and inspiration, never sleepy; no drums under the narration, the rhythm can live in strings, piano or bass.
+- The score is derived, never picked from a genre: `musicBrief` analyzes the premise, the emotion to evoke, the product or story context and the narrator, then sets the approach (instruments, tempo, energy curve) and why it fits, how it leaves room for the voice (`voiceRoom`), and the turns on the script's lines. Every film finds its own answer.
+
+## Visual hook
+
+- The first shot names its `visualHook`: something that happens on screen by 3 s and makes people look (an action, a change, a surprise). A camera moving over a scene is not a hook, and the narration does not replace it.
 
 ## Failure modes to watch
 

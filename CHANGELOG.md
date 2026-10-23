@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.11.1, 2026-10-23: decide per video
+
+- **The best model for the job, then the cheapest of the best.** `studio.mjs prices` names what the video needs (characters that act, photoreal people) and recommends from reviewed side-by-side tests recorded per need (`studio.mjs fit`, kept in `engine/data/model-fit.json`). The table offers only models good for that job, then the untested ones to try. With no evidence for the need yet, the book waits for two models tested on one shot.
+- **Music derived from the film.** `musicBrief` now asks for the analysis (premise, emotion, context, narrator) and the approach it leads to (instruments, tempo, energy and why), plus how the score leaves room for the voice (`voiceRoom`), which replaces the drum ban under a narration. No genre or tempo is prescribed.
+- **A visual hook in the first 3 seconds.** A launch plan's first shot names what happens on screen by 3 s; a camera move alone is refused.
+- **Docs.** The 2.11.0 launch recipe and notes carried one film's results (a model ranking, a music direction); they now describe the method.
+
 ## 2.11.0, 2026-10-23: characters that act, voices that breathe
 
 - **Characters that act.** A launch shot with people takes an `acting` direction (intention, reactions, body language). It lifts the style's "small actions" rule for that shot while faces, clothes, the set and every object stay locked, so painted characters feel alive instead of moving their mouths.

@@ -16,6 +16,7 @@ import { planCheck } from "./state.mjs";
 import * as L from "./launch.mjs";
 import * as MS from "./modelsheet.mjs";
 import * as RF from "./refs.mjs";
+import * as PR from "./pricing.mjs";
 import * as CAM from "./camera.mjs";
 
 // What each format films and how. "scenes": multi-shot generations from storyboard grids (sitcom pipeline).
@@ -334,6 +335,12 @@ function bookCheck(sl) {
   // with the video in front of them, or waives the test in their words.
   if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && !(sl.shots || []).some((s) => (s.clips || []).some((c) => c.test && c.model === sl.defaults?.videoModel)))
     return no(`no motion test on ${sl.defaults?.videoModel || "the chosen model"} (gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", or launch.mjs waive-test <slug> --said "...")`);
+  // People acting and no model with evidence of doing that job well yet: two candidates are compared on it.
+  const tested = Object.keys(PR.testedModels(sl));
+  const needs = PR.needsOf(sl, (() => { try { return P.style(sl.style); } catch { return null; } })());
+  const proven = needs.length && (sl.priceCheck?.options || []).some((o) => (PR.fitOf(o.key, needs) ?? 0) >= PR.GOOD_FIT);
+  if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && needs.length && !proven && tested.length < 2)
+    return no(`people act in this film: compare at least two models on one shot before the book (tested: ${tested.join(", ") || "none"}), or waive it in the creator's words`);
   if (sl.bookEstimate == null) return no("the book has no cost estimate");
   return ok(`estimado ${sl.bookEstimate} cr`);
 }

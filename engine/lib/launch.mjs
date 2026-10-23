@@ -100,7 +100,7 @@ export const PlannedShot = z.object({
   source: z.enum(["generate", "still", "card"]),
   visual: str, subject: z.string().optional(), action: str, shotType: str, camera: str,
   composition: z.string().optional(), layers: z.string().optional(), continuity: z.array(z.string()).default([]),
-  vo: z.string().optional(), voDirection: z.string().optional(), acting: z.string().optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
+  vo: z.string().optional(), voDirection: z.string().optional(), acting: z.string().optional(), visualHook: z.object({ what: z.string().min(10), at: z.number().min(0) }).optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
   sfx: z.array(Sfx).default([]), music: z.enum(["low", "mid", "high"]).default("mid"),
   // The transition into this shot from the previous one (xfade names; "cut" or none is a hard cut).
   chain: z.enum(["exact", "same-set", "cut"]).optional(), pause: z.number().min(0).max(2).optional(), transitionAsked: z.object({ said: z.string().trim().min(2) }).optional(),
@@ -123,9 +123,9 @@ export const PlannedShot = z.object({
 export const ShotPlan = z.object({
   conceptId: z.string(), durationSeconds: z.number(), fps: z.number(), shots: z.array(PlannedShot).min(1),
   musicPrompt: z.string().optional(),
-  // The score is designed from the film, not picked by genre: the emotion to evoke, what the film is for, the style
-  // that fits its world and narrator, and where the music turns on the script's lines.
-  musicBrief: z.object({ emotion: z.string().min(3), intent: z.string().min(3), style: z.string().min(3), narrator: z.string().optional(), turns: z.array(z.object({ at: z.number().min(0), line: z.string().optional(), music: z.string().min(3) })).default([]) }).optional(),
+  // The score is derived, never picked from a list: the premise, the emotion to evoke, the product or story
+  // context and the narrator lead to an approach (instruments, tempo, energy) that says why it fits this film.
+  musicBrief: z.object({ premise: z.string().min(3), emotion: z.string().min(3), context: z.string().min(3), narrator: z.string().optional(), approach: z.object({ instruments: z.string().min(3), tempo: z.string().min(1), energy: z.string().min(3), why: z.string().min(10) }), voiceRoom: z.string().optional(), turns: z.array(z.object({ at: z.number().min(0), line: z.string().optional(), music: z.string().min(3) })).default([]) }).optional(),
   // The creator can waive the thread closing the film, in their words (when an idle thread in the last shot makes no sense).
   threadCloseWaived: z.object({ said: z.string().trim().min(2), reason: z.string().trim().min(2) }).optional(),
   // A narrated film is cut to its narration: one take, every line placed where it falls in that take.
@@ -293,7 +293,8 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   // The brand ending breathes: at least 3.5 s on screen.
   const end = plan.shots.at(-1);
   if (end.role === "brand" && end.duration < 3.5) out.push(`${end.id}: the brand ending lasts ${end.duration.toFixed(2)} s (min 3.5 s so it can breathe)`);
-  if (cfg?.voiceover && cfg?.music && /\b(drums?|kick|snare|hi-?hats?|beat|hip hop|trap|breakbeat)\b/i.test(plan.musicPrompt || "") && !/\bno (drums|percussion|beat)\b/i.test(plan.musicPrompt || "")) out.push("the music has drums or a beat and competes with the narration; ask for the same vibe without drums (no drums)");
+  // A score under a narration says how it leaves room for the voice; what that takes depends on the film.
+  if (cfg?.voiceover && cfg?.music && plan.musicBrief && !plan.musicBrief.voiceRoom?.trim()) out.push("musicBrief.voiceRoom: say how the music leaves room for the narration (density, register, dynamics under the lines)");
   // Exact text is composited by the engine, never drawn by the video or image model.
   for (const s of plan.shots) {
     if (/"[^"]{2,}"|“[^”]{2,}”/.test(s.prompt)) out.push(`${s.id}: the prompt asks for quoted text; the engine composites exact text (shot.text), not the model`);
@@ -356,7 +357,7 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const at = (r) => roles.lastIndexOf(r);
   if (at("outcome") > -1 && at("brand") > -1 && at("outcome") > at("brand")) out.push("the outcome comes after the brand; the brand closes");
   if (cfg?.music && !plan.musicPrompt?.trim()) out.push("the film has music and the plan has no musicPrompt");
-  if (cfg?.music && !plan.musicBrief) out.push("the film has music and no musicBrief: write the emotion to evoke, the intent, the style and where the music turns on the script before the musicPrompt");
+  if (cfg?.music && !plan.musicBrief) out.push("the film has music and no musicBrief: analyze the premise, the emotion to evoke, the context and the narrator, derive the approach (instruments, tempo, energy and why), and tie its turns to the script before the musicPrompt");
   else if (cfg?.music && plan.musicBrief.turns.length < 2) out.push("musicBrief.turns: tie at least two turns of the music to the script's lines (at = seconds)");
   else if (cfg?.music) for (const t of plan.musicBrief.turns) if (t.at > plan.durationSeconds) out.push(`musicBrief: a turn at ${t.at} s is past the film's end`);
   // Every launch film rule is checked here, for any video model.
@@ -394,6 +395,11 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   for (const s of plan.shots) if (s.source === "generate" && acts(s.motion || "").length > 3) out.push(`${s.id}: more than three actions in one shot; one defined action per shot (split it)`);
   // THE FIRST SECOND HOOKS.
   const f0 = plan.shots[0];
+  // The eye decides before the ear: the opening shows something happen in the first 3 s (an action, a change,
+  // a surprise on screen), not only a camera moving over a scene.
+  if (f0 && !f0.visualHook) out.push(`${f0.id}: name the visual hook (visualHook: what happens on screen, at ≤ 3 s) that makes people look`);
+  else if (f0 && f0.visualHook.at > 3) out.push(`${f0.id}: the visual hook lands at ${f0.visualHook.at} s; it has to land in the first 3 s`);
+  else if (f0 && /^\s*(the )?camera\b/i.test(f0.visualHook.what) && !/\b(and|while|as)\b/i.test(f0.visualHook.what)) out.push(`${f0.id}: a camera move alone is not a visual hook; something in the picture has to happen`);
   if (f0 && !["hook", "friction", "problem"].includes(f0.role)) out.push(`${f0.id}: the first shot hooks (role hook, friction or problem), not ${f0.role}`);
   if (f0?.vo && f0.voAt > 0.5) out.push(`${f0.id}: the voice comes in at ${f0.voAt} s; the first second hooks (max 0.5 s)`);
   for (const s of plan.shots) for (const x of s.sfx) { const n = typeof x === "string" ? x : x.name; if (!plan.sfx[n]) out.push(`${s.id}: the effect "${n}" is not defined in plan.sfx`); }

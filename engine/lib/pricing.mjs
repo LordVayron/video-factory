@@ -163,23 +163,13 @@ export function recordSpeechRate(key, wpm, slug) {
   fs.writeFileSync(RATES, JSON.stringify(all, null, 2) + "\n");
 }
 
-// What the video asks of the model, beyond general quality. A general score hides the job: a model that is
-// stable but stiff, or lively but inventive, fails a film whose people must act.
+// What the video asks of the model, beyond general quality. A general score hides the job, so each need keeps the
+// evidence of every side-by-side test on it (engine/data/model-fit.json, one entry per project that tested it).
+// The recommendation is the best model for the job first and the cheapest of the best second; the options shown
+// are only those that did the job well, plus the untested ones to try.
 export const NEEDS = {
   "stylized-acting": "illustrated or painted characters that act: real reactions, gestures and faces, without new people appearing",
   "photoreal-humans": "photoreal people who read as real on camera",
-};
-// How well each model does each need, 0-10, from side-by-side tests of the same shot. Missing = untested.
-export const FIT = {
-  "stylized-acting": {
-    "sd2-fast": { fit: 9, note: "alive and stable: laughter, reactions and gestures; same faces; frames and hands stay in place" },
-    veo: { fit: 6, note: "the most alive, but hands leave their frame and marks fade" },
-    "veo-fast": { fit: 3, note: "alive, but invents a new character and shifts the frames" },
-    kling3: { fit: 4, note: "stable, but the acting stays stiff and surface level" },
-  },
-  "photoreal-humans": {
-    veo: { fit: 10, note: "the only one that read as real in A/B tests" },
-  },
 };
 // The needs of a project: its style (photoreal or not) and whether people act in its shots.
 export function needsOf(sl, style) {
@@ -188,19 +178,49 @@ export function needsOf(sl, style) {
   const photo = /hyperreal|photo/i.test(`${style?.id || sl.style || ""} ${style?.kind || ""}`);
   return [photo ? "photoreal-humans" : "stylized-acting"];
 }
-export function fitOf(key, needs) {
-  const xs = needs.map((n) => FIT[n]?.[key]?.fit ?? null);
-  return xs.some((x) => x == null) ? null : Math.min(...xs);
+const FITS = path.join(ROOT, "engine", "data", "model-fit.json");
+const readFits = () => { try { return JSON.parse(fs.readFileSync(FITS, "utf8")); } catch { return {}; } };
+// Fit 0-10 of a model for the video's needs: the median of its tests on each need, the weakest need deciding.
+export function fitOf(key, needs, fits = readFits()) {
+  const per = needs.map((n) => { const xs = (fits[n]?.[key] || []).map((e) => e.fit).sort((a, b) => a - b); return xs.length ? xs[Math.floor(xs.length / 2)] : null; });
+  return per.some((x) => x == null) ? null : Math.min(...per);
+}
+export const evidenceOf = (key, needs, fits = readFits()) => needs.flatMap((n) => fits[n]?.[key] || []);
+// A test seen and scored (after the frame-by-frame review) becomes evidence for that need.
+export function recordFit(need, key, fit, note, slug) {
+  const all = readFits();
+  all[need] ||= {};
+  all[need][key] = [...(all[need][key] || []).filter((e) => e.slug !== slug), { fit, slug, at: new Date().toISOString().slice(0, 10), note }];
+  fs.mkdirSync(path.dirname(FITS), { recursive: true });
+  fs.writeFileSync(FITS, JSON.stringify(all, null, 2) + "\n");
+}
+// Good for the job: fit 7 or more. Untested: no evidence yet (shown to be tested, never recommended over a good one).
+export const GOOD_FIT = 7;
+export function forTheJob(options, needs, fits = readFits()) {
+  if (!needs.length) return { good: options, untested: [], poor: [] };
+  const good = [], untested = [], poor = [];
+  for (const o of options) { const f = fitOf(o.key, needs, fits); (f == null ? untested : f >= GOOD_FIT ? good : poor).push({ ...o, fit: f }); }
+  return { good, untested, poor };
 }
 
-export function recommend(options, { format, budget, baseline, maxWpm = null, needs = [] }) {
-  // The video's needs come first: among models tested on them, only those that do the job well (7+) are
-  // candidates; untested models are shown to be tested, never recommended over a proven fit.
+// The models this project has tested on a shot (motion tests), with the take each one made.
+export function testedModels(sl) {
+  const out = {};
+  for (const s of sl.shots || []) for (const c of s.clips || []) if (c.test && c.model) (out[c.model] ||= []).push({ shot: s.id, file: c.file });
+  return out;
+}
+
+export function recommend(options, { format, budget, baseline, maxWpm = null, needs = [], fits }) {
+  // First the best for the job, then the cheapest of the best: among models good for the need, those within one
+  // point of the best fit, cheapest first (budget "max" takes the best fit).
   if (needs.length) {
-    const fits = options.filter((o) => (fitOf(o.key, needs) ?? 0) >= 7);
-    if (fits.length) options = fits;
+    const { good } = forTheJob(options, needs, fits);
+    if (good.length) {
+      const top = Math.max(...good.map((o) => o.fit)), tier = good.filter((o) => o.fit >= top - 1);
+      return budget?.mode === "max" ? tier.sort((a, b) => b.fit - a.fit || a.credits - b.credits)[0] : tier.sort((a, b) => a.credits - b.credits)[0];
+    }
   }
-  const floor = needs.length && options.every((o) => (fitOf(o.key, needs) ?? 0) >= 7) ? 0 : Math.max(FLOOR[format] ?? 7, QUALITY[baseline]?.q ?? 0);
+  const floor = Math.max(FLOOR[format] ?? 7, QUALITY[baseline]?.q ?? 0);
   const byCost = (a, b) => a.credits - b.credits;
   // A model measured speaking faster than the format allows is never recommended while another one fits.
   const paced = maxWpm ? options.filter((o) => !(measuredWpm(o.key) > maxWpm)) : options;
