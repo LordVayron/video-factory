@@ -479,5 +479,28 @@
         "said": "(sample) the creator's exact words that asked for or approved this go here"
       }
     }
-  ]
+  ],
+  "musicBrief": {
+    "emotion": "relief turning into excitement: the idea finally gets made",
+    "intent": "brand launch: make creators want a studio of their own",
+    "style": "light acoustic and pizzicato strings, playful and warm, matching a friendly storybook world",
+    "narrator": "warm, fast and friendly; the music stays under the voice, no drums",
+    "turns": [
+      {
+        "at": 0,
+        "line": "You have the idea. You just don't have the crew.",
+        "music": "curious and a little tired"
+      },
+      {
+        "at": 6,
+        "line": "Then a little studio opens on your desk.",
+        "music": "momentum starts: glockenspiel and soft rhythm"
+      },
+      {
+        "at": 23.5,
+        "line": "You direct. Video Factory makes it real.",
+        "music": "warm resolve and a bright bell sting"
+      }
+    ]
+  }
 }

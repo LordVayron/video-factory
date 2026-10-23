@@ -28,7 +28,7 @@ import * as F from "./lib/flow.mjs";
 import { identityCheck } from "./lib/identity.mjs";
 import { backgroundCheck } from "./lib/backgrounds.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
-import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm } from "./lib/pricing.mjs";
+import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm, needsOf, fitOf, NEEDS, FIT } from "./lib/pricing.mjs";
 import * as L from "./lib/launch.mjs";
 import * as CAM from "./lib/camera.mjs";
 
@@ -282,18 +282,22 @@ const commands = {
     // Speaking formats outside the sitcom are held to the edit's 175 wpm: a model measured faster is not recommended.
     // A launch film's takes are silent (the voice-over is ElevenLabs), so the model's speaking rate doesn't apply.
     const maxWpm = kind !== "longform" && !["sitcom", "launch"].includes(sl.format) ? 175 : null;
-    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm });
+    // What this video asks of the model (painted characters acting, photoreal people...) ranks before price.
+    const needs = needsOf(sl, (() => { try { return P.style(sl.style); } catch { return null; } })());
+    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm, needs });
     const want = flag("--pick");
     const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
     if (!pick) throw new F.FlowStop(`--pick ${want} is not among the options: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
     const fresh = newFamilies(live.rows);
     sl = P.updateShotlist(slug, (x) => {
-      x.priceCheck = { at: now(), seconds: secs, fetched: live.fetched, warning: live.warning || null, options: options.slice(0, 10), recommended: rec, pick, picked: want ? "creator" : "recommended", newOnKie: fresh };
+      x.priceCheck = { at: now(), needs, seconds: secs, fetched: live.fetched, warning: live.warning || null, options: options.slice(0, 10), recommended: rec, pick, picked: want ? "creator" : "recommended", newOnKie: fresh };
       if (kind === "longform") { x.longform.videoModel = pick.key; x.longform.res = pick.res; }
       else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
     });
     console.log(`Live prices from APIMart and Kie (each model on the cheaper provider; APIMart wins ties)${live.fetched ? " (just fetched)" : ` (${live.ageH.toFixed(1)} h old)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
-    for (const o of options) { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (fast)" : ""}  ` : ""}${o.note}`); }
+    if (needs.length) console.log(`This video needs: ${needs.map((n) => NEEDS[n]).join('; ')}. Models are ranked by how well they did that in tests first, then by price.
+`);
+    for (const o of options) { const w = measuredWpm(o.key); const fit = needs.length ? fitOf(o.key, needs) : undefined; console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} calidad ${String(o.q).padStart(2)}/10  $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (fast)" : ""}  ` : ""}${needs.length ? `fit ${fit ?? 'untested'}${fit != null ? ` (${needs.map((n) => FIT[n]?.[o.key]?.note).filter(Boolean).join('; ')})` : ''}  ` : ''}${o.note}`); }
     if (maxWpm && measuredWpm(pick.key) > maxWpm) console.log(`WARNING: ${pick.label} measured speaking at ${measuredWpm(pick.key)} wpm (max ${maxWpm}); tell the creator before the book.`);
     console.log(`\nRecommended (${sl.intake?.budget?.mode || "cheapest"}): ${rec.label} ${rec.res}, $${rec.usd}. Chosen: ${pick.label} ${pick.res}${want ? " (the creator's choice)" : ""}.`);
     if (fresh.length) console.log(`Models on Kie the engine doesn't use yet: ${fresh.join(", ")}. If one promises better quality or lower cost for this format, propose testing it.`);

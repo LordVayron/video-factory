@@ -163,8 +163,44 @@ export function recordSpeechRate(key, wpm, slug) {
   fs.writeFileSync(RATES, JSON.stringify(all, null, 2) + "\n");
 }
 
-export function recommend(options, { format, budget, baseline, maxWpm = null }) {
-  const floor = Math.max(FLOOR[format] ?? 7, QUALITY[baseline]?.q ?? 0);
+// What the video asks of the model, beyond general quality. A general score hides the job: a model that is
+// stable but stiff, or lively but inventive, fails a film whose people must act.
+export const NEEDS = {
+  "stylized-acting": "illustrated or painted characters that act: real reactions, gestures and faces, without new people appearing",
+  "photoreal-humans": "photoreal people who read as real on camera",
+};
+// How well each model does each need, 0-10, from side-by-side tests of the same shot. Missing = untested.
+export const FIT = {
+  "stylized-acting": {
+    "sd2-fast": { fit: 9, note: "alive and stable: laughter, reactions and gestures; same faces; frames and hands stay in place" },
+    veo: { fit: 6, note: "the most alive, but hands leave their frame and marks fade" },
+    "veo-fast": { fit: 3, note: "alive, but invents a new character and shifts the frames" },
+    kling3: { fit: 4, note: "stable, but the acting stays stiff and surface level" },
+  },
+  "photoreal-humans": {
+    veo: { fit: 10, note: "the only one that read as real in A/B tests" },
+  },
+};
+// The needs of a project: its style (photoreal or not) and whether people act in its shots.
+export function needsOf(sl, style) {
+  const people = (sl.shots || []).some((s) => (s.characters || []).length || s.acting);
+  if (!people) return [];
+  const photo = /hyperreal|photo/i.test(`${style?.id || sl.style || ""} ${style?.kind || ""}`);
+  return [photo ? "photoreal-humans" : "stylized-acting"];
+}
+export function fitOf(key, needs) {
+  const xs = needs.map((n) => FIT[n]?.[key]?.fit ?? null);
+  return xs.some((x) => x == null) ? null : Math.min(...xs);
+}
+
+export function recommend(options, { format, budget, baseline, maxWpm = null, needs = [] }) {
+  // The video's needs come first: among models tested on them, only those that do the job well (7+) are
+  // candidates; untested models are shown to be tested, never recommended over a proven fit.
+  if (needs.length) {
+    const fits = options.filter((o) => (fitOf(o.key, needs) ?? 0) >= 7);
+    if (fits.length) options = fits;
+  }
+  const floor = needs.length && options.every((o) => (fitOf(o.key, needs) ?? 0) >= 7) ? 0 : Math.max(FLOOR[format] ?? 7, QUALITY[baseline]?.q ?? 0);
   const byCost = (a, b) => a.credits - b.credits;
   // A model measured speaking faster than the format allows is never recommended while another one fits.
   const paced = maxWpm ? options.filter((o) => !(measuredWpm(o.key) > maxWpm)) : options;

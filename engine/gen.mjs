@@ -82,15 +82,20 @@ function mediaDuration(file) {
 // finished result instead of paying for it again.
 // A job the engine refuses before anything reaches Kie (BUDGET / PROMPT / DIALOGUE STOP) leaves no lock behind:
 // an empty lock means "a task may be in flight" to recover() (two stale locks after a budget stop).
+// Credits all motion tests of a project may spend before the Production Book is approved (1 credit = $0.005).
+const TEST_CAP = 200;
+
 async function job(args) {
   try { return await jobRun(args); } catch (e) {
     const lock = `${args.outBase}.lock`;
     if (/STOP/.test(e.message) && fs.existsSync(lock) && fs.statSync(lock).size === 0) fs.unlinkSync(lock);
     throw e;
+  } finally {
+    fs.rmSync(`${args.outBase}.reserve`, { force: true });
   }
 }
 
-async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
+async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test = false }) {
   const m = getModel(modelKey);
   let caps = () => {};
   // PROVIDERS: cost() is the cheapest provider's live price (APIMart first, Kie second); the job goes there.
@@ -107,10 +112,16 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
     // every paid job of the project, images and sheets included, before and after the book.
     const hard = sl0.intake?.budget?.mode === "fixed" && sl0.intake.budget.usd ? sl0.intake.budget.usd / 0.005 : null;
     const cap = sl0.budget?.approvedCredits;
-    if (cap == null && !["image", "voice"].includes(m.kind)) throw new FlowStop(`BUDGET STOP: "${label}" (${m.label}) needs the budget that approving the Production Book locks.`);
+    // A motion test comes before the book (the book needs it), so it can't wait for the book's budget: with the
+    // creator's words (clip --test --said) tests get their own small allowance, TEST_CAP credits for all of them.
+    const testSpent = () => P.readJSON(path.join(P.PROJECTS, slug, "ledger.json"), []).reduce((n, e) => n + (e.ok && e.test ? e.credits || 0 : 0), 0);
+    if (cap == null && !["image", "voice"].includes(m.kind) && !test) throw new FlowStop(`BUDGET STOP: "${label}" (${m.label}) needs the budget that approving the Production Book locks.`);
     // Checked again at the new price when a job moves from APIMart to Kie.
     caps = (cr, held = 0) => {
       if (hard != null && P.ledgerTotal(slug) + (inFlight.get(slug) || 0) - held + cr > hard + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the project's hard cap of ${sl0.intake.budget.usd} (spent ${(P.ledgerTotal(slug) * 0.005).toFixed(2)}).`);
+      // sl.testCap { usd, said }: the creator can raise this project's test allowance in their own words.
+      const tcap = sl0.testCap?.said && sl0.testCap?.usd ? sl0.testCap.usd / 0.005 : TEST_CAP;
+      if (cap == null && test && testSpent() + (inFlight.get(slug) || 0) - held + cr > tcap + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the ${(tcap * 0.005).toFixed(2)} USD allowed for motion tests before the book (spent ${(testSpent() * 0.005).toFixed(2)}).`);
       if (cap != null) {
         const spent = P.ledgerTotal(slug) + (inFlight.get(slug) || 0) - held;
         if (spent + cr > cap + 0.5) throw new Error(`BUDGET STOP: "${label}" costs ${cr.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
@@ -150,11 +161,11 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register }) {
     });
     ({ taskId, provider } = sent);
     fs.mkdirSync(path.dirname(lock), { recursive: true });
-    fs.writeFileSync(lock, JSON.stringify({ taskId, provider, slug, modelKey, credits, label, outBase: path.relative(ROOT, outBase), ext, register }));
+    fs.writeFileSync(lock, JSON.stringify({ taskId, provider, slug, modelKey, credits, label, outBase: path.relative(ROOT, outBase), ext, register, ...(test ? { test: true } : {}) }));
     const { urls, usd: charged } = await PV.wait(provider, taskId, { label });
     try {
       // The ledger keeps what the provider says it charged when it says (APIMart does), else the estimate.
-      return await finish({ slug, modelKey, credits: charged != null ? charged / 0.005 : credits, label, outBase, ext, register, taskId, urls, provider });
+      return await finish({ slug, modelKey, credits: charged != null ? charged / 0.005 : credits, label, outBase, ext, register, taskId, urls, provider, test });
     } catch (e) {
       // Kie already billed this task; keep the lock so "recover" downloads it instead of paying again.
       keepLock = true;
@@ -175,7 +186,7 @@ const inFlight = new Map();
 // Some models return extras (Suno returns cover art next to the audio): keep only the asked-for kind.
 const KIND = { ".mp3": /\.(mp3|wav|m4a|ogg)(\?|$)/i, ".mp4": /\.(mp4|mov)(\?|$)/i, ".png": /\.(png|jpe?g|webp)(\?|$)/i };
 
-async function finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls, provider = "kie" }) {
+async function finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls, provider = "kie", test = false }) {
   // APIMart links may carry no extension: filter by kind only when that keeps something.
   if (ext && KIND[ext]) { const k = urls.filter((u) => KIND[ext].test(new URL(u).pathname)); if (k.length) urls = k; else urls = urls.slice(0, 1); }
   const files = [];
@@ -185,7 +196,7 @@ async function finish({ slug, modelKey, credits, label, outBase, ext, register, 
     await PV.download(urls[k], f);
     files.push(f);
   }
-  P.ledger(slug, { ok: true, label, model: modelKey, provider, credits: +(+credits).toFixed(2), taskId, files: files.map((f) => path.relative(ROOT, f)) });
+  P.ledger(slug, { ok: true, label, model: modelKey, provider, credits: +(+credits).toFixed(2), taskId, ...(test ? { test: true } : {}), files: files.map((f) => path.relative(ROOT, f)) });
   if (register) {
     P.updateShotlist(slug, (x) => {
       const t = P.findItem(x, register.shot);
@@ -255,11 +266,18 @@ const pickShots = (sl) => {
   const want = flag("--shots");
   return want ? want.split(",").map((id) => P.shot(sl, id.trim())) : sl.shots;
 };
+// Two jobs started at the same moment would see the same free number, so a name is claimed atomically with a
+// .reserve file (only one process can create it); job() removes the claim when the job ends.
 const nextName = (dir, base, ext) => {
-  let k = 1;
+  fs.mkdirSync(dir, { recursive: true });
   const taken = (b) => fs.existsSync(b + ext) || fs.existsSync(b + "-1" + ext) || fs.existsSync(b + ".lock");
-  while (taken(path.join(dir, `${base}-${k}`))) k++;
-  return path.join(dir, `${base}-${k}`);
+  for (let k = 1; ; k++) {
+    const b = path.join(dir, `${base}-${k}`);
+    if (taken(b)) continue;
+    // A claim left by a job that died (older than 6 h, nothing written) is free again.
+    try { const r = b + ".reserve"; if (fs.existsSync(r) && Date.now() - fs.statSync(r).mtimeMs > 6 * 36e5) fs.rmSync(r, { force: true }); } catch {}
+    try { fs.closeSync(fs.openSync(b + ".reserve", "wx")); return b; } catch (e) { if (e.code !== "EEXIST") throw e; }
+  }
 };
 
 // --------------------------------------------------------------- commands
@@ -550,8 +568,9 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const i0 = sl.shots.indexOf(s), prev = sl.shots[i0 - 1];
     if (sl.format === "launch" && which === "first" && s.chain === "exact") {
       if (!prev?.last) throw new FlowStop(`${id} starts on ${prev?.id}'s last frame; draw that frame first (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
-      const out = nextName(P.abs(slug, "frames"), `${id}-first`, ".png");
+      const base = nextName(P.abs(slug, "frames"), `${id}-first`, ".png"), out = base + ".png";
       fs.copyFileSync(P.abs(slug, prev.last), out);
+      fs.rmSync(base + ".reserve", { force: true });
       P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.frame = P.rel(slug, out); t.firstPrompt = prompt; t.frameFrom = `${prev.id}:last`; });
       return console.log(`${out} (${prev.id}'s last frame, free)`);
     }
@@ -617,7 +636,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         prompt: P.clipPrompt(sl, s), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: test && flag("--secs") ? Number(flag("--secs")) : s.duration,
         frame: await PV.upload(first), lastFrame: s.last ? await PV.upload(P.abs(slug, s.last)) : undefined, ...(silent ? { sound: false } : {}),
       };
-      const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} take`, ext: ".mp4" });
+      const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} ${test ? "motion test" : "take"}`, ext: ".mp4", test });
       console.log("filmed", P.rel(slug, out));
       P.updateShotlist(slug, (x) => {
         const t = P.shot(x, id);

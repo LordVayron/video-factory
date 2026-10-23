@@ -19,7 +19,12 @@ export default function checkFlow(t, ROOT) {
   for (const [f, step] of [["gen.mjs", 'requireStep(sl, "film", "gen clip")'], ["gen.mjs", 'requireStep(sl, "board", "gen storyboard")'], ["edit.mjs", "requireStep(sl, draft"], ["cut.mjs", "requireStep(sl, draft"], ["radio.mjs", 'requireStep(sl, "radio"'], ["animatic.mjs", 'requireStep(sl, "board"'], ["longform.mjs", 'requireStep(sl, "edit"'], ["book.mjs", "F.requireStep(sl"]])
     t(`${f} is gated (${step.slice(0, 40)})`, engine(f).includes(step));
   t("job() refuses projects outside flow v5", engine("gen.mjs").includes("assertV5(sl0)"));
-  t("job() refuses video spend without the locked budget", engine("gen.mjs").includes('if (cap == null && !["image", "voice"].includes(m.kind)) throw'));
+  t("the model recommendation follows the video's needs before price (painted characters acting)", (() => { const o = [{ key: "kling3", q: 8, credits: 80, usd: 0.4 }, { key: "sd2-fast", q: 7, credits: 150, usd: 0.74 }, { key: "veo", q: 10, credits: 250, usd: 1.25 }]; return recommend(o, { format: "launch", budget: { mode: "cheapest" }, needs: ["stylized-acting"] })?.key === "sd2-fast" && PR.needsOf({ shots: [{ characters: ["a"] }], style: "painted" }, { kind: "custom" })[0] === "stylized-acting"; })());
+  t("a launch film with music needs a music brief tied to the script", (() => { const src = fs.readFileSync(path.join(ROOT, "engine", "lib", "launch.mjs"), "utf8"); return src.includes("musicBrief: z.object") && src.includes("no musicBrief"); })());
+  t("re-approving the book keeps the budget the creator already approved", engine("lib/flow.mjs").includes("next = Math.max(Math.ceil(spent + sl.bookEstimate), prev)"));
+  t("two jobs started at once claim different file names (atomic .reserve)", engine("gen.mjs").includes('fs.openSync(b + ".reserve", "wx")') && engine("gen.mjs").includes('fs.rmSync(`${args.outBase}.reserve`'));
+  t("job() refuses video spend without the locked budget", engine("gen.mjs").includes('if (cap == null && !["image", "voice"].includes(m.kind) && !test) throw'));
+  t("a motion test before the book is capped and marked test in the ledger", /const TEST_CAP = \d+;/.test(engine("gen.mjs")) && engine("gen.mjs").includes("cap == null && test && testSpent()") && engine("gen.mjs").includes("...(test ? { test: true } : {})"));
 
   const slug = `_check-${process.pid}`, d = path.join(P.PROJECTS, slug);
   try {
