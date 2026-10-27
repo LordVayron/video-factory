@@ -27,6 +27,8 @@ const LIVE = {
   veo: { re: "veo 3.1, image-to-video, Quality-{res}", per: 8 },
   grok: { re: "grok-imagine, image-to-video, {res}", per: "second" },
   kling3: { re: "Kling 3.0, video, with audio-{res}", per: "second" },
+  pixverse6: { re: "pixverse-v6, transition, {res}(no audio)", per: "second" },
+  "minimax-h3": { re: "MiniMax H3, image to video, 768p", per: "second" },
 };
 
 // Quality on a 10-point scale, from the studio's own A/B tests where there is one, and what each is best at.
@@ -42,13 +44,15 @@ export const QUALITY = {
   "veo-lite": { q: 6, note: "cheapest Veo; visibly weaker faces (A/B)" },
   "sd2-mini": { q: 6, note: "the sitcom's model: cheap multi-shot scenes; fine at 480p broadcast look" },
   grok: { q: 5, note: "very cheap, audio always on" },
+  pixverse6: { q: 6, note: "first+last frame transition, billed per exact second, very cheap; quality to be measured" },
+  "minimax-h3": { q: 6, note: "first+last frame, cheap, audio always on (dropped in the edit); quality to be measured" },
 };
 
 // What each kind of format needs from the model: multi-shot scenes from references, first/last-frame clips, or loops.
 const CAN = {
   scenes: ["sd2-mini", "sd2-fast", "sd2", "sd2.5", "wan3", "wan3-prime"],
-  clips: ["veo", "veo-fast", "veo-lite", "kling3", "sd2-mini", "sd2-fast", "sd2", "sd2.5", "grok"],
-  longform: ["sd2-mini", "sd2-fast", "sd2", "sd2.5", "kling3", "veo", "veo-fast", "veo-lite"],
+  clips: ["veo", "veo-fast", "veo-lite", "kling3", "sd2-mini", "sd2-fast", "sd2", "sd2.5", "grok", "wan3", "wan3-prime", "pixverse6", "minimax-h3"],
+  longform: ["sd2-mini", "sd2-fast", "sd2", "sd2.5", "kling3", "veo", "veo-fast", "veo-lite", "wan3", "pixverse6", "minimax-h3"],
 };
 // The lowest quality each format accepts. Photoreal talking humans need the top tier: in A/B tests only
 // Veo 3.1 Quality read as real.
@@ -94,7 +98,8 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function liveRow(rows, key, res) {
   const L = LIVE[key];
   if (!L) return null;
-  const re = new RegExp(esc(L.re).replace("\\{res\\}", esc(res)) + "\\b", "i");
+  // No word boundary after a closing ")" (it can never match one).
+  const re = new RegExp(esc(L.re).replace("\\{res\\}", esc(res)) + (/\w$/.test(L.re) ? "\\b" : ""), "i");
   return rows.find((r) => r.type === "video" && re.test(r.model)) || null;
 }
 
@@ -139,10 +144,105 @@ function apimartOffer(key, { res, seconds, clips }) {
 }
 
 // What Kie sells that the engine can't run yet (one line per family), so new models get noticed.
+// Every Kie video family the engine doesn't run, avatars and lip-sync included (research decides what they're for).
+export function allNewFamilies(rows) {
+  const known = Object.values(LIVE).map((l) => l.re.split(",")[0].toLowerCase());
+  const fam = new Set(rows.filter((r) => r.type === "video").map((r) => r.model.split(/[,(]/)[0].trim()));
+  return [...fam].filter((f) => !known.some((k) => f.toLowerCase().includes(k.replace(/^google /, ""))) && !/upscal/i.test(f)).sort();
+}
 export function newFamilies(rows) {
   const known = Object.values(LIVE).map((l) => l.re.split(",")[0].toLowerCase());
   const fam = new Set(rows.filter((r) => r.type === "video").map((r) => r.model.split(/[,(]/)[0].trim()));
   return [...fam].filter((f) => !known.some((k) => f.toLowerCase().includes(k.replace(/^google /, ""))) && !/upscal|avatar|infinitetalk|lip|motion control|extend|animate|speech to video/i.test(f)).sort();
+}
+
+// MODEL RESEARCH: every video model the providers sell is researched from its documentation before any production
+// picks a model, whether or not the engine runs it yet; a pick limited to the models the engine already knows missed
+// newer, better ones. One profile per family in engine/data/model-research.json, refreshed every RESEARCH_DAYS.
+const RESEARCH = path.join(ROOT, "engine", "data", "model-research.json");
+export const RESEARCH_DAYS = 60;
+export const readResearch = () => { try { return JSON.parse(fs.readFileSync(RESEARCH, "utf8")); } catch { return {}; } };
+const USES = ["general", "avatar", "lip-sync", "edit", "extend", "upscale", "effects"];
+export function researchProblems(p) {
+  const out = [];
+  if (!p?.family) return ["no family"];
+  if (!/^https?:\/\//.test(p.docs || "")) out.push(`${p.family}: the documentation URL it was read from (docs)`);
+  if (!p.inputs || typeof p.inputs !== "object") out.push(`${p.family}: inputs (text, firstFrame, lastFrame, refImages, refVideo, audio)`);
+  if (typeof p.audioOut !== "boolean") out.push(`${p.family}: audioOut (does it make sound)`);
+  if (!(p.maxSecs > 0)) out.push(`${p.family}: maxSecs`);
+  if (!Array.isArray(p.resolutions) || !p.resolutions.length) out.push(`${p.family}: resolutions`);
+  if (!(p.usdPerSec >= 0)) out.push(`${p.family}: usdPerSec (the live price)`);
+  if (!USES.includes(p.use)) out.push(`${p.family}: use (${USES.join(", ")})`);
+  if (!["candidate", "not-for"].includes(p.verdict)) out.push(`${p.family}: verdict (candidate or not-for)`);
+  if (!Array.isArray(p.fits)) out.push(`${p.family}: fits (the formats it can serve; empty when not-for)`);
+  if (!p.why?.trim() || p.why.trim().length < 20) out.push(`${p.family}: why (the reason for the verdict, from the docs)`);
+  return out;
+}
+export function recordResearch(profiles) {
+  const all = readResearch(), bad = profiles.flatMap(researchProblems);
+  if (bad.length) throw new Error(`model research incomplete: ${bad.join("; ")}`);
+  for (const p of profiles) all[p.family] = { ...p, checkedAt: new Date().toISOString().slice(0, 10) };
+  fs.mkdirSync(path.dirname(RESEARCH), { recursive: true });
+  fs.writeFileSync(RESEARCH, JSON.stringify(all, null, 2) + "\n");
+  return Object.keys(all).length;
+}
+// APIMart's whole video catalog, from its docs index (cached a day).
+const CATALOG = path.join(ROOT, "engine", "data", "apimart-catalog.json");
+export async function apimartCatalog({ maxAgeH = 24 } = {}) {
+  let cached = null;
+  try { cached = JSON.parse(fs.readFileSync(CATALOG, "utf8")); } catch {}
+  if (cached && (Date.now() - Date.parse(cached.at)) / 36e5 <= maxAgeH) return cached.models;
+  try {
+    const models = await apimart.catalog();
+    fs.mkdirSync(path.dirname(CATALOG), { recursive: true });
+    fs.writeFileSync(CATALOG, JSON.stringify({ at: new Date().toISOString(), models }, null, 1) + "\n");
+    return models;
+  } catch { return cached?.models || []; }
+}
+// The APIMart pages the engine already runs on APIMart.
+const APIMART_RUN = /videos\/(seedance-2-0|seedance-2-5|wan3\.0-video|veo3|grok-imagine|kling-v3)\/generation\.md$/;
+// Every video family on sale at either provider that the engine doesn't run: Kie's price list and APIMart's docs.
+export function catalogFamilies(rows, cat = []) {
+  const kie = allNewFamilies(rows);
+  const am = cat.filter((c) => !APIMART_RUN.test(c.docs)).map((c) => `APIMart: ${c.title}`);
+  return [...new Set([...kie, ...am])];
+}
+// Families on sale that have no fresh profile.
+export function researchGaps(rows, cat = []) {
+  const r = readResearch();
+  return catalogFamilies(rows, cat).filter((f) => !r[f] || Date.now() - Date.parse(r[f].checkedAt) > RESEARCH_DAYS * 864e5);
+}
+// LIVE CATALOG CHECK, at the start of every project: both catalogs and every price fetched fresh (no cache). It
+// reports models that appeared since the last research (they block the book until researched) and every price that
+// moved, and updates the researched prices, so a production never starts on a stale picture of the market.
+const perSecond = (d, key) => (key && (d.resolution_paid_prices?.[key] ?? d.billing_tier_paid_prices?.[key])) ?? d.paid_price ?? Math.min(...Object.values(d.resolution_paid_prices || { x: Infinity }));
+export async function liveCatalogCheck() {
+  let before = [];
+  try { before = JSON.parse(fs.readFileSync(FILE, "utf8")); } catch {}
+  const live = await livePrices({ maxAgeH: 0 });
+  const cat = await apimartCatalog({ maxAgeH: 0 });
+  const research = readResearch(), changes = [];
+  // Prices of the models the engine runs (Kie's feed, line by line).
+  const was = new Map(before.filter((r) => r.type === "video").map((r) => [r.model, r.usd]));
+  for (const r of live.rows.filter((x) => x.type === "video")) if (was.has(r.model) && Math.abs(was.get(r.model) - r.usd) > 0.0005) changes.push({ model: r.model, was: was.get(r.model), now: r.usd, unit: r.unit });
+  // Prices of the researched families.
+  for (const [fam, p] of Object.entries(research)) {
+    let now = null;
+    if (p.apimartId) { try { now = perSecond(await apimart.fetchPrice(p.apimartId), p.priceKey); } catch {} }
+    else if (!fam.startsWith("APIMart: ")) {
+      const rs = live.rows.filter((x) => x.type === "video" && x.model.split(/[,(]/)[0].trim() === fam && /second/.test(x.unit));
+      if (rs.length) now = Math.min(...rs.map((x) => x.usd));
+    }
+    if (now != null && isFinite(now) && Math.abs(now - p.usdPerSec) > 0.0005) { changes.push({ model: fam, was: p.usdPerSec, now, unit: "per second" }); research[fam] = { ...p, usdPerSec: now, priceAt: new Date().toISOString().slice(0, 10) }; }
+  }
+  if (changes.some((c) => research[c.model])) fs.writeFileSync(RESEARCH, JSON.stringify(research, null, 2) + "\n");
+  return { at: new Date().toISOString(), fetched: live.fetched, warning: live.warning || null, catalog: cat.length, newModels: researchGaps(live.rows, cat), priceChanges: changes };
+}
+
+// Researched families the engine doesn't run yet that could serve this format.
+export function researchCandidates(rows, format, cat = []) {
+  const r = readResearch();
+  return catalogFamilies(rows, cat).map((f) => r[f]).filter((p) => p && p.verdict === "candidate" && (p.fits || []).includes(format));
 }
 
 // budget: { mode: "cheapest" | "fixed" | "max", usd }. baseline: the model the style was approved with; the

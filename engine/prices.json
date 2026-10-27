@@ -1,5 +1,122 @@
 [
  {
+  "model": "gpt-6-1-terra, chat, Cache Writes",
+  "type": "chat",
+  "credits": 75,
+  "usd": 0.375,
+  "unit": "per million tokens",
+  "official": 1.25,
+  "page": "https://kie.ai/gpt-6-1-terra"
+ },
+ {
+  "model": "gpt-6-1-terra, chat, output",
+  "type": "chat",
+  "credits": 300,
+  "usd": 1.5,
+  "unit": "per million tokens",
+  "official": 5,
+  "page": "https://kie.ai/gpt-6-1-terra"
+ },
+ {
+  "model": "gpt-6-1-terra, chat, Cached Input",
+  "type": "chat",
+  "credits": 3,
+  "usd": 0.015,
+  "unit": "per million tokens",
+  "official": 0.05,
+  "page": "https://kie.ai/gpt-6-1-terra"
+ },
+ {
+  "model": "gpt-6-1-terra, chat, Input",
+  "type": "chat",
+  "credits": 60,
+  "usd": 0.3,
+  "unit": "per million tokens",
+  "official": 1,
+  "page": "https://kie.ai/gpt-6-1-terra"
+ },
+ {
+  "model": "omnihuman-2-0, avatar video, 720p",
+  "type": "video",
+  "credits": 14,
+  "usd": 0.07,
+  "unit": "per second",
+  "official": 0.07,
+  "page": "https://kie.ai/omnihuman-2-0?model=omnihuman-2-0"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 360p(no audio)",
+  "type": "video",
+  "credits": 4.8,
+  "usd": 0.024,
+  "unit": "per second",
+  "official": 0.0267,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 360p(with audio)",
+  "type": "video",
+  "credits": 7.2,
+  "usd": 0.036,
+  "unit": "per second",
+  "official": 0.04,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 540p(no audio)",
+  "type": "video",
+  "credits": 7.2,
+  "usd": 0.036,
+  "unit": "per second",
+  "official": 0.04,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 540p(with audio)",
+  "type": "video",
+  "credits": 8.8,
+  "usd": 0.044,
+  "unit": "per second",
+  "official": 0.0489,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 720p(no audio)",
+  "type": "video",
+  "credits": 8.8,
+  "usd": 0.044,
+  "unit": "per second",
+  "official": 0.0489,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 720p(with audio)",
+  "type": "video",
+  "credits": 12,
+  "usd": 0.06,
+  "unit": "per second",
+  "official": 0.0667,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 1080p(no audio)",
+  "type": "video",
+  "credits": 17.6,
+  "usd": 0.088,
+  "unit": "per second",
+  "official": 0.0978,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
+  "model": "pixverse-v6-max, Text /Image to Video, 1080p(with audio)",
+  "type": "video",
+  "credits": 22.4,
+  "usd": 0.112,
+  "unit": "per second",
+  "official": 0.1244,
+  "page": "https://kie.ai/pixverse-v6-max?model=pixverse-v6-max%2Fimage-to-video"
+ },
+ {
   "model": "kling 4.0, keyframe-to-video, 1080P",
   "type": "video",
   "credits": 42.5,
@@ -2572,24 +2689,6 @@
   "unit": "per million tokens",
   "official": 5,
   "page": "https://kie.ai/claude-opus-4.8"
- },
- {
-  "model": "Gemini 3.5 Flash, chat, output",
-  "type": "chat",
-  "credits": 540,
-  "usd": 2.7,
-  "unit": "per million tokens",
-  "official": 9,
-  "page": "https://kie.ai/gemini-3-5-flash"
- },
- {
-  "model": "Gemini 3.5 Flash, chat, input",
-  "type": "chat",
-  "credits": 90,
-  "usd": 0.45,
-  "unit": "per million tokens",
-  "official": 1.5,
-  "page": "https://kie.ai/gemini-3-5-flash"
  },
  {
   "model": "gemini-omni-video, video, 6s 4k no video input",
@@ -5281,24 +5380,6 @@
   "unit": "per image",
   "official": 0.08,
   "page": "https://kie.ai/topaz-image-upscale"
- },
- {
-  "model": "Gemini 2.5 Pro, Chat, Output",
-  "type": "chat",
-  "credits": 600,
-  "usd": 3,
-  "unit": "per million tokens",
-  "official": 10,
-  "page": "https://kie.ai/gemini-2.5-pro"
- },
- {
-  "model": "Gemini 2.5 Pro, Chat, Input",
-  "type": "chat",
-  "credits": 76,
-  "usd": 0.38,
-  "unit": "per million tokens",
-  "official": 1.25,
-  "page": "https://kie.ai/gemini-2.5-pro"
  },
  {
   "model": "kling 2.6 motion control, video to video, 1080P",

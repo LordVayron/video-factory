@@ -29,6 +29,29 @@ export default function checkLaunch(t, ROOT) {
   t("launch: a prompt that asks the model for exact text is blocked (the editor composites text)", L.planRules(lettered, { brief, concepts }).some((x) => /quoted text/.test(x)));
   // ---- every launch film rule
   const R = (p) => L.planRules(p, { brief, concepts, style: { ...style, thread: "sample-founder" } }).join(" | ");
+  // What the product does not do, and what every film must say (the creator's words in the brief).
+  {
+    const b2 = structuredClone(brief); delete b2.doesNot;
+    t("launch: the brief must record what the product does NOT do (an empty list is an answer)", L.briefRules(b2).some((x) => /does NOT do/.test(x)));
+    const b3 = structuredClone(brief); b3.doesNot = [{ what: "it doesn't make clips", words: ["clips"] }];
+    const p3 = structuredClone(plan); p3.shots[1].vo = "It cuts your clips for you.";
+    t("launch: a script line that promises a feature the product lacks is refused", L.planRules(p3, { brief: b3, concepts }).some((x) => /promises something the product doesn't do/.test(x)));
+    const b4 = structuredClone(brief); b4.mustSay = [{ what: "it streams live", words: ["streams live", "live"] }];
+    t("launch: a point the creator said every film must make is required in the script", L.planRules(plan, { brief: b4, concepts }).some((x) => /never says "it streams live"/.test(x)));
+  }
+  // Set maps: every screen states what it shows; a screen insert opens on green in the timeline.
+  {
+    const st2 = structuredClone(style), desk = st2.environments.find((e) => e.id === "desk");
+    desk.map.items.push({ name: "the monitor", at: "center of the desk" });
+    t("launch: a screen in the set map with no state is refused", L.styleRules(st2, { plan }).some((x) => /is a screen with no state/.test(x)));
+    desk.map.items.at(-1).state = "its screen shows a dark desktop";
+    const p2 = structuredClone(plan); p2.shots[1].inserts = [{ file: "x.mp4", from: 0 }];
+    t("launch: a shot with a screen insert needs a screen that turns green at its first frame", L.styleRules(st2, { plan: p2 }).some((x) => /has a screen insert/.test(x)));
+    desk.map.items.at(-1).changes = [{ from: "S2:first", state: "its screen is filled with flat bright green" }, { from: "S3:first", state: "its screen shows a dark desktop" }];
+    t("launch: a screen timeline that turns green for the insert passes", !L.styleRules(st2, { plan: p2 }).some((x) => /has a screen insert|screen with no state/.test(x)));
+    desk.map.items.at(-1).state = "black until he goes live";
+    t("launch: a conditional screen state is refused (an image shows one moment)", L.styleRules(st2, { plan: p2 }).some((x) => /conditional state/.test(x)));
+  }
   const unchained = structuredClone(plan); delete unchained.shots[1].chain;
   t("launch: two shots in the same place must be chained (exact last frame or the same set)", /chain it/.test(R(unchained)));
   const exactNoEnd = structuredClone(plan); exactNoEnd.shots[1].chain = "exact"; delete exactNoEnd.shots[0].end;
@@ -67,10 +90,12 @@ export default function checkLaunch(t, ROOT) {
   fs.writeFileSync(path.join(tmpStyle, "refs", "a.png"), "x");
   const cst = { id: "_c", kind: "custom", dir: tmpStyle, refs: ["refs/a.png"], look: "short", negative: "", launch: null, madeFrom: {} };
   const bad = L.customStyleRules(cst);
-  fs.writeFileSync(path.join(tmpStyle, "refs", "b.png"), "x");
-  const good = L.customStyleRules({ ...cst, refs: ["refs/a.png", "refs/b.png"], look: "flat bold shapes, thick black outline, two-tone shading, grainy risograph texture, warm noon light, shallow depth", negative: "3D, photorealism, text", launch: { insertTreatment: "none" }, madeFrom: { said: "check" } });
+  for (const n of ["b", "c", "d"]) fs.writeFileSync(path.join(tmpStyle, "refs", `${n}.png`), "x");
+  const creatorOnly = L.customStyleRules({ ...cst, refs: ["refs/a.png", "refs/b.png"], look: "flat bold shapes, thick black outline, two-tone shading, grainy risograph texture, warm noon light, shallow depth", negative: "3D", launch: { insertTreatment: "none" }, madeFrom: { said: "check" } });
+  const good = L.customStyleRules({ ...cst, refs: ["refs/a.png", "refs/b.png", "refs/c.png", "refs/d.png"], generated: ["refs/a.png", "refs/b.png", "refs/c.png", "refs/d.png"], look: "flat bold shapes, thick black outline, two-tone shading, grainy risograph texture, warm noon light, shallow depth", negative: "3D, photorealism, text", launch: { insertTreatment: "none" }, madeFrom: { said: "check" } });
   fs.rmSync(tmpStyle, { recursive: true, force: true });
   t("launch: a style from the creator's references needs 2+ images, a written look, a never-list, a footage treatment and their words", bad.length >= 4 && !good.length);
+  t("launch: a custom style never sends the creator's own images to the model (only originals made for it)", creatorOnly.some((x) => /creator's own images/.test(x)));
   const src = (f) => fs.readFileSync(path.join(ROOT, "engine", ...f.split("/")), "utf8");
   t("launch: chain exact copies the previous shot's last frame as the first frame (free) and same-set draws from it", src("gen.mjs").includes('s.chain === "exact"') && src("gen.mjs").includes("The same set as the first reference image"));
   t("launch: the editor measures every chain exact join (SSIM) and fails a jump", src("launch.mjs").includes("the join with") && src("launch.mjs").includes('"-lavfi", "ssim"'));
@@ -134,6 +159,8 @@ export default function checkLaunch(t, ROOT) {
     const cp = L.clipPromptOf(L.StyleBible.parse(style), "", L.PlannedShot.parse({ ...plan.shots[0], end: "the card rests in the tray", still: ["the window"] }));
     t("launch: the animation prompt carries the end frame, the still list and 'nothing appears or disappears'", /ends exactly on the last frame/.test(cp) && /the window/.test(cp) && /appears, disappears/.test(cp));
   }
+  const brandFirst = structuredClone(plan); brandFirst.shots[0].vo = `${brief.product.name} is here. ` + brandFirst.shots[0].vo;
+  t("launch: the first line opens on the pain, never on the product name", L.planRules(brandFirst, { brief, concepts, style }).some((x) => /first line names/.test(x)));
   const noProof = structuredClone(plan); noProof.shots = noProof.shots.map((s) => ({ ...s, role: s.role === "proof" ? "outcome" : s.role, claim: undefined }));
   t("launch: a plan with no proof moment is blocked", L.planRules(noProof, { brief, concepts }).some((x) => /proof/.test(x)));
 
@@ -155,7 +182,10 @@ export default function checkLaunch(t, ROOT) {
     for (const [k, c] of ["red", "blue"].entries()) ff(["-f", "lavfi", "-i", `color=c=${c}:s=720x1280:r=24:d=4`, "-pix_fmt", "yuv420p", path.join(d, "media", `clip${k}.mp4`)]);
     const withInserts = (s) => (s.id === "S9" ? { ...s, camera: "locked", prompt: `${s.prompt}, two small TV screens glowing solid bright green`, inserts: [{ file: "media/clip0.mp4" }, { file: "media/clip1.mp4" }] } : s);
     P.writeJSON(L.fileOf(slug, "plan"), { ...plan, shots: plan.shots.map((s) => withInserts({ ...s, assets: s.assets.filter((a) => env.has(a)) })) });
-    P.writeJSON(L.fileOf(slug, "style"), { ...style, characters: [], thread: "studio" });
+    const mapped = style.environments.map((e) => ({ ...e, anchor: e.ref, map: { camera: "the camera faces the set from the front", items: [{ name: "the main prop", look: "the main prop as on the set sheet", at: "center of the picture" }] } }));
+    t("launch: a setting seen in two or more shots needs a set map", L.planRules({ ...plan, shots: plan.shots.map((s) => ({ ...s, assets: s.assets.filter((a) => env.has(a)) })) }, { brief, concepts, style: { ...style, environments: style.environments.map(({ map, ...e }) => e), characters: [], thread: "studio" } }).some((x) => /has no set map/.test(x)));
+    for (const e of mapped) if (e.ref) { fs.mkdirSync(path.join(d, path.dirname(e.ref)), { recursive: true }); ff(["-f", "lavfi", "-i", "color=c=gray:s=640x360", "-frames:v", "1", path.join(d, e.ref)]); }
+    P.writeJSON(L.fileOf(slug, "style"), { ...style, environments: mapped, characters: [], thread: "studio" });
     t("launch: the concept gate needs the brief rules (a broken brief can't be approved)", (() => { const b = P.readJSON(L.fileOf(slug, "brief")); P.writeJSON(L.fileOf(slug, "brief"), { ...b, interview: [] }); const r = F.stepStatus(P.loadShotlist(slug), "concept").ok; P.writeJSON(L.fileOf(slug, "brief"), b); return !r; })());
     // With references in the bank, the concept waits for the choice (none here: the mock writes its own plan).
     if (F.refsGate(P.loadShotlist(slug)).length) P.updateShotlist(slug, (x) => { x.refsChoice = { ids: [], said: "check" }; });
@@ -169,11 +199,17 @@ export default function checkLaunch(t, ROOT) {
     F.approve(slug, "cast", "check");
     const applied = node(["launch.mjs", "apply", slug]);
     t("launch: apply turns the approved plan into the shotlist", applied.status === 0 && P.loadShotlist(slug).shots.length === plan.shots.length);
+    t("launch: apply carries each shot's chain into the shotlist (a chained first frame is copied, never redrawn)", plan.shots.filter((s) => s.chain).every((s) => P.shot(P.loadShotlist(slug), s.id).chain === s.chain) && plan.shots.some((s) => s.chain));
+    t("launch: a set-map item never has a conditional state; its changes are a timeline (changes from shot:first|last) turned into each shot's first and last frame state", L.read !== undefined && fs.readFileSync(path.join(ROOT, "engine", "lib", "launch.mjs"), "utf8").includes("has a conditional state") && fs.readFileSync(path.join(ROOT, "engine", "lib", "launch.mjs"), "utf8").includes("state: { ...s.state, ...s.endState }"));
+    t("launch: board refuses a chained shot whose first frame is not the previous last frame, and a last frame drawn from another first", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("is not ${prevShot.id}'s last frame") && fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("drawn from another first frame"));
+    t("launch: a last frame prompt leads with the shot's end state and names the opening frame as the first reference", fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("const sent = [endLead") && P.loadShotlist(slug).shots.some((s) => s.end));
+    t("launch: a chained first frame is drawn (same framing) when the screen insert starts or ends, never copied; the judge sees each item in its timeline state", fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("const afterInsert = !!prev?.inserts?.length !== !!s.inserts?.length") && fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8").includes("const now = s.mapState?.[which]"));
     // Fake frames and a fake voice-over, then the animatic.
     const cols = ["0xE8735A", "0x5FA8A0", "0xF2C66D", "0xA79BD0"];
     P.updateShotlist(slug, (x) => {
-      x.shots.filter((s) => s.lastPrompt).forEach((s) => { const f = `frames/${s.id}-last.png`; ff(["-f", "lavfi", "-i", "color=c=0x777777:s=1280x720", "-frames:v", "1", path.join(d, f)]); s.last = f; });
-      x.shots.filter((s) => s.source !== "card").forEach((s, i) => { const f = `frames/${s.id}-first.png`; ff(["-f", "lavfi", "-i", `color=c=${cols[i % 4]}:s=1280x720`, ...(s.inserts ? ["-vf", "drawbox=x=200:y=200:w=320:h=240:color=0x00FF00:t=fill,drawbox=x=760:y=200:w=320:h=240:color=0x00FF00:t=fill"] : []), "-frames:v", "1", path.join(d, f)]); s.frame = f; });
+      x.shots.filter((s) => s.lastPrompt).forEach((s) => { const f = `frames/${s.id}-last.png`; ff(["-f", "lavfi", "-i", "color=c=0x777777:s=1280x720", "-frames:v", "1", path.join(d, f)]); s.last = f; s.lastEval = { file: f, pass: true, fails: [], summary: "mock: offline check" }; });
+      x.shots.filter((s) => s.source !== "card").forEach((s, i) => { const f = `frames/${s.id}-first.png`; ff(["-f", "lavfi", "-i", `color=c=${cols[i % 4]}:s=1280x720`, ...(s.inserts ? ["-vf", "drawbox=x=200:y=200:w=320:h=240:color=0x00FF00:t=fill,drawbox=x=760:y=200:w=320:h=240:color=0x00FF00:t=fill"] : []), "-frames:v", "1", path.join(d, f)]); s.frame = f; s.firstEval = { file: f, pass: true, fails: [], summary: "mock: offline check" }; });
+      x.shots.forEach((s, i) => { const p = x.shots[i - 1]; if (s.chain === "exact" && p) s.frameSrc = p.last || (!p.lastPrompt ? p.frame : null); });
       fs.mkdirSync(path.join(d, "audio", "vo"), { recursive: true });
       x.launch.vo = {};
       // Mock lines that fill their room the way a continuous narration does (no silence over 1.2 s).
@@ -187,6 +223,23 @@ export default function checkLaunch(t, ROOT) {
     t("launch: the board waits for the creator to approve this plan's animatic", /hasn't approved this plan's animatic/.test(F.stepStatus(P.loadShotlist(slug), "board").why || JSON.stringify(F.stepStatus(P.loadShotlist(slug), "board"))));
     node(["launch.mjs", "animatic", slug, "--approve", "--said", "check"]);
     t("launch: the board step passes with the plan applied, the voice measured and a current animatic", F.stepStatus(P.loadShotlist(slug), "board").ok);
+    t("a take with people outside its format's motion band is not usable", !F.evalsPass({ evals: { identity: { pass: true }, jumps: { internal: 0 }, dialogue: { pass: true }, motion: { score: 0.4, min: 1.5, pass: false } } }) && F.evalsPass({ evals: { identity: { pass: true }, jumps: { internal: 0 }, dialogue: { pass: true }, motion: { score: 2.1, min: 1.5, pass: true } } }));
+    t("launch: a narration take off the blueprint blocks the board until the creator accepts it", (() => {
+      const keep = P.loadShotlist(slug).launch?.voice;
+      P.updateShotlist(slug, (x) => { x.launch.voice = { ...(x.launch.voice || {}), takeMode: true, measure: { wpm: 120, off: ["pace 120 wpm"] } }; });
+      const blocked = !F.stepStatus(P.loadShotlist(slug), "board").ok;
+      P.updateShotlist(slug, (x) => { x.launch.voice.measure.accepted = { said: "check" }; });
+      const freed = /off the blueprint/.test(F.stepStatus(P.loadShotlist(slug), "board").detail || "") === false;
+      P.updateShotlist(slug, (x) => { x.launch.voice = keep; });
+      return blocked && freed;
+    })());
+    t("launch: a frame that failed its eval blocks the board", (() => {
+      const keep = P.loadShotlist(slug).shots[0].firstEval;
+      P.updateShotlist(slug, (x) => { x.shots[0].firstEval = { ...keep, pass: false, fails: ["the microphone: its stand is tangled"] }; });
+      const st = F.stepStatus(P.loadShotlist(slug), "board");
+      P.updateShotlist(slug, (x) => { x.shots[0].firstEval = keep; });
+      return !st.ok && /failed its eval/.test(st.detail);
+    })());
     const ass = fs.existsSync(path.join(d, "out", "_launch", "text.ass")) ? fs.readFileSync(path.join(d, "out", "_launch", "text.ass"), "utf8") : "";
     t("launch: every on-screen text and the brand go to the compositor word for word", plan.shots.flatMap((s) => (s.text || []).map((o) => o.text)).every((x) => ass.includes(x)) && ass.includes(style.brand.name));
     // Prices, book and budget (mocked price check), then fake takes, music and effects.
@@ -216,7 +269,7 @@ export default function checkLaunch(t, ROOT) {
     // Inside S9 (23.5–26.5 s): the left screen shows the red clip, the right one the blue clip, and no green is left.
     const px = (t, x, y) => [...execFileSync("ffmpeg", ["-v", "error", "-ss", String(t), "-i", out, "-frames:v", "1", "-vf", `crop=2:2:${x}:${y}`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])].slice(0, 3);
     const [l, rr] = built.status === 0 ? [px(24, 360, 320), px(24, 920, 320)] : [[0, 255, 0], [0, 255, 0]];
-    t(`launch: real footage plays inside each green screen, in reading order, with no green left (left ${l}, right ${rr})`, l[0] > 150 && l[1] < 90 && rr[2] > 150 && rr[1] < 90);
+    t(`launch: real footage plays inside each green screen, in reading order, with no green left (left ${l}, right ${rr})`, l[0] > 100 && l[0] > l[1] + 60 && rr[2] > 90 && rr[2] > rr[1] + 60 && l[1] < 90 && rr[1] < 90);
     // The music keeps playing after the last voice-over line (the brand card), at the plan's last-shot level.
     const tail = built.status === 0 ? Number((spawnSync("ffmpeg", ["-hide_banner", "-ss", "27.5", "-t", "1.5", "-i", out, "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" }).stderr.match(/mean_volume: (-?[\d.]+)/) || [])[1]) : -99;
     t(`launch: music plays under the brand card after the voice ends (${tail} dB)`, tail > -40);
@@ -229,7 +282,9 @@ export default function checkLaunch(t, ROOT) {
     P.writeJSON(L.fileOf(slug, "plan"), p2);
     t("launch: changing the plan after approval reopens the script gate, and apply waits for it", !F.stepStatus(P.loadShotlist(slug), "script").ok && node(["launch.mjs", "apply", slug]).status === 2);
     F.approve(slug, "script", "check");
-    node(["launch.mjs", "apply", slug]);
+    const stopped = node(["launch.mjs", "apply", slug]);
+    t("launch: a change that discards a paid take or frame stops and says what redrawing costs (REDRAW STOP)", stopped.status !== 0 && /REDRAW STOP/.test(String(stopped.stdout) + String(stopped.stderr)));
+    node(["launch.mjs", "apply", slug, "--said", "check"]);
     const after = P.loadShotlist(slug), s1 = after.shots[0], rest = after.shots.slice(1).filter(F.films);
     t("launch: a changed shot loses only its own take; every other frame and take is kept", !!s1.frame && !s1.clips && rest.every((s) => s.clips?.length === 1));
     t("launch: the new take is the only video left to estimate (the book reopens)", !F.stepStatus(after, "book").ok);

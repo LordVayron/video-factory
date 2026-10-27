@@ -1,0 +1,215 @@
+{
+ "at": "2026-10-27T22:55:02.148Z",
+ "models": [
+  {
+   "title": "seedance-1-0-pro Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/doubao/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame/last frame) - Supports landscape, portrait, and square aspect ratios"
+  },
+  {
+   "title": "seedance-1-5-pro Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/seedance-1-5-pro/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame/last frame) - Supports audio generation - Supports landscape, portrait, and square aspect ratios"
+  },
+  {
+   "title": "seedance-2.0 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/seedance-2-0/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame/last frame) - Supports reference video, reference audio, audio-enabled video - Supports landscape, portrait, square, ultra-wide, and adaptive aspect ratios"
+  },
+  {
+   "title": "Virtual Avatar Assets",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/seedance-2-0/private-avatar.md",
+   "summary": "- Private-domain virtual avatar asset submission API - Supports batch submission, up to 20 assets per request - Automatically creates or reuses asset groups; returns a task ID for status polling - Approved assets can be used directly in Seedance 2.0 video generation"
+  },
+  {
+   "title": "seedance-2.5 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/seedance-2-5/generation.md",
+   "summary": "- Async API; returns task_id for polling - Text-to-video / multimodal reference / edit / extend / first–last frame - Up to 30s per job; up to 30 images + 10 videos + 10 audios as references - Resolution supports 480p / 720p / 1080p; mp4 or mov output"
+  },
+  {
+   "title": "VEO3 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/veo3/generation.md",
+   "summary": "- Asynchronous processing mode, returns task ID for subsequent queries - Supports multiple generation modes including text-to-video and image-to-video - Supports **4K** resolution output - Generated video links are valid for 24 hours, please save them promptly"
+  },
+  {
+   "title": "VEO3 Video Remix",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/veo3/remix.md",
+   "summary": "- Extend generated videos by continuing from 8 seconds to 15 seconds - Asynchronous processing mode, returns task ID for subsequent queries - Generated video links are valid for 24 hours, please save them promptly"
+  },
+  {
+   "title": "VEO3 Official Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/veo3/generation-official.md",
+   "summary": "- Asynchronous processing mode, returns task ID for subsequent queries - Supports text-to-video and image-to-video (first frame / first & last frame control) - Supports 720P and 1080P resolution - Supports 4/6/8 second video duration - Supports audio track generation - Supports person generation pol"
+  },
+  {
+   "title": "MiniMax-Hailuo-02 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-hailuo/generation.md",
+   "summary": "- Asynchronous processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame/last frame) - Supports 5 and 10 second durations, multiple resolutions available - Supports automatic prompt optimization and watermark control"
+  },
+  {
+   "title": "MiniMax-Hailuo-2.3 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-hailuo-2.3/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame image) - Supports 6s and 10s duration, 768p/1080p resolution - Supports 15 camera movement commands, prompt auto-optimization, and watermark control"
+  },
+  {
+   "title": "MiniMax-H3 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/generation.md",
+   "summary": "- Async processing mode, returns a task ID for subsequent queries - Supports text-to-video, image-to-video (first / last / first+last frame), and multimodal reference-to-video (reference images + videos + audio) - Supports 2K / 768P resolution, duration 4 ~ 15 seconds, with audio track - Shares the…"
+  },
+  {
+   "title": "MiniMax-H3-Max Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/max.md",
+   "summary": "- MiniMax Video Generation V2 fast model with asynchronous task submission - Supports text-to-video, first/last-frame control, and multimodal reference generation - Supports 480P / 768P / 1080P, durations of 5–15 seconds, with audio - Supports reference images, videos, and audio; 2K and middle frame"
+  },
+  {
+   "title": "MiniMax-H3 Context-IR Prompt Enhancement",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/context-ir.md",
+   "summary": "- Multimodal context understanding that produces an enhanced structured prompt (text only, no video) - Shares the same media fields and mutual-exclusion rules as H3 video generation - Token-based billing; typically completes in 20~40 seconds - Use alone, or as step 1 of the 768P preview → 2K regener"
+  },
+  {
+   "title": "MiniMax-H3 Regeneration",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/regeneration.md",
+   "summary": "- Regenerate MiniMax-H3 768P video into 2K - Prefer source_task_id only; the platform auto-fills prompt, media, and source video - Not generic upscaling: source must be an H3 768P output - Per-second billing ($0.045/s output + same rate for reference videos)"
+  },
+  {
+   "title": "FLUX 3 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/flux-3-video/generation.md",
+   "summary": "- Asynchronous processing mode, returns a task ID for subsequent queries - Unified entry: text-to-video / image-to-video / video continuation / draft two-step - Output H.264 + AAC with synced audio, duration 5~20 seconds - Resolution hd / fhd, seven aspect ratios"
+  },
+  {
+   "title": "SkyReels V4 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/skyreels-v4/generation.md",
+   "summary": "- Two model tiers: Fast (speed-optimized) and Std (quality-optimized) - Three modes auto-routed by request fields: Text-to-Video (T2V), Image-to-Video (I2V), Multimodal Reference (Omni) - 480p / 720p / 1080p resolution, 3 ~ 15 seconds duration - Advanced features: first/end/key frame, reference imag"
+  },
+  {
+   "title": "HappyHorse 1.0 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/happyhorse-1.0/generation.md",
+   "summary": "- Alibaba Cloud Bailian HappyHorse 1.0 video generation model (unified entry, single-model auto-routing) - Auto-routes by parameters: T2V (prompt only) / I2V (first_frame_image) / R2V (image_urls) / EDIT (video_url) - Supports 720P/1080P resolutions and any integer duration from 3 to 15 seconds - Bi"
+  },
+  {
+   "title": "HappyHorse 1.1 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/happyhorse-1.1/generation.md",
+   "summary": "- Alibaba Cloud Bailian HappyHorse 1.1 video generation model (unified entry, single-model auto-routing) - Auto-routes by parameters: T2V (prompt only) / I2V (first_frame_image) / R2V (image_urls) - Supports 720P/1080P resolutions and any integer duration from 3 to 15 seconds - Billed by resolution…"
+  },
+  {
+   "title": "Wan3.0 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan3.0-video/generation.md",
+   "summary": "- Alibaba Cloud Wanxiang 3.0 all-in-one reference video model - Text-to-video / first frame / first+last frame / multi-modal reference / file or link reference - Resolution 480P / 720P / 1080P, duration 2–30 seconds, or `-1` for model-chosen length - Supports images, video, audio, documents, and pub"
+  },
+  {
+   "title": "Wan2.7 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.7/generation.md",
+   "summary": "- Alibaba Cloud Wanxiang 2.7 video generation model (unified entry) - Automatically routed based on parameters: Text-to-Video / Image-to-Video (first frame, first-last frame, video continuation) - Supports 720P/1080P resolution, 2-15 seconds duration - Supports custom audio (background music in text"
+  },
+  {
+   "title": "Wan2.7-R2V Reference-to-Video",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.7-r2v/generation.md",
+   "summary": "- Alibaba Cloud Wanxiang 2.7 reference-to-video model - Generate a new video with consistent style, characters, and scenes based on one or more reference images/videos - Supports character consistency, style transfer, and multi-asset combination - Supports reference voice (reference_voice) to contro"
+  },
+  {
+   "title": "Wan2.7-VideoEdit Video Editing",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.7-videoedit/generation.md",
+   "summary": "- Alibaba Cloud Wanxiang 2.7 video editing model - AI editing based on existing videos: style transfer, content replacement, element addition - Optionally accepts reference images to specify target style or appearance - Supports keeping the original video duration or customizing the output duration"
+  },
+  {
+   "title": "Wan2.6 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.6/generation.md",
+   "summary": "- Alibaba Cloud Wanxiang video generation model - Supports Text-to-Video and Image-to-Video - Supports 720p/1080p resolution, 5/10/15 seconds duration - Supports automatic prompt extension and audio generation"
+  },
+  {
+   "title": "wan2.6-i2v-flash Image-to-Video",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.6/i2v-flash-generation.md",
+   "summary": "- Wanxiang 2.6 fast image-to-video model - Generates smooth video from first-frame image and text prompts - Supports audio/silent toggle, multi-shot narration, custom audio - Supports 720p/1080p resolution, 2-15 seconds duration - Supports video effect templates"
+  },
+  {
+   "title": "wan2.5-preview Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.5/generation.md",
+   "summary": "- Wanxiang 2.5 preview video generation model - Supports Text-to-Video and Image-to-Video - Supports 480p/720p/1080p resolution, 5 or 10 seconds duration - Supports auto prompt extension, auto audio and custom audio"
+  },
+  {
+   "title": "Kling 2.6 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v2-6/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame/first-last frame control) - Supports standard mode (720P) and professional mode (1080P) - Professional mode supports automatic audio generation and voice selection"
+  },
+  {
+   "title": "Kling v2.6 Motion Control Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v2-6/kling-v2-6-motion-control-generation.md",
+   "summary": "- Kling motion control model (reference image + reference video) - Called via unified endpoint `/v1/videos/generations` - Supports image / video character orientation, max duration 10s / 30s respectively - Asynchronous task — returns task_id on submission"
+  },
+  {
+   "title": "Kling v3 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v3/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video (first frame/first-last frame control) - Supports standard mode (720P), professional mode (1080P), and 4K mode - Supports video durations from 3 to 15 seconds - Supports generating videos with au"
+  },
+  {
+   "title": "Kling 3.0 Turbo Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-3.0-turbo/generation.md",
+   "summary": "- Asynchronous processing mode, returns a task ID for subsequent queries - Supports text-to-video and image-to-video (first-frame control) - Supports two resolution tiers: 720P / 1080P - Supports video durations of 3-15 seconds - Supports multi-shot storyboards (expressed via a fixed-format prompt)"
+  },
+  {
+   "title": "Kling v3 Omni Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v3-omni/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Unified text-to-video/image-to-video interface with image reference syntax - Supports standard mode (720P), professional mode (1080P), and 4K mode - Reference images in prompts using image_N syntax - Supports generating videos with au"
+  },
+  {
+   "title": "Kling V4 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v4/generation.md",
+   "summary": "Text-to-video, image-to-video, reference-based generation, video editing, and extension. Generate 3–30 seconds at 720p / 1080p, always with stereo audio."
+  },
+  {
+   "title": "Kling Video O1 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-video-o1/generation.md",
+   "summary": "- Reasoning-enhanced model for highest quality video generation - Async processing mode, returns task ID for subsequent queries - Unified text-to-video/image-to-video interface with image reference syntax - Supports standard mode (720P) and professional mode (1080P) - Reference images in prompts usi"
+  },
+  {
+   "title": "Vidu Q3(pro/turbo) Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/vidu-q3-pro/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Supports text-to-video, image-to-video, first-last frame video generation - Supports 540p / 720p / 1080p resolution - Duration range 1-16 seconds, audio enabled by default"
+  },
+  {
+   "title": "Vidu Q4 Preview Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/vidu-q4-preview/generation.md",
+   "summary": "Generate videos from one first frame or up to 15 reference images and 3 reference audio clips. 3–16 seconds, up to 4K, with audio by default."
+  },
+  {
+   "title": "Vidu Q3(mix/standard) Reference-to-Video",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/vidu-q3/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - Upload 1-7 reference images + text prompt to generate short videos containing reference subjects - Supports 540p / 720p / 1080p resolution - Duration range 1-16 seconds, suitable for character consistency and style continuation"
+  },
+  {
+   "title": "Grok Imagine 1.5 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/grok-imagine/generation.md",
+   "summary": "- Async processing mode, returns task ID for subsequent queries - High-quality AI video generation, supports text-to-video and image-to-video - Flexible aspect ratio and quality options for different creative needs"
+  },
+  {
+   "title": "Grok Official Video Models",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/grok-imagine/official.md",
+   "summary": "Generate videos from text or reference images with grok-imagine-video and grok-imagine-video-1.5, or edit a source video with the base model."
+  },
+  {
+   "title": "Pixverse v6 Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/pixverse-v6/generation.md",
+   "summary": "- Pixverse v6 unified video generation model - Supports text-to-video, image-to-video, first/last frame transition, multi-reference fusion, and video extension - Supports 360p/540p/720p/1080p resolutions with 1-15 seconds duration - Asynchronous task API; query the result by task ID after submission"
+  },
+  {
+   "title": "PixVerse V6 Max Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/pixverse-v6-max/generation.md",
+   "summary": "Text-to-video and single-image-to-video at 360p / 540p / 720p / 1080p, with durations of 1–15 seconds and optional native audio."
+  },
+  {
+   "title": "gemini-omni-1.1-flash-ext Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/omni-flash-ext/generation.md",
+   "summary": "- gemini-omni-1.1-flash-ext unified video generation model - Supports Text-to-Video, single-image Image-to-Video, reference video, and 3-reference-image fusion - Supports 720p/1080p/4k resolution and 4/6/8/10 second duration - Asynchronous task API. Submit a task first, then query the result by task"
+  },
+  {
+   "title": "Gemini Omni 1.1 Flash Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/gemini-omni-1.1-flash/generation.md",
+   "summary": "- Google's official Gemini Omni 1.1 Flash all-in-one multimodal video generation model - Supports text-to-video, image-to-video, multi-subject references, first-and-last-frame interpolation, video editing, and extension - Supports 360p / 720p / 1080p / 4K, 24fps, 3–10 second output with generated au"
+  },
+  {
+   "title": "Gemini Omni Flash Video Generation",
+   "docs": "https://docs.apimart.ai/en/api-reference/videos/gemini-omni-flash-preview/generation.md",
+   "summary": "- Google's official Gemini Omni Flash all-in-one multimodal video generation model - Supports Text-to-Video, Image-to-Video, and Video-to-Video (editing), with mixed text + image + video input - Outputs 720p / 24fps, 3-10 seconds, with audio; supports conversational multi-turn editing - Asynchronous"
+  }
+ ]
+}

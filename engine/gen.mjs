@@ -6,6 +6,7 @@
 //   node engine/gen.mjs models                       list model keys with tier and use
 //   node engine/gen.mjs estimate <slug>              cost of what is still to generate
 //   node engine/gen.mjs still "<prompt>" <out.png> [--model gpt2.5] [--ref f]... [--ar 9:16] [--size 1K]
+//   node engine/gen.mjs transfer --video <clip> (--char <id> --style <id> | --image <img>) --model <k> [--swap "<what>" [--with <img>]] [--stabilize] [--lipsync] [--res 720p] [--out f.mp4] [--project <slug>]   motion transfer / object swap (video to video), measured
 //   node engine/gen.mjs sample <charId> [--lang en] [--text "..."]     voice sample used as voice ref
 //   node engine/gen.mjs voice-design <charId> "<description>" [--text "..."]   ElevenLabs Voice Design previews (PREVIEW-design-N.mp3)
 //   node engine/gen.mjs voice-pick <charId> <n>                         keep a designed preview as the character's voice
@@ -36,10 +37,18 @@ import { MODELS, getModel, usd } from "./lib/models.mjs";
 import * as P from "./lib/project.mjs";
 import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
 import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
+import * as TR from "./lib/transfer.mjs";
+import { evalFrame } from "./lib/frameeval.mjs";
+import { freezeProblem, engineSha } from "./lib/freeze.mjs";
+import * as MS from "./lib/modelsheet.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
 import { motionScore, MIN_MOTION } from "./lib/meditation.mjs";
+// Motion band per format for takes with people (mean frame difference at 320 px): below the floor a take reads frozen
+// or slow, above the ceiling it shakes or morphs. Launch films act big; talking formats stay calm.
+const MOTION_BAND = { launch: [1.5, 7], fantasy: [0.8, 7], cinematic: [0.3, 7], influencer: [0.3, 2], podcast: [0.3, 2], ugc: [0.3, 2.5] };
+const motionBand = (sl) => MOTION_BAND[sl.format] || [0.3, 7];
 import * as eleven from "./lib/eleven.mjs";
-import { requireStep, requirePilot, assertV5, takeOk, kindOf, FlowStop, planSha } from "./lib/flow.mjs";
+import { requireStep, requirePilot, assertV5, takeOk, evalsPass, kindOf, FlowStop, planSha } from "./lib/flow.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 
 const argv = process.argv.slice(2);
@@ -95,9 +104,23 @@ async function job(args) {
   }
 }
 
+// A model with a prompt limit gets the clip prompt without the set map (the first and last frames already fix the
+// layout); the action, acting, end state and character marks always stay.
+function fitPrompt(prompt, m) {
+  if (!m?.maxPrompt || prompt.length <= m.maxPrompt) return prompt;
+  return prompt.replace(/Fixed set map of [^]*?(?=(Acting:|The shot ends|Camera:))/g, "").replace(/\s+/g, " ").trim();
+}
+
+// Live balances, read at most once a minute per process.
+let balCache = null;
+async function balancesCached() {
+  if (!balCache || Date.now() - balCache.at > 60000) balCache = { at: Date.now(), v: await PV.balances().catch(() => ({})) };
+  return balCache.v;
+}
+
 async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test = false }) {
   const m = getModel(modelKey);
-  let caps = () => {};
+  let caps = () => {}, others = 0, claimFile = null;
   // PROVIDERS: cost() is the cheapest provider's live price (APIMart first, Kie second); the job goes there.
   let credits = m.cost(req);
   // BUDGET GUARD. Once the Production Book is
@@ -105,9 +128,23 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test
   // rerolls need a new approval: node engine/phase.mjs budget <slug> --add <credits> --note "approved by the creator".
   // Jobs in flight count against the cap too: pool() runs 4 at once, and without this every one of them
   // would see the same "spent" before any of them reached the ledger.
-  if (slug) {
+  // Jobs of other processes count too (several gen.mjs runs at once): each job holds a claim file while it runs,
+  // and the check plus the claim happen under one project mutex, so two processes can't both pass the same cap.
+  if (slug) { const unlock = await budgetMutex(slug); try {
+    others = othersInFlight(slug);
     const sl0 = P.loadShotlist(slug);
     assertV5(sl0);
+    const frozen = freezeProblem(sl0, { stamp: (sha) => P.updateShotlist(slug, (x) => { x.engine = { sha, at: new Date().toISOString() }; }) });
+    if (frozen) throw new FlowStop(frozen);
+    // ATTEMPT STOP (every format): the same asset paid a third time, or a production redoing more than it makes,
+    // waits for the creator's yes (--said). Unbounded retries turned 20 frames into 148.
+    if (!test) {
+      const since = sl0.remake?.at || sl0.flow?.created || "";
+      const runs = P.readJSON(path.join(P.PROJECTS, slug, "ledger.json"), []).filter((e) => e.ok && !e.test && (e.at || "") > since);
+      const same = runs.filter((e) => e.label === label).length, assets = new Set(runs.map((e) => e.label)).size;
+      if (same >= 2 && !has("--said")) throw new FlowStop(`ATTEMPT STOP: "${label}" was already paid ${same} times. Find why it fails before paying again; a third attempt needs the creator's yes (--said "...").`);
+      if (same >= 1 && runs.length >= 10 && runs.length > 2 * assets && !has("--said")) throw new FlowStop(`REWORK STOP: ${runs.length} paid jobs for ${assets} assets in this production (more than two per asset). Stop and report to the creator what keeps failing; continue only with their yes (--said "...").`);
+    }
     // HARD CAP: an intake with a fixed budget caps
     // every paid job of the project, images and sheets included, before and after the book.
     const hard = sl0.intake?.budget?.mode === "fixed" && sl0.intake.budget.usd ? sl0.intake.budget.usd / 0.005 : null;
@@ -118,16 +155,31 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test
     if (cap == null && !["image", "voice"].includes(m.kind) && !test) throw new FlowStop(`BUDGET STOP: "${label}" (${m.label}) needs the budget that approving the Production Book locks.`);
     // Checked again at the new price when a job moves from APIMart to Kie.
     caps = (cr, held = 0) => {
-      if (hard != null && P.ledgerTotal(slug) + (inFlight.get(slug) || 0) - held + cr > hard + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the project's hard cap of ${sl0.intake.budget.usd} (spent ${(P.ledgerTotal(slug) * 0.005).toFixed(2)}).`);
+      if (hard != null && P.ledgerTotal(slug) + (inFlight.get(slug) || 0) + others - held + cr > hard + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the project's hard cap of ${sl0.intake.budget.usd} (spent ${(P.ledgerTotal(slug) * 0.005).toFixed(2)}).`);
       // sl.testCap { usd, said }: the creator can raise this project's test allowance in their own words.
       const tcap = sl0.testCap?.said && sl0.testCap?.usd ? sl0.testCap.usd / 0.005 : TEST_CAP;
-      if (cap == null && test && testSpent() + (inFlight.get(slug) || 0) - held + cr > tcap + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the ${(tcap * 0.005).toFixed(2)} USD allowed for motion tests before the book (spent ${(testSpent() * 0.005).toFixed(2)}).`);
+      if (cap == null && test && testSpent() + (inFlight.get(slug) || 0) + others - held + cr > tcap + 0.01) throw new FlowStop(`BUDGET STOP: "${label}" would pass the ${(tcap * 0.005).toFixed(2)} USD allowed for motion tests before the book (spent ${(testSpent() * 0.005).toFixed(2)}).`);
       if (cap != null) {
-        const spent = P.ledgerTotal(slug) + (inFlight.get(slug) || 0) - held;
+        const spent = P.ledgerTotal(slug) + (inFlight.get(slug) || 0) + others - held;
         if (spent + cr > cap + 0.5) throw new Error(`BUDGET STOP: "${label}" costs ${cr.toFixed(1)} cr; spent or in flight ${spent.toFixed(1)} of the ${cap} cr the creator approved. Ask the creator before spending more (phase.mjs budget ${slug} --add N).`);
       }
     };
     caps(credits);
+    // REPLAN STOP: once a book was approved, a changed plan spends nothing (not even an image) until the creator saw the
+    // new live prices and estimate and approved them for this exact plan (studio.mjs approve-replan).
+    // REMAKE STOP: a remake spends nothing until the model analysis ran again and the creator approved its estimate.
+    if (sl0.remake && !test && !(sl0.priceCheck?.at > sl0.remake.at && sl0.replanApproved?.at > sl0.remake.at)) throw new FlowStop(`REMAKE STOP: remake v${sl0.remake.n} runs the model analysis and gets the estimate approved before any paid job (studio.mjs prices ${slug}, gen.mjs estimate ${slug}, studio.mjs approve-replan ${slug} --usd N --said "...").`);
+    if (sl0.format === "launch" && sl0.flow?.approved?.book && !test) {
+      const cur = planSha(sl0), booked = sl0.bookPlan;
+      if (booked && booked !== cur && sl0.replanApproved?.plan !== cur) throw new FlowStop(`REPLAN STOP: the plan changed after the approved Production Book. Run studio.mjs prices ${slug}, show the creator the new estimate (gen.mjs estimate ${slug}) and record their yes (studio.mjs approve-replan ${slug} --usd N --said "...") before any paid job.`);
+    }
+    // BALANCE STOP: the providers' live balance must cover the job before it is sent; an empty wallet is reported,
+    // never discovered by burning the last credits.
+    if (!process.env.FACTORY_OFFLINE) {
+      const bal = await balancesCached();
+      const usdNeed = credits * 0.005, have = Math.max(...Object.values(bal).map((v) => (typeof v === "number" ? v : 0)), 0);
+      if (have < usdNeed) throw new FlowStop(`BALANCE STOP: "${label}" costs about $${usdNeed.toFixed(2)} and the providers hold $${have.toFixed(2)}. Tell the creator; nothing was spent.`);
+    }
     // PROMPT TOO LONG: a model with a prompt limit (Kling 3.0: 2,500 characters) is never sent a longer prompt.
     if (m.maxPrompt && typeof req.prompt === "string" && req.prompt.length > m.maxPrompt) throw new FlowStop(`PROMPT STOP: "${label}" is ${req.prompt.length} characters; ${m.label} takes ${m.maxPrompt}.`);
     // DIALOGUE STOP (a clip prompt without the lines lets the model improvise a paid take).
@@ -144,10 +196,13 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test
       if (miss.length) throw new Error(`PROMPT STOP: "${label}" leaves out ${miss.join("; ")}. Put the marks from the character's look in the prompt.`);
     }
     inFlight.set(slug, (inFlight.get(slug) || 0) + credits);
-  }
+    claimFile = writeClaim(slug, credits);
+  } finally { unlock(); } }
   process.stderr.write(`→ ${label}: ${m.label} ~${credits.toFixed(1)} cr (${usd(credits)})
 `);
   const lock = outBase + ".lock";
+  // Measured wall time per job: time estimates come from it, never from a guess.
+  const t0 = Date.now();
   let taskId = null, keepLock = false, provider = null;
   try {
     const sent = await PV.submitBest(modelKey, req, {
@@ -155,17 +210,18 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test
         caps(o.credits, credits);
         if (slug) inFlight.set(slug, (inFlight.get(slug) || 0) - credits + o.credits);
         credits = o.credits;
+        if (claimFile) fs.writeFileSync(claimFile, JSON.stringify({ pid: process.pid, credits, at: Date.now() }));
         process.stderr.write(`  → ${o.provider} ~${credits.toFixed(1)} cr (${usd(credits)})
 `);
       },
     });
     ({ taskId, provider } = sent);
     fs.mkdirSync(path.dirname(lock), { recursive: true });
-    fs.writeFileSync(lock, JSON.stringify({ taskId, provider, slug, modelKey, credits, label, outBase: path.relative(ROOT, outBase), ext, register, ...(test ? { test: true } : {}) }));
+    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, taskId, provider, slug, modelKey, credits, label, outBase: path.relative(ROOT, outBase), ext, register, ...(test ? { test: true } : {}) }));
     const { urls, usd: charged } = await PV.wait(provider, taskId, { label });
     try {
       // The ledger keeps what the provider says it charged when it says (APIMart does), else the estimate.
-      return await finish({ slug, modelKey, credits: charged != null ? charged / 0.005 : credits, label, outBase, ext, register, taskId, urls, provider, test });
+      return await finish({ secs: Math.round((Date.now() - t0) / 1000), slug, modelKey, credits: charged != null ? charged / 0.005 : credits, label, outBase, ext, register, taskId, urls, provider, test });
     } catch (e) {
       // Kie already billed this task; keep the lock so "recover" downloads it instead of paying again.
       keepLock = true;
@@ -179,14 +235,51 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test
   } finally {
     if (slug) inFlight.set(slug, (inFlight.get(slug) || 0) - credits);
     if (!keepLock) fs.rmSync(lock, { force: true });
+    if (claimFile) fs.rmSync(claimFile, { force: true });
   }
 }
 const inFlight = new Map();
 
+// Cross-process budget claims: projects/<slug>/.inflight/<pid>-<n>.json while a paid job runs. A claim of a dead
+// process is dropped; a task that timed out keeps its .lock, which counts until recover() collects it.
+const inflightDir = (slug) => path.join(P.PROJECTS, slug, ".inflight");
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
+async function budgetMutex(slug) {
+  fs.mkdirSync(inflightDir(slug), { recursive: true });
+  const mx = path.join(inflightDir(slug), "mutex");
+  for (let t = 0; ; t++) {
+    try { fs.writeFileSync(mx, String(process.pid), { flag: "wx" }); return () => fs.rmSync(mx, { force: true }); } catch (e) { if (e.code !== "EEXIST") throw e; }
+    try { const owner = +fs.readFileSync(mx, "utf8"); if (!alive(owner) || Date.now() - fs.statSync(mx).mtimeMs > 60e3) fs.rmSync(mx, { force: true }); } catch {}
+    if (t > 600) throw new Error(`budget mutex of ${slug} is held; nothing was spent`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+function othersInFlight(slug) {
+  let n = 0;
+  for (const f of fs.readdirSync(inflightDir(slug)).filter((x) => x.endsWith(".json"))) {
+    const file = path.join(inflightDir(slug), f);
+    try { const c = JSON.parse(fs.readFileSync(file, "utf8")); if (c.pid === process.pid) continue; if (!alive(c.pid)) { fs.rmSync(file, { force: true }); continue; } n += c.credits || 0; } catch {}
+  }
+  for (const sub of ["frames", "clips", "audio"]) {
+    const dir = P.abs(slug, sub);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".lock"))) {
+      try { const j = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8") || "null"); if (j?.taskId && j.pid !== process.pid && !(j.pid && alive(j.pid))) n += j.credits || 0; } catch {}
+    }
+  }
+  return n;
+}
+let claimN = 0;
+function writeClaim(slug, credits) {
+  const f = path.join(inflightDir(slug), `${process.pid}-${claimN++}.json`);
+  fs.writeFileSync(f, JSON.stringify({ pid: process.pid, credits, at: Date.now() }));
+  return f;
+}
+
 // Some models return extras (Suno returns cover art next to the audio): keep only the asked-for kind.
 const KIND = { ".mp3": /\.(mp3|wav|m4a|ogg)(\?|$)/i, ".mp4": /\.(mp4|mov)(\?|$)/i, ".png": /\.(png|jpe?g|webp)(\?|$)/i };
 
-async function finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls, provider = "kie", test = false }) {
+async function finish({ slug, modelKey, credits, label, outBase, ext, register, taskId, urls, provider = "kie", test = false, secs }) {
   // APIMart links may carry no extension: filter by kind only when that keeps something.
   if (ext && KIND[ext]) { const k = urls.filter((u) => KIND[ext].test(new URL(u).pathname)); if (k.length) urls = k; else urls = urls.slice(0, 1); }
   const files = [];
@@ -196,7 +289,7 @@ async function finish({ slug, modelKey, credits, label, outBase, ext, register, 
     await PV.download(urls[k], f);
     files.push(f);
   }
-  P.ledger(slug, { ok: true, label, model: modelKey, provider, credits: +(+credits).toFixed(2), taskId, ...(test ? { test: true } : {}), files: files.map((f) => path.relative(ROOT, f)) });
+  P.ledger(slug, { ok: true, label, model: modelKey, provider, credits: +(+credits).toFixed(2), taskId, ...(secs ? { secs } : {}), ...(test ? { test: true } : {}), files: files.map((f) => path.relative(ROOT, f)) });
   if (register) {
     P.updateShotlist(slug, (x) => {
       const t = P.findItem(x, register.shot);
@@ -204,6 +297,34 @@ async function finish({ slug, modelKey, credits, label, outBase, ext, register, 
     });
   }
   return files;
+}
+
+// Launch frames: judged against the set map, the props/set sheets, the anchor frame and the character sheets.
+// The result is stored on the shot; the board step refuses a failed or unjudged frame.
+async function frameEvalOf(slug, id, which) {
+  const sl = P.loadShotlist(slug), s = P.shot(sl, id), f = which === "first" ? s.frame : s.last;
+  if (!f || /^@/.test(f)) throw new FlowStop(`${id} has no ${which} frame to judge`);
+  const bible = P.readJSON(path.join(P.projectDir(slug), "launch", "style-bible.json"), {}) || {}; // clips formats have no set bible: faces and physics only
+  const envs = (bible.environments || []).filter((e) => (s.refs || []).includes(e.ref) || (s.refs || []).includes(e.anchor));
+  // The judge sees each item in the state it has in this frame (the set map's timeline), not its opening state.
+  const now = s.mapState?.[which] || {};
+  const maps = envs.filter((e) => e.map).map((e) => e.map).filter((m, i, all) => all.indexOf(m) === i)
+    .map((m) => ({ ...m, items: m.items.map(({ changes, ...i }) => ({ ...i, ...(now[i.name] ? { state: now[i.name] } : {}) })) }));
+  const cast = (s.characters || []).map((c) => P.character(c));
+  const refs = [
+    ...cast.map((c) => ({ label: `character sheet of ${c.name}`, file: path.join(c.dir, P.characterLook(c, sl.style)?.modelSheet || "") })),
+    ...envs.flatMap((e) => [e.anchor && { label: `anchor frame of ${e.name} (the layout and orientation every frame keeps)`, file: P.abs(slug, e.anchor) }, e.ref && { label: `sheet of ${e.name}`, file: P.abs(slug, e.ref) }]).filter(Boolean),
+  ].filter((r, i, all) => all.findIndex((x) => x.file === r.file) === i);
+  const expect = which === "first" ? s.firstPrompt || s.framePrompt : s.lastUsedPrompt || s.lastPrompt;
+  const ev = await evalFrame({ frame: P.abs(slug, f), refs, maps, cast: cast.map((c) => ({ name: c.name, look: c.look })), expect: (expect || "").slice(0, 1500) });
+  P.updateShotlist(slug, (x) => {
+    const t = P.shot(x, id);
+    t[`${which}Eval`] = { file: f, pass: ev.pass, fails: ev.fails, summary: ev.summary, model: ev.model, at: new Date().toISOString() };
+    // Notes of why a frame failed feed the next attempt; a pass clears them.
+    t.frameNotes = ev.pass ? (t.frameNotes || []).filter((n) => n.which !== which) : [...(t.frameNotes || []), { which, file: f, fails: ev.fails }];
+  });
+  console.log(ev.pass ? `frame eval ${id} ${which}: pass (${ev.summary})` : `FRAME STOP ${id} ${which}: ${ev.fails.join("; ")}`);
+  return ev;
 }
 
 // Collect results of jobs whose process died before downloading them.
@@ -216,14 +337,19 @@ async function recover(slug) {
       let j = null;
       try { j = JSON.parse(fs.readFileSync(lockPath, "utf8") || "null"); } catch {}
       if (!j?.taskId) { fs.rmSync(lockPath, { force: true }); continue; }
+      // A job another live process is waiting on is its own; recovering it here would double the wait.
+      if (j.pid && j.pid !== process.pid && alive(j.pid)) continue;
+      // An old lock gets one short look: every paid command runs recover(), and a long wait per dead task
+      // stalled each frame by minutes. A task still unfinished hours later is dropped (the ledger holds its failure).
+      const age = Date.now() - fs.statSync(lockPath).mtimeMs;
       try {
-        const { urls, usd: charged } = await PV.wait(j.provider || "kie", j.taskId, { label: `recover ${j.label}`, timeoutMs: 10 * 60 * 1000 });
+        const { urls, usd: charged } = await PV.wait(j.provider || "kie", j.taskId, { label: `recover ${j.label}`, timeoutMs: age > 30 * 60e3 ? 20e3 : 10 * 60 * 1000 });
         const files = await finish({ ...j, ...(charged != null ? { credits: charged / 0.005 } : {}), provider: j.provider || "kie", outBase: path.join(ROOT, j.outBase), urls });
         console.error(`recovered ${j.label}: ${files.map((x) => path.basename(x)).join(", ")}`);
       } catch (e) {
         console.error(`could not recover ${j.label}: ${e.message.slice(0, 120)}`);
         // Still running on Kie's side, or the download failed: leave the lock for the next recover.
-        if (/timed out|download/i.test(e.message)) continue;
+        if (/timed out|download/i.test(e.message) && age < 3 * 36e5) continue;
       }
       fs.rmSync(lockPath, { force: true });
     }
@@ -288,7 +414,8 @@ const commands = {
 
   async credits() {
     const b = await PV.balances();
-    for (const [k, v] of Object.entries(b)) console.log(`${k.padEnd(8)} ${typeof v === "number" ? "$" + v.toFixed(2) : v}`);
+    // An empty wallet reads $0.00: a provider's "please top up" text is never relayed (jobs route to the other provider).
+    for (const [k, v] of Object.entries(b)) console.log(`${k.padEnd(8)} ${typeof v === "number" ? "$" + v.toFixed(2) : /insufficient balance|top up/i.test(String(v)) ? "$0.00" : v}`);
     if (!Object.keys(b).length) console.log("no provider key (APIMART_API_KEY or KIE_API_TOKEN in .env)");
   },
 
@@ -315,6 +442,9 @@ const commands = {
   async estimate() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
+    // PRICE STOP: no cost is quoted before the live model analysis ran for this production (every format).
+    const pc = sl.priceCheck?.at || "", fresh = pc && Date.now() - Date.parse(pc) < 7 * 864e5 && pc > (sl.remake?.at || "");
+    if (!fresh) throw new FlowStop(`PRICE STOP: run the live model analysis first (studio.mjs prices ${slug}); a cost quoted before it is a guess.`);
     const pk = pick(sl);
     const vm = pk.video, im = pk.image, res = pk.res;
     // Scene projects: one storyboard grid + one multi-shot video per scene; no per-shot keyframes.
@@ -353,6 +483,150 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
     const outBase = out.replace(/\.(png|jpe?g)$/i, "");
     const files = await job({ slug: flag("--project"), modelKey: flag("--model", "gpt2.5"), req: { prompt, refs, ar: flag("--ar", "9:16"), size: flag("--size", "1K") }, outBase, label: path.basename(out), ext: ".png" });
     console.log(files.join("\n"));
+  },
+
+  // Lip sync on a finished take: only the mouth is redrawn onto the given audio (the source's voice), then that
+  // audio is laid back on sample-exact.
+  //   lips --video <take> --audio <file with the voice> [--out f.mp4] [--project <slug>]
+  async lips() {
+    const video = flag("--video"), audioSrc = flag("--audio");
+    if (!video || !audioSrc) throw new Error("usage: lips --video <take> --audio <file with the voice> [--out f.mp4] [--project <slug>]");
+    for (const f of [video, audioSrc]) if (!fs.existsSync(f)) throw new Error(`not found: ${f}`);
+    if (!TR.hasAudio(audioSrc)) throw new Error(`${audioSrc} has no audio`);
+    const out = path.resolve(flag("--out") || video.replace(/\.mp4$/i, "-lips.mp4"));
+    // The lip-sync model takes the voice alone, up to 10 MB: it goes up as mp3, not inside the source video.
+    const voice = out.replace(/\.mp4$/i, "-voice.mp3");
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", audioSrc, "-vn", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "128k", voice]);
+    const files = await job({ slug: flag("--project"), modelKey: "lipsync", req: { video: await PV.upload(video), audio: await PV.upload(voice), duration: mediaDuration(video) }, outBase: out.replace(/\.mp4$/i, "-raw"), label: "lip sync", ext: ".mp4" });
+    TR.keepSourceAudio(files[0], audioSrc, out);
+    console.log(out);
+  },
+  // Motion transfer and object swap (video to video): the source clip's acting, camera and timing kept, the person
+  // replaced by a character (or ONE thing swapped), the source audio laid back on, every take measured.
+  //   transfer --video <clip> (--char <id> --style <id> | --image <img> [--refs a,b]) --model <k>
+  //            [--swap "<what>" [--with <img>]] [--stabilize] [--res 720p] [--prompt ".."] [--out f.mp4] [--project <slug>] [--test]
+  // --char uses the character's approved standard sheet (cast.mjs model-sheet, drawn from their photos with --ref).
+  async transfer() {
+    const video = flag("--video"), key = flag("--model"), swap = flag("--swap");
+    if (!video || !key) throw new Error('usage: transfer --video <clip> (--char <id> --style <id> | --image <img>) --model <k> [--swap "<what>" [--with <img>]] [--stabilize] [--res 720p] [--out file.mp4] [--project <slug>]');
+    let image = flag("--image");
+    const charId = flag("--char");
+    if (charId) {
+      const styleId = flag("--style"); if (!styleId) throw new Error("--char needs --style <id> (the look whose sheet holds the identity)");
+      const c = P.character(charId), sheet = MS.sheetOf(c, styleId);
+      if (!sheet || !fs.existsSync(path.join(c.dir, sheet))) throw new Error(`${charId} has no ${styleId} sheet. Draw it from the character's photos first: node engine/cast.mjs model-sheet ${charId} --style ${styleId} --ref <photo> [--ref <photo>]...`);
+      if (c.looks?.[styleId]?.status !== "approved") throw new Error(`${charId}'s ${styleId} sheet is not approved yet: node engine/cast.mjs approve ${charId} --style ${styleId} ...`);
+      image = path.join(c.dir, sheet);
+    }
+    if (swap) image = flag("--with") || image;
+    if (!image && !swap) throw new Error("give the identity: --char <id> --style <id>, or --image <img>");
+    // More angles of the same character hold identity better than one image; extra ones go in --refs a.png,b.png.
+    let extra = (flag("--refs") || "").split(",").map((x) => x.trim()).filter(Boolean);
+    for (const f of [video, image, ...extra].filter(Boolean)) if (!fs.existsSync(f)) throw new Error(`not found: ${f}`);
+    const m = getModel(key);
+    const seedance = /^sd2/.test(key);
+    if (m.kind !== "transfer" && !seedance) throw new Error(`${key} is not a motion-transfer model (a model with kind "transfer", or a Seedance 2 model)`);
+    if (m.maxRefs === 1 && extra.length) { console.log(`  ${key} takes one reference image: ${extra.length} extra dropped. Put every angle on one sheet (--char) instead.`); extra = []; }
+    if (swap && m.transfer !== "edit" && !seedance) throw new Error(`object swap needs an edit model (transfer: "edit"); ${key} redraws the whole frame`);
+    const secs = mediaDuration(video), res = flag("--res", "720p");
+    if (!(secs >= 3 && secs <= 60)) throw new Error(`the source clip must last 3-60 s (it lasts ${secs.toFixed(1)} s)`);
+    const work = path.join(ROOT, ".cache", "transfer-tests"); fs.mkdirSync(work, { recursive: true });
+    const base = path.basename(video, path.extname(video));
+    let clip = path.resolve(video);
+    // Phones record at a variable frame rate (frames 1/30 to 1/20 s apart); a model that spaces frames evenly then
+    // drifts the lips against the voice. Every clip goes out at a constant 30 fps first, audio untouched.
+    if (TR.isVariableRate(clip)) {
+      const cfr = path.join(work, `${base}-cfr.mp4`);
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-i", clip, "-vf", "fps=30", "-fps_mode", "cfr", "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", "-c:a", "copy", cfr]);
+      clip = cfr;
+    }
+    // A shaky handheld clip makes the model chase the shake instead of the acting: --stabilize smooths the camera first.
+    if (has("--stabilize")) {
+      const st = path.join(work, `${base}-stable.mp4`);
+      spawnSync("ffmpeg", ["-v", "error", "-y", "-i", clip, "-vf", "vidstabdetect=shakiness=8:result='vidstab.trf'", "-f", "null", "-"], { cwd: work });
+      const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-i", clip, "-vf", "vidstabtransform=input='vidstab.trf':smoothing=30:zoom=4,unsharp=5:5:0.6", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy", st], { cwd: work });
+      if (r.status !== 0 || !fs.existsSync(st)) throw new Error("stabilize failed: " + String(r.stderr || "").slice(0, 300));
+      clip = st;
+    }
+    // A clip longer than the model accepts is filmed in overlapping pieces cut at calm moments, then joined.
+    // The take keeps the clip's shape: a vertical phone clip stays vertical (displayed size, rotation included).
+    const clipAr = TR.aspectOf(clip);
+    const maxSecs = Math.min(m.maxSecs || 30, seedance ? 15 : 30);
+    const pieces = TR.planPieces(clip, maxSecs);
+    if (pieces.length > 1) console.log(`  ${secs.toFixed(1)} s is over ${key}'s ${maxSecs} s: ${pieces.length} pieces ${pieces.map((p) => `${p.start}-${p.end} s`).join(", ")}, joined on 0.5 s overlaps`);
+    const iUrl = image ? await PV.upload(image) : null;
+    const xUrls = []; for (const x of extra) xUrls.push(await PV.upload(x));
+    const imgTags = [iUrl, ...xUrls].filter(Boolean).map((_, i) => `@Image${i + 1}`).join(", ");
+    const keep = "Keep the reference video's exact motion, acting, facial expressions, timing, camera movement and framing.";
+    const ask = flag("--prompt");
+    const prompt = swap ? `${TR.swapPrompt(swap, !!flag("--with"))}${ask ? " " + ask : ""}`
+      : seedance ? `Edit @Video1, do not regenerate it: ${ask || `replace the person with the character shown in ${imgTags}.`} ${keep} Every gesture happens at the same moment as in @Video1. The character's face, hair and clothes stay exactly as in ${imgTags}.`
+      : m.transfer === "edit" ? `Edit Video 1, do not regenerate it: ${ask || "replace the person with the character in the reference image."} ${keep} Every gesture happens at the same moment as in the source. The character's face, hair and clothes stay exactly as in the reference image.`
+      : ask ? `${ask} ${keep}` : keep;
+    const out = path.resolve(flag("--out") || path.join(work, `${base}-${key}.mp4`));
+    const takes = [];
+    for (const [k, pc] of pieces.entries()) {
+      let src = pieces.length > 1 ? TR.cutPiece(clip, pc, path.join(work, `${base}-piece${k + 1}.mp4`)) : clip;
+      const len = pc.end - pc.start, maxMB = m.maxVideoMB || 50;
+      // A piece heavier than the model accepts is re-encoded (same frames and timing, lighter) before upload.
+      if (fs.statSync(src).size > maxMB * 0.95 * 1e6) {
+        const light = path.join(work, `${base}-piece${k + 1}-light.mp4`);
+        const kbps = Math.floor((maxMB * 0.85 * 8e3) / Math.max(1, len)) - 96;
+        spawnSync("ffmpeg", ["-v", "error", "-y", "-i", src, "-c:v", "libx264", "-b:v", `${kbps}k`, "-maxrate", `${kbps}k`, "-bufsize", `${kbps * 2}k`, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", light]);
+        src = light;
+      }
+      const vUrl = await PV.upload(src);
+      // After the first piece, the identity reference also carries the film's look so far: the previous piece's
+      // frame at the shared moment, beside the sheet (one image) or as an extra reference.
+      let pUrl = iUrl, pRefs = [iUrl, ...xUrls].filter(Boolean), pPrompt = prompt;
+      if (k > 0 && image && !swap) {
+        const tPrev = pieces[k - 1].end - pieces[k - 1].start - 0.5;
+        if (m.maxRefs === 1) {
+          pUrl = await PV.upload(TR.chainRef(image, takes[k - 1], tPrev, path.join(work, `${base}-chainref${k + 1}.png`)));
+          pRefs = [pUrl];
+          pPrompt += " The reference image holds the character sheet on the left and, on the right, the previous moment of this same video: match that frame's look, colors, lighting and the character exactly (same side of the hair streak, same clothes, same room).";
+        } else {
+          const fr = path.join(work, `${base}-prev${k + 1}.png`);
+          execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", String(tPrev), "-i", takes[k - 1], "-frames:v", "1", fr]);
+          pRefs = [...pRefs, await PV.upload(fr)];
+          pPrompt += " The last reference image is the previous moment of this same video: match its look, colors, lighting and the character exactly.";
+        }
+      }
+      const req = seedance
+        ? { prompt: pPrompt, refs: pRefs, refVideo: [vUrl], ar: flag("--ar") || clipAr, res, duration: Math.min(15, Math.max(4, Math.round(len))), sound: false }
+        : { prompt: pPrompt, frame: pUrl, refs: pRefs, video: vUrl, res, ar: flag("--ar") || clipAr, duration: len };
+      const ob = pieces.length > 1 ? out.replace(/\.mp4$/i, `-piece${k + 1}`) : out.replace(/\.mp4$/i, "-silent");
+      const files = await job({ slug: flag("--project"), modelKey: key, req, outBase: ob, label: `transfer ${key}${pieces.length > 1 ? ` piece ${k + 1}/${pieces.length}` : ""}`, ext: ".mp4", ...(flag("--project") && has("--test") ? { test: true } : {}) });
+      let take = files[0];
+      // Each piece's brightness and saturation brought to the previous piece's on their shared moment (free).
+      if (k > 0) {
+        const tPrev = pieces[k - 1].end - pieces[k - 1].start - 0.5;
+        take = TR.matchLook(take, TR.lookAt(takes[k - 1], tPrev), TR.lookAt(take, 0), take.replace(/\.mp4$/i, "-matched.mp4"));
+      }
+      takes.push(take);
+    }
+    const joins = pieces.length > 1 ? TR.joinCheck(takes, pieces) : null;
+    const joined = pieces.length > 1 ? TR.joinPieces(takes, pieces, out.replace(/\.mp4$/i, "-silent.mp4")) : takes[0];
+    // The source's own audio goes back on, sample-exact, whatever the model did with sound.
+    let { audio } = TR.keepSourceAudio(joined, clip, out);
+    // --lipsync: an edit model redraws the mouth without hearing the voice, so the lips can drift off the words; a
+    // video-to-video lip-sync pass redraws only the mouth onto the source audio.
+    if (has("--lipsync") && audio) {
+      const voice = out.replace(/\.mp4$/i, "-voice.mp3");
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-i", clip, "-vn", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "192k", voice]);
+      const synced = await job({ slug: flag("--project"), modelKey: "lipsync", req: { video: await PV.upload(joined), audio: await PV.upload(voice), duration: mediaDuration(out) }, outBase: out.replace(/\.mp4$/i, "-lips"), label: `transfer lip sync`, ext: ".mp4", ...(flag("--project") && has("--test") ? { test: true } : {}) });
+      TR.keepSourceAudio(synced[0], clip, out);
+    }
+    // Every take is measured: motion against the source (when and where it moves), identity against the sheet.
+    const report = { source: clip, model: key, pieces, audio, motion: TR.motionMatch(clip, out), ...(joins ? { joins: { pass: joins.pass, joins: joins.joins, issues: joins.issues } } : {}), at: new Date().toISOString() };
+    if (charId && !swap) { try { report.identity = await identityCheck(out, [charId]); } catch (e) { report.identity = { pass: false, issues: [`identity check could not run: ${e.message.slice(0, 120)}`] }; } }
+    report.pass = report.motion.pass && (report.identity?.pass ?? true) && (report.joins?.pass ?? true);
+    fs.writeFileSync(out.replace(/\.mp4$/i, ".eval.json"), JSON.stringify(report, null, 2));
+    console.log(out);
+    console.log(`  motion: ${report.motion.pass ? "PASS" : "FAIL"} (timing ${report.motion.corr}, zones ${report.motion.zone}, lag ${report.motion.lag} s)${report.motion.issues.length ? " - " + report.motion.issues.join("; ") : ""}`);
+    if (report.identity) console.log(`  identity: ${report.identity.pass ? "PASS" : "FAIL"}${report.identity.issues?.length ? " - " + report.identity.issues.join("; ") : ""}`);
+    if (report.joins) console.log(`  joins: ${report.joins.pass ? "PASS" : "FAIL"} (${report.joins.joins.map((j) => `${j.at} s look shift ${j.shift}`).join(", ")})${report.joins.issues.length ? " - " + report.joins.issues.join("; ") : ""}`);
+    console.log(`  audio: ${audio ? "source audio kept" : "the source has no audio"}`);
   },
 
   async sample() {
@@ -441,6 +715,13 @@ Still to spend ≈ ${cr.toFixed(0)} credits (${usd(cr)}) before rerolls. Spent s
         scx.gridAngles = JSON.stringify(x.angles || {}); // the board step refuses grids drawn before the current angle frames
         sc.shots.forEach((id, k) => { const s = P.shot(x, id); s.boards = [...(s.boards || []), P.rel(slug, panels[k])]; s.board = { file: P.rel(slug, panels[k]), model: "grid", grid: P.rel(slug, files[0]) }; });
       });
+      // Every panel is judged against the set plate and the character sheets before the scene is filmed.
+      for (const [k, id] of sc.shots.entries()) {
+        const shot = P.shot(sl, id);
+        const ev = await evalFrame({ frame: panels[k], refs: refs.map((r) => ({ label: r.role === "set" ? "set plate" : r.role === "angle" ? `locked close-up angle of ${r.id}` : `character sheet of ${r.name}`, file: r.file })), cast: refs.filter((r) => r.role !== "set" && r.role !== "angle").map((r) => ({ name: r.name, look: r.look })), expect: `${shot.framing || ""} ${shot.image || ""}`.trim() }).catch((e) => ({ pass: false, fails: [`the judge could not run: ${e.message.slice(0, 120)}`], summary: "" }));
+        P.updateShotlist(slug, (x) => { P.shot(x, id).board.eval = { pass: ev.pass, fails: ev.fails, summary: ev.summary }; });
+        console.log(ev.pass ? `panel ${id}: pass` : `PANEL STOP ${id}: ${ev.fails.join("; ")}`);
+      }
       return files;
     }));
     console.log(`\nNext: node engine/animatic.mjs ${slug}, then approve: node engine/phase.mjs approve ${slug} storyboard`);
@@ -566,16 +847,25 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     if (sl.format === "launch" && has("--planned") && sl.launch?.animaticApproved?.plan !== planSha(sl)) throw new FlowStop(`${id}: the creator hasn't approved this plan's animatic (launch.mjs animatic ${slug} --approve --said "...")`);
     // chain "exact": the first frame IS the previous shot's drawn last frame (copied, free), so the cut disappears.
     const i0 = sl.shots.indexOf(s), prev = sl.shots[i0 - 1];
-    if (sl.format === "launch" && which === "first" && s.chain === "exact") {
-      if (!prev?.last) throw new FlowStop(`${id} starts on ${prev?.id}'s last frame; draw that frame first (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
+    // After a shot with a green screen insert, a copy would open on the green: that first frame is drawn from it instead.
+    const afterInsert = !!prev?.inserts?.length !== !!s.inserts?.length;
+    if (sl.format === "launch" && which === "first" && s.chain === "exact" && !afterInsert) {
+      // A locked shot has no separate last frame: its first frame is also how it ends.
+      const src = prev?.last || (prev?.frame && !prev?.lastPrompt ? prev.frame : null);
+      if (!src) throw new FlowStop(`${id} starts on ${prev?.id}'s last frame; draw that frame first (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
+      if (s.frameSrc === src && s.frame && fs.existsSync(P.abs(slug, s.frame))) return console.log(`${P.abs(slug, s.frame)} (already ${prev.id}'s last frame)`);
+      // Never chain from a frame that didn't pass: a copy of a stale or rejected frame spreads its error down the film.
+      const srcEv = src === prev.last ? prev.lastEval : prev.firstEval;
+      const srcOk = (src === prev.frame && prev.frameSrc) || (srcEv?.file === src && (srcEv.pass || srcEv.accepted));
+      if (!srcOk) throw new FlowStop(`${id} starts on ${prev.id}'s ${src === prev.last ? "last" : "first"} frame, which hasn't passed its eval; fix ${prev.id} first`);
       const base = nextName(P.abs(slug, "frames"), `${id}-first`, ".png"), out = base + ".png";
-      fs.copyFileSync(P.abs(slug, prev.last), out);
+      fs.copyFileSync(P.abs(slug, src), out);
       fs.rmSync(base + ".reserve", { force: true });
-      P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.frame = P.rel(slug, out); t.firstPrompt = prompt; t.frameFrom = `${prev.id}:last`; });
+      P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.frame = P.rel(slug, out); t.firstPrompt = prompt; t.frameFrom = `${prev.id}:last`; t.frameSrc = src; if (t.last && t.lastFrom !== t.frame) { delete t.last; delete t.lastEval; delete t.lastFrom; } });
       return console.log(`${out} (${prev.id}'s last frame, free)`);
     }
     // chain "same-set": drawn from the previous shot's frame with the same framing (GPT Image reframes unless told).
-    const setRef = sl.format === "launch" && which === "first" && s.chain === "same-set" && (prev?.last || prev?.frame) ? [P.abs(slug, prev.last || prev.frame)] : [];
+    const setRef = sl.format === "launch" && which === "first" && (s.chain === "same-set" || (s.chain === "exact" && afterInsert)) && (prev?.last || prev?.frame) ? [P.abs(slug, prev.last || prev.frame)] : [];
     const miss = missingMarks(prompt, s.characters || castOf(sl, prompt));
     if (miss.length) throw new FlowStop(`PROMPT STOP: the ${which} frame of ${id} leaves out ${miss.join("; ")}`);
     // Each character's sheet in the project's style first (cast.mjs sheet --style writes looks.<style>.sheet;
@@ -584,10 +874,78 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const stRefs = (() => { try { const st = P.style(sl.style); return (st.refs || []).map((f) => path.join(st.dir, f)); } catch { return []; } })(); // a style made from the creator's references
     const refs = await Promise.all([...setRef, ...(which === "last" && s.frame ? [P.abs(slug, s.frame)] : []), ...flags("--ref"), ...stRefs, ...(s.refs || []).map((f) => P.abs(slug, f)), ...(s.characters || []).flatMap((c) => { const ch = P.character(c); return [P.characterLook(ch, sl.style).modelSheet, P.characterLook(ch, sl.style).sheet, ...(ch.refs || []), ...(ch.sheets || [])].filter(Boolean).slice(0, 1).map((f) => path.join(ch.dir, f)); })].map(PV.asUrl));
     const optics = (() => { try { return CAM.opticsFor(sl, s, P.style(sl.style)); } catch { return ""; } })();
-    const sent = [setRef.length ? `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}` : prompt, optics].filter(Boolean).join(" ");
+    // A frame that failed its eval is never redrawn blind: the judge's notes become corrections in the next prompt,
+    // and after two failed attempts the engine stops until the creator decides (no endless rerolls).
+    const notes = (s.frameNotes || []).filter((n) => n.which === which);
+    if (sl.format === "launch" && notes.length >= 2 && !flag("--said")) throw new FlowStop(`FRAME STOP: ${id} ${which} failed its eval twice (${notes.map((n) => n.fails.join("; ")).join(" | ")}); change the plan or retry only with the creator's words (--said "...")`);
+    const fixes = notes.length ? `Corrections, because the previous attempt failed: ${notes.at(-1).fails.join("; ")}. Fix every one of these.` : "";
+    // A last frame drawn from the opening frame copies its poses unless the change leads the prompt: the end state
+    // goes first, with what must change and what must stay.
+    const endLead = which === "last" && s.end && s.frame ? `The first reference image is this shot's OPENING frame. Draw the END of the same shot, a few seconds later: ${s.end}. The people's poses, gestures, expressions and every screen's content change to this end state and must not copy the opening frame; make every change large and unmistakable (a lean back puts the back against the chair's backrest, clearly farther from the desk); the set, the camera position, the props and their places stay exactly the same.` : "";
+    // At an insert boundary the shot may reframe (a push-in to the screen): the previous frame fixes the set and the moment, the shot's own camera sets the framing.
+    const sent = [endLead, setRef.length ? (afterInsert ? `The same set and the same moment as the first reference image, every object where it is unless described; the camera and framing follow this shot's description, not the reference: ${prompt}` : `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}`) : prompt, fixes, optics].filter(Boolean).join(" ");
     const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt: sent, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
-    P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[`${which}Prompt`] = prompt; });
+    P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[which === "first" ? "firstPrompt" : "lastUsedPrompt"] = prompt; if (which === "last") { t.lastPlanned = s0?.lastPrompt; t.lastFrom = t.frame; } else { delete t.frameSrc; if (t.last && t.lastFrom !== t.frame) { delete t.last; delete t.lastEval; delete t.lastFrom; } } });
     console.log(out);
+    // Every frame of a clips format is judged (launch films also against the set map and sheets).
+    if (kindOf(sl) === "clips" && (s.characters?.length || sl.format === "launch")) await frameEvalOf(slug, id, which);
+  },
+
+  // A frame the eval failed, used anyway in the creator's words (the failure stays recorded next to the acceptance).
+  // Every planned frame of a clips film in one command, in chain order (a shot opens on the previous shot's end, so
+  // the order is the plan's): first it prints how many images it will paint, what they cost and how long they take
+  // (measured), then it draws, judges and retries provider timeouts. It stops at the first frame that can't pass,
+  // and never draws a shot whose previous shot is missing. Shell loops around paid commands are refused by the guard.
+  async "frame-chain"() {
+    const slug = pos[0];
+    if (!slug) throw new Error("usage: frame-chain <slug>");
+    await recover(slug);
+    let sl = P.loadShotlist(slug);
+    requireStep(sl, "board", "gen frame-chain");
+    const copyable = (s, prev) => sl.format === "launch" && s.chain === "exact" && prev && !!prev.inserts?.length === !!s.inserts?.length;
+    const todo = [];
+    sl.shots.forEach((s, i) => {
+      if (s.source === "card") return;
+      const evOk = (w) => { const f = w === "first" ? s.frame : s.last, ev = s[`${w}Eval`]; return f && (w === "first" && s.frameSrc ? true : ev?.file === f && (ev.pass || ev.accepted)); };
+      if (s.framePrompt && !evOk("first")) todo.push({ id: s.id, which: "first", free: copyable(s, sl.shots[i - 1]) });
+      if (s.lastPrompt && !evOk("last")) todo.push({ id: s.id, which: "last", free: false });
+    });
+    if (!todo.length) return console.log("every planned frame is drawn and passed");
+    const paid = todo.filter((t) => !t.free).length, img = getModel("gpt2.5"), each = img.cost({ size: "2K" });
+    const secs = P.readJSON(path.join(P.PROJECTS, slug, "ledger.json"), []).filter((e) => e.ok && e.model === "gpt2.5" && e.secs).map((e) => e.secs).sort((a, b) => a - b);
+    const med = secs.length ? secs[Math.floor(secs.length / 2)] : 180;
+    console.log(`frame-chain ${slug}: ${todo.length} frames (${paid} to paint, ${todo.length - paid} copied free), ~${usd(paid * each)}, ~${Math.ceil((paid * (med + 45)) / 60)} min (measured ${med} s per image${secs.length ? "" : ", no measurement yet: assumed"} + ~45 s judge). A rejected frame repaints once, then stops.`);
+    for (const t of todo) {
+      for (let attempt = 1; ; attempt++) {
+        pos.splice(0, pos.length, slug, t.id, t.which);
+        if (!argv.includes("--planned")) argv.push("--planned");
+        try { await commands.frame(); }
+        catch (e) {
+          if (/timed out|upstream|ECONNRESET|fetch failed/i.test(e.message) && attempt < 3) { console.error(`  ${t.id} ${t.which}: provider timeout, retrying`); await recover(slug); continue; }
+          throw e;
+        }
+        sl = P.loadShotlist(slug);
+        const s = P.shot(sl, t.id), f = t.which === "first" ? s.frame : s.last, ev = s[`${t.which}Eval`];
+        if (t.which === "first" && s.frameSrc && s.frame) break;
+        if (ev?.file === f && (ev.pass || ev.accepted)) break;
+        // The frame command stops by itself after two failed evals (FRAME STOP); the loop never goes past it.
+      }
+    }
+    console.log(`frame-chain ${slug}: done`);
+  },
+
+  async "frame-accept"() {
+    const [slug, id, which] = pos, said = flag("--said");
+    if (!slug || !id || !["first", "last"].includes(which) || !said) throw new Error('usage: frame-accept <slug> <shot> first|last --said "the creator exact words"');
+    P.updateShotlist(slug, (x) => { const ev = P.shot(x, id)[`${which}Eval`]; if (!ev) throw new FlowStop(`${id} ${which} has no eval to accept`); ev.accepted = { said, at: new Date().toISOString() }; });
+    console.log(`${id} ${which} frame accepted in the creator's words`);
+  },
+
+  // The frame eval again on a frame already drawn (free of image cost; the judge reads it).
+  async "frame-eval"() {
+    const [slug, id, which] = pos;
+    if (!slug || !id || !["first", "last"].includes(which)) throw new Error("usage: frame-eval <slug> <shot> first|last");
+    await frameEvalOf(slug, id, which);
   },
 
   // Clips formats, film step: one first/last-frame generation for a shot of the shotlist, through job()
@@ -612,6 +970,12 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     if (s.source && s.source !== "generate") throw new FlowStop(`${id} is a ${s.source}: launch.mjs build draws it, nothing to film`);
     const cast = s.characters || castOf(sl, s.prompt);
     const model = test ? flag("--model") : s.model || sl.defaults?.videoModel || "veo";
+    // A take is never refilmed blind: the last failed take's notes (evals or the frame-by-frame review) go into the
+    // next prompt, and after two failed takes the engine stops until the creator decides.
+    const failed = (s.clips || []).filter((c) => !c.test && (c.review?.ok === false || (c.evals && !evalsPass(c))));
+    if (!test && failed.length >= 2 && !flag("--said")) throw new FlowStop(`CLIP STOP: ${id} failed twice; change the plan or refilm only with the creator's words (--said "...")`);
+    const lastFail = failed.at(-1);
+    const clipFixes = lastFail ? `Corrections, because the previous take failed: ${[...(lastFail.evals?.identity?.issues || []), ...(lastFail.evals?.motion && !lastFail.evals.motion.pass ? ["the motion was too slow and small: make every action bigger, livelier and clearly visible"] : []), ...(lastFail.review?.ok === false ? [lastFail.review.notes] : [])].filter(Boolean).join("; ")}.` : "";
     // A launch film never uses a take's own sound (voice-over, music and effects are mixed by launch.mjs).
     const silent = sl.format === "launch";
     // Its shots are choreographed to a drawn last frame: the video model must take one (any model that does).
@@ -633,7 +997,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         lastFrame(P.abs(slug, t.file), first);
       } else first = P.abs(slug, first);
       const req = {
-        prompt: P.clipPrompt(sl, s), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: test && flag("--secs") ? Number(flag("--secs")) : s.duration,
+        prompt: fitPrompt([P.clipPrompt(sl, s), clipFixes].filter(Boolean).join(" "), getModel(model)), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: test && flag("--secs") ? Number(flag("--secs")) : s.duration,
         frame: await PV.upload(first), lastFrame: s.last ? await PV.upload(P.abs(slug, s.last)) : undefined, ...(silent ? { sound: false } : {}),
       };
       const [out] = await job({ slug, modelKey: model, req, outBase: nextName(P.abs(slug, "clips"), `${id}-take`, ".mp4"), label: `${id} ${test ? "motion test" : "take"}`, ext: ".mp4", test });
@@ -652,6 +1016,13 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       const lines = (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${id}-${i + 1}`, text: l.text }));
       const dialogue = silent ? { pass: true, issues: [], note: "launch film: the take is silent; the voice-over is checked in the final QC" } : dialogueCheck(file, lines, sl.lang);
       evals = { identity: { pass: identity.pass, issues: identity.issues, notes: identity.notes }, jumps: { internal: jr.jumps.filter((j) => j.kind === "internal jump").length, list: jr.jumps, trimAt: jr.trimAt ?? null }, dialogue };
+      // Every take with people is measured against its format's motion band (approved launch shots measured 1.6-3.4,
+      // slow ones 0.4-1.0; calm talking takes sit around 0.4-1.0 and are right for talking formats).
+      if (cast.length) {
+        const score = motionScore(file), [lo, hi] = motionBand(sl);
+        evals.motion = { score, min: lo, max: hi, pass: score >= lo && score <= hi };
+        console.log(evals.motion.pass ? `MOTION PASS (${score}, band ${lo}-${hi})` : `MOTION FAIL: ${score} outside ${lo}-${hi} for ${sl.format}; ${score < lo ? "the take reads slow or frozen: push the acting and the camera move" : "the take shakes or morphs: calm the move"}. Refilm (one retry, the creator's yes) or accept it in their words`);
+      }
       console.log([
         identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
         ...jumpLines(jr), evals.jumps.internal ? "JUMPS FAIL: an internal jump reads as a jump cut; the creator decides (studio.mjs override, or a reroll with their yes)" : "JUMPS PASS",
@@ -699,10 +1070,38 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const sl = P.loadShotlist(slug);
     requireStep(sl, "film", "gen music");
     if (!sl.music?.prompt) throw new Error("set music.prompt in shotlist.json");
+    // Launch films: the score is derived from the final film, not from an early draft. The brief must name the visual
+    // style and the narrator actually chosen, and every turn must land on a line of the recorded narration.
+    let turns = [];
+    if (sl.format === "launch") {
+      const plan = P.readJSON(path.join(P.projectDir(slug), "launch", "shot-plan.json"));
+      const b = plan.musicBrief, bad = [];
+      if (!b) bad.push("no musicBrief");
+      else {
+        if (!b.style) bad.push("musicBrief.style: describe the approved visual style the score must match");
+        if (!b.narrator || !/voice|narrat/i.test(b.narrator)) bad.push("musicBrief.narrator: describe the recorded narrator (timbre, energy, pace)");
+        const starts = plan.shots.filter((s) => s.vo).map((s) => ({ line: s.vo, at: s.start + (s.voAt || 0) }));
+        for (const t of b.turns || []) {
+          const ln = starts.find((x) => t.line && x.line.toLowerCase().startsWith(t.line.toLowerCase().slice(0, 18)));
+          if (!t.line || !ln) bad.push(`turn at ${t.at} s names no recorded line (turn.line must quote the start of one)`);
+          else if (Math.abs(ln.at - t.at) > 0.6) bad.push(`turn "${t.line}" is at ${t.at} s but the line starts at ${ln.at.toFixed(2)} s in the narration`);
+        }
+        if ((b.turns || []).length < 2) bad.push("musicBrief.turns: at least two turns tied to narration lines");
+      }
+      if (bad.length) throw new FlowStop(`MUSIC STOP: ${bad.join("; ")}`);
+      turns = b.turns;
+    }
     const total = sl.shots.reduce((n, s) => n + (s.duration || 5), 0);
     const files = await job({ slug, modelKey: "suno", req: { prompt: sl.music.prompt, title: sl.title, duration: total + 4 }, outBase: P.abs(slug, "audio/music"), label: "music", ext: ".mp3" });
-    P.updateShotlist(slug, (x) => { x.music.files = files.map((f) => P.rel(slug, f)); x.music.pick ??= 0; });
-    console.log(files.join("\n"));
+    // Every version is measured before anyone hears it: tempo, and the loudness change across each turn.
+    const db = (f, a, b) => { const r = spawnSync("ffmpeg", ["-v", "info", "-ss", String(Math.max(0, a)), "-t", String(Math.max(0.3, b - a)), "-i", f, "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" }); return +(/mean_volume: (-?[\d.]+)/.exec(r.stderr)?.[1] ?? NaN); };
+    const report = files.map((f) => {
+      const tm = JSON.parse(spawnSync("python", [path.join(ROOT, "engine", "lib", "ref_media.py"), "audio", f], { encoding: "utf8" }).stdout || "{}").tempo;
+      const lifts = turns.map((t) => ({ at: t.at, line: t.line, change: +(db(f, t.at, t.at + 2) - db(f, t.at - 2, t.at)).toFixed(1) }));
+      return { file: P.rel(slug, f), bpm: tm?.bpm ?? null, steady: tm?.steady ?? null, lifts };
+    });
+    P.updateShotlist(slug, (x) => { x.music.files = files.map((f) => P.rel(slug, f)); x.music.pick ??= 0; x.music.report = report; });
+    for (const r of report) console.log(`${r.file}: ${r.bpm ?? "?"} bpm${r.steady === false ? " (unsteady)" : ""}; turns ${r.lifts.map((l) => `${l.at}s ${l.change >= 0 ? "+" : ""}${l.change} dB`).join(", ") || "none"}`);
   },
 
   // ---- Long-form (meditation, sleep, ambient): see engine/longform.mjs and the meditation-longform DNA.

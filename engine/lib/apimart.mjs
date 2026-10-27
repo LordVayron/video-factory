@@ -97,3 +97,13 @@ export async function fetchPrice(model) {
   if (sq) out.size_quality_prices = sq;
   return out;
 }
+
+// Every video model APIMart documents (its public docs index, no key), so the model analysis covers the whole catalog,
+// not only the models the engine already runs.
+export async function catalog() {
+  const r = await fetch("https://docs.apimart.ai/_llms/en/api-manual.txt");
+  if (!r.ok) throw new Error(`APIMart docs index: HTTP ${r.status}`);
+  const t = await r.text();
+  return [...t.matchAll(/- \[([^\]]+)\]\((https:\/\/docs\.apimart\.ai\/en\/api-reference\/videos\/[^)]+)\):\s*([^\n]*)/g)]
+    .map((m) => ({ title: m[1].trim(), docs: m[2], summary: m[3].trim().slice(0, 300) }));
+}

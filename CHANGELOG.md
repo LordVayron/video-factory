@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.12.0, 2026-10-27: production locks
+
+- **Engine freeze.** A production finishes on the engine it started with: every paid job refuses to run once the engine code changed, until the creator agrees (`studio.mjs engine-update <slug> --said`). `studio.mjs cancel` stops a project for good.
+- **Spend stops.** A third payment for one asset, more than two paid jobs per asset, a change that discards paid work, a cost quoted before the live model analysis, a replanned film and an empty wallet all stop and wait for the creator. Each stop says why and what it would cost.
+- **Batch frames.** `gen.mjs frame-chain <slug>` draws a film's frames in order, previews count, cost and measured time, retries only provider timeouts and stops at the first failure. A chained frame is copied only from a judged frame.
+- **Measured time.** Every paid job records its seconds; `studio.mjs status` shows the production clock and paid jobs per asset. The budget lock holds across parallel runs.
+- **A stricter guard.** No shell loops around paid commands, no paid command while the creator's last message is a question, every `--said` must be literal text from a message the creator wrote (a yes for retries and extra spend), and a commit needs `npm run check` to have passed on exactly that code.
+- **Model research.** `studio.mjs prices` reads both providers' whole catalogs; 65 video models carry a researched profile (docs, inputs, sound, length, price, verdict). A live catalog check at every intake reports new models and price moves. Missing research or a missing check is a warning for now, not a gate.
+- **Product facts.** Every format that sells something records what the product does NOT do and what every video must say; the script gate refuses violations.
+- **Set maps and frames.** Screens have a state (never conditional) and a timeline of changes; insert shots turn green; end frames lead with the change; the judge sees each item's state at that frame.
+- **Vertical rules.** Motion, pacing, disclosure and drama rules are enforced as engine gates; anime is kept out of the photoreal drama rules.
+- **Docs.** `docs/failure-rules.md` maps every rule to the mistake it stops.
+
 ## 2.11.1, 2026-10-23: decide per video
 
 - **The best model for the job, then the cheapest of the best.** `studio.mjs prices` names what the video needs (characters that act, photoreal people) and recommends from reviewed side-by-side tests recorded per need (`studio.mjs fit`, kept in `engine/data/model-fit.json`). The table offers only models good for that job, then the untested ones to try. With no evidence for the need yet, the book waits for two models tested on one shot.

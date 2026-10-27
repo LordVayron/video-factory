@@ -1,8 +1,60 @@
 {
   "stylized-acting": {
-    "sd2-fast": [{ "fit": 9, "slug": "a launch film", "at": "2026-10-23", "note": "laughter, reactions and gestures; same faces; frames and hands stay in place" }],
-    "veo": [{ "fit": 6, "slug": "a launch film", "at": "2026-10-23", "note": "the most alive, but a hand leaves its frame and marks fade" }],
-    "veo-fast": [{ "fit": 3, "slug": "a launch film", "at": "2026-10-23", "note": "alive, but invents a new character and shifts the frames" }],
-    "kling3": [{ "fit": 4, "slug": "a launch film", "at": "2026-10-23", "note": "stable, but the acting stays stiff" }]
+    "sd2-fast": [
+      {
+        "fit": 9,
+        "slug": "a launch film",
+        "at": "2026-10-23",
+        "note": "laughter, reactions and gestures; same faces; frames and hands stay in place"
+      }
+    ],
+    "veo": [
+      {
+        "fit": 6,
+        "slug": "a launch film",
+        "at": "2026-10-23",
+        "note": "the most alive, but a hand leaves its frame and marks fade"
+      }
+    ],
+    "veo-fast": [
+      {
+        "fit": 3,
+        "slug": "a launch film",
+        "at": "2026-10-23",
+        "note": "alive, but invents a new character and shifts the frames"
+      }
+    ],
+    "kling3": [
+      {
+        "fit": 4,
+        "slug": "a launch film",
+        "at": "2026-10-23",
+        "note": "stable, but the acting stays stiff"
+      }
+    ],
+    "pixverse6": [
+      {
+        "fit": 9,
+        "slug": "a launch film",
+        "at": "2026-10-26",
+        "note": "S1 test: lively acting, set and device states held"
+      }
+    ],
+    "minimax-h3": [
+      {
+        "fit": 5,
+        "slug": "a launch film",
+        "at": "2026-10-26",
+        "note": "S1 test: turned the phone and tablet on too early"
+      }
+    ],
+    "wan3": [
+      {
+        "fit": 3,
+        "slug": "a launch film",
+        "at": "2026-10-26",
+        "note": "S1 test: slow motion, drew a platform logo"
+      }
+    ]
   }
 }

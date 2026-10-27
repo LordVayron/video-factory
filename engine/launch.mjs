@@ -33,6 +33,9 @@ const now = () => new Date().toISOString();
 const ff = (args, cwd) => execFileSync("ffmpeg", ["-v", "error", "-y", ...args], { cwd, maxBuffer: 1 << 26 });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString());
 const lufs = (f) => Number((spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", f, "-af", "ebur128", "-f", "null", "-"], { encoding: "utf8" }).stderr.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
+// The narration blueprint, measured on the launch reference in the bank (one take, conversational pace, breath pauses at
+// sentence ends, no dead air). A take outside it needs the creator's words.
+const VOICE_BLUEPRINT = { wpm: [155, 175], longPauses: 4, maxGap: 1.2 };
 const SFX_LUFS = -36; // effects ~21 dB under the narration (-15 LUFS); still too loud at -31
 const sha = (v) => crypto.createHash("sha1").update(typeof v === "string" ? v : JSON.stringify(v)).digest("hex").slice(0, 12);
 
@@ -98,7 +101,10 @@ const commands = {
         if (o?.frame && sameKind && (flag("--keep") || "").split(",").includes(s.id) && (o.framePrompt !== s.framePrompt || o.source !== s.source)) { kept++; return { ...s, frame: o.frame, frameKeptFrom: o.framePrompt, ...(takeFits(o, s) ? Object.fromEntries(Object.entries({ clips: o.clips, clip: o.clip, duration: o.duration, cutOut: o.cutOut, cleanPatch: o.cleanPatch, retime: o.retime, splice: o.splice, in: o.in }).filter(([, v]) => v !== undefined)) : {}) }; }
         if (!o || o.framePrompt !== s.framePrompt || o.source !== s.source) return s;
         kept++;
-        const keep = { frame: o.frame, firstPrompt: o.firstPrompt, ...(o.lastPrompt === s.lastPrompt ? { last: o.last } : {}) };
+        // The last frame stays when the plan asks for the same end (lastPlanned: the planned prompt it was drawn for); the
+        // frame evals travel with their frames.
+        const lastSame = (o.lastPlanned ?? o.lastPrompt) === s.lastPrompt;
+        const keep = { frame: o.frame, firstPrompt: o.firstPrompt, firstEval: o.firstEval, frameNotes: o.frameNotes, ...(lastSame ? { last: o.last, lastPlanned: o.lastPlanned, lastUsedPrompt: o.lastUsedPrompt, lastEval: o.lastEval } : {}) };
         // A filmed take is kept when its animation prompt is the same and it is long enough for the new timing
         // (re-filming a take that already fits would waste money).
         const take = o.clips?.[o.clip], len = take && fs.existsSync(P.abs(slug, take.file)) ? dur(P.abs(slug, take.file)) : 0;
@@ -109,6 +115,15 @@ const commands = {
       x.cast = cast;
       x.music = plan.musicPrompt ? (x.music?.prompt === plan.musicPrompt ? x.music : { prompt: plan.musicPrompt }) : undefined;
       x.sfx = plan.sfx;
+      // REDRAW STOP: a change that discards paid frames or takes says how many and what redrawing costs, and waits for
+      // the creator's yes. Silent discards turned two small set fixes into two full redraws.
+      const had = (o) => [o.frame, o.last, ...(o.clips || []).map((c) => c.file)].filter((f) => f && !/^@/.test(f));
+      const now = new Set(x.shots.flatMap(had));
+      const dropped = [...old.values()].flatMap((o) => had(o).filter((f) => !now.has(f)).map((f) => `${o.id}: ${f}`));
+      if (dropped.length && !flag("--said")) {
+        const imgs = dropped.filter((d) => /\.png|\.jpe?g/i.test(d)).length, vids = dropped.length - imgs;
+        throw new F.FlowStop(`REDRAW STOP: this change discards ${imgs} paid frame(s) and ${vids} take(s) (${dropped.slice(0, 6).join(", ")}${dropped.length > 6 ? ", ..." : ""}); redrawing them costs about $${(imgs * 0.05).toFixed(2)} in images${vids ? " plus the takes" : ""}. Tell the creator, then run apply again with their words (--said "...").`);
+      }
       x.launch = { ...(x.launch || {}), applied: F.planSha(x) };
     });
     console.log(`shotlist = plan ${plan.conceptId}: ${fresh.length} shots (${fresh.filter(F.films).length} generated, ${fresh.filter((s) => s.source === "still").length} stills, ${fresh.filter((s) => s.source === "card").length} cards); ${kept} keep their frame`);
@@ -197,6 +212,15 @@ const commands = {
   },
 
   // The motion test before the book can be skipped only in the creator's words.
+  // A narration take off the blueprint, kept in the creator's words (the measure stays recorded next to it).
+  "voice-accept"() {
+    if (!flag("--said")) throw new F.FlowStop('voice-accept <slug> --said "the creator\'s exact words"');
+    const sl = P.loadShotlist(slug);
+    if (!sl.launch?.voice?.measure) throw new F.FlowStop("no measured narration take (launch.mjs voice --take)");
+    P.updateShotlist(slug, (x) => { x.launch.voice.measure.accepted = { said: flag("--said"), at: now() }; });
+    console.log(`narration take accepted in the creator's words (${sl.launch.voice.measure.off.join("; ") || "on the blueprint"})`);
+  },
+
   "waive-test"() {
     if (!flag("--said")) throw new F.FlowStop('waive-test <slug> --said "the creator\'s exact words"');
     P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), motionTestWaived: { said: flag("--said"), at: now() } }; });
@@ -280,6 +304,15 @@ Then: launch.mjs review ${slug} --shot ${id} --ok "..." --motion "..." --join ".
 // delivery flows as one performance; whisper times every word; each shot then starts where its
 // line starts in the take (a short lead before the word) and the plan is rewritten with those times. The lines are
 // cut from the take without touching its pauses. Rewriting the plan reopens the script gate, as any timing change does.
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0]; row[0] = i;
+    for (let j = 1; j <= b.length; j++) { const tmp = row[j]; row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = tmp; }
+  }
+  return row[b.length];
+}
+
 async function takeVoice(plan, lines, V) {
   const d = P.projectDir(slug);
   let k = 1; while (fs.existsSync(path.join(d, "audio", `narration-take-${k}.mp3`))) k++;
@@ -309,10 +342,16 @@ async function takeVoice(plan, lines, V) {
   // Whisper splits compound brand names ("Brandname" heard as "Brand name"): two adjacent heard words that join into a
   // script word, when neither is one on its own, count as that one word.
   const vocab = new Set(lines.flatMap((s) => s.vo.split(/\s+/).map(norm).filter(Boolean)));
+  // A brand name pronounced in another language (voice.pronounce, set in the creator's words) comes back from the
+  // English transcriber spelled differently, sometimes as two words; it matches within two letters of the name or
+  // of how it is spoken.
+  const brand = V.pronounce?.said ? norm(V.pronounce.word || "") : null;
+  const spoken = brand ? norm(V.pronounce.spoken || "") : null;
+  const isBrand = (h) => !!brand && (editDistance(h, brand) <= 2 || (spoken && editDistance(h, spoken) <= 2));
   const ws = [];
   for (let x = 0; x < heard.length; x++) {
     const a = heard[x], b = heard[x + 1];
-    if (b && !vocab.has(a.n) && vocab.has(a.n + b.n)) { ws.push({ ...a, ...(b.end != null ? { end: b.end } : {}), w: a.w + b.w, n: a.n + b.n }); x++; }
+    if (b && !vocab.has(a.n) && (vocab.has(a.n + b.n) || (!isBrand(a.n) && isBrand(a.n + b.n)))) { ws.push({ ...a, ...(b.end != null ? { end: b.end } : {}), w: a.w + b.w, n: a.n + b.n }); x++; }
     else ws.push(a);
   }
   const spans = [];
@@ -320,7 +359,8 @@ async function takeVoice(plan, lines, V) {
   for (const s of lines) {
     const toks = s.vo.split(/\s+/).map(norm).filter(Boolean);
     let j = -1;
-    for (let x = at; x <= ws.length - toks.length && j < 0; x++) if (toks.every((t, q) => ws[x + q].n === t)) j = x;
+    const same = (h, t) => h === t || (t === brand && isBrand(h));
+    for (let x = at; x <= ws.length - toks.length && j < 0; x++) if (toks.every((t, q) => same(ws[x + q].n, t))) j = x;
     if (j < 0) throw new F.FlowStop(`${s.id}: the take doesn't say "${s.vo}" word for word (narration-take-${k}.mp3); record it again`);
     // The words around the line bound its cut: whisper puts word ends early (a cut at a word's end can clip its last
     // sound), so a line ends just before the next word starts, never at a fixed margin after its own.
@@ -356,14 +396,26 @@ async function takeVoice(plan, lines, V) {
     const want = x.s.vo.split(/\s+/).map(norm).filter(Boolean), got = [];
     for (const n of REF.words(out, "en").map((w) => norm(w.w)).filter(Boolean)) {
       const prev = got.at(-1);
-      if (prev != null && !vocab.has(prev) && vocab.has(prev + n)) got[got.length - 1] = prev + n; else got.push(n);
+      if (prev != null && !vocab.has(prev) && (vocab.has(prev + n) || isBrand(prev + n))) got[got.length - 1] = isBrand(prev + n) ? brand : prev + n; else got.push(isBrand(n) ? brand : n);
     }
     if (got[0] !== want[0] || got.at(-1) !== want.at(-1)) throw new F.FlowStop(`${x.s.id}: the cut sounds like "${got.join(" ")}" and the line is "${want.join(" ")}"; check the take`);
     const nx = p2.shots[i + 1];
     const room = +(((nx?.vo ? nx.start + nx.voAt : p2.durationSeconds - 0.3) - (s.start + s.voAt))).toFixed(2);
     vo[s.id] = { text: s.vo, file: P.rel(slug, out), secs: +dur(out).toFixed(2), room, key: sha([s.vo, P.rel(slug, take)]), source: P.rel(slug, take) };
   }
-  P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), voice: { ...(x.launch?.voice || {}), source: P.rel(slug, take), takeMode: true }, vo }; });
+  // The take is measured against the reference blueprint before anyone hears it: pace over the speech span, breath
+  // pauses at sentence ends, and no long silence. Outside the blueprint, the board waits for the creator's words.
+  const words0 = ws.filter((w) => w.start >= spans[0].a - 0.05 && w.end <= spans.at(-1).b + 0.05);
+  const gaps = words0.slice(1).map((w, q) => +(w.start - words0[q].end).toFixed(2)).filter((g) => g >= 0.3);
+  const spanSecs = spans.at(-1).b - spans[0].a;
+  const measure = { take: P.rel(slug, take), wpm: Math.round(words0.length / spanSecs * 60), pauses: gaps.length, pauseSecs: +gaps.reduce((a, b) => a + b, 0).toFixed(2), longPauses: gaps.filter((g) => g >= 0.7).length, maxGap: Math.max(0, ...gaps) };
+  const bp = VOICE_BLUEPRINT, off = [];
+  if (measure.wpm < bp.wpm[0] || measure.wpm > bp.wpm[1]) off.push(`pace ${measure.wpm} wpm (blueprint ${bp.wpm[0]}-${bp.wpm[1]})`);
+  if (measure.longPauses < bp.longPauses) off.push(`${measure.longPauses} breath pauses of 0.7 s+ (blueprint ${bp.longPauses}+)`);
+  if (measure.maxGap > bp.maxGap) off.push(`a ${measure.maxGap} s silence (max ${bp.maxGap})`);
+  measure.off = off;
+  P.updateShotlist(slug, (x) => { x.launch = { ...(x.launch || {}), voice: { ...(x.launch?.voice || {}), source: P.rel(slug, take), takeMode: true, measure }, vo }; });
+  console.log(off.length ? `VOICE OFF BLUEPRINT: ${off.join("; ")}. Re-record with new direction, or the creator accepts this take in words (launch.mjs voice-accept ${slug} --said "...")` : `VOICE PASS: ${measure.wpm} wpm, ${measure.longPauses} breath pauses, longest gap ${measure.maxGap} s`);
   const words = text.split(/\s+/).length;
   console.log(`narration in one take: ${P.rel(slug, take)} · ${words} words in ${(spans.at(-1).b - spans[0].a).toFixed(1)} s (${Math.round(words / (spans.at(-1).b - spans[0].a) * 60)} wpm) · the plan now follows the narration's timing:`);
   for (const s of p2.shots) console.log(`  ${s.start.toFixed(2).padStart(5)}–${(s.start + s.duration).toFixed(2).padEnd(5)} ${s.id.padEnd(4)} ${s.vo ? `"${s.vo}"` : "(cierre)"}`);

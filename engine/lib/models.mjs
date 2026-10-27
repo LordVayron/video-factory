@@ -98,6 +98,58 @@ export const MODELS = {
     },
   },
 
+  // PixVerse V6 transition: first + last frame, 1-15 s billed per exact second (no 4 s minimum); audio off by default.
+  pixverse6: {
+    key: "pixverse6", kind: "video", tier: "budget", label: "PixVerse V6 (first+last frame, 1-15 s)", lastFrame: true, needsLastFrame: true,
+    model: "pixverse-v6/transition", resolutions: ["360p", "540p", "720p", "1080p"], speaks: false, refs: 0, maxPrompt: 5000,
+    build: (r) => ({ prompt: r.prompt, first_frame_image_url: r.frame, last_frame_image_url: r.lastFrame || r.frame, quality: ["360p", "540p", "720p", "1080p"].includes(r.res) ? r.res : "720p", duration: Math.max(1, Math.min(15, Math.round(r.duration || 5))), generate_audio_switch: r.sound === true }),
+    cost: (r) => per({ "360p": 4.8, "540p": 7.2, "720p": 7.2, "1080p": 17.6 }, r.res, "720p") * Math.max(1, Math.round(r.duration || 5)),
+  },
+  // MiniMax H3: first and/or last frame, 4-15 s, 768P or 2K; its audio track can't be turned off (the editor drops it).
+  "minimax-h3": {
+    key: "minimax-h3", kind: "video", tier: "budget", label: "MiniMax H3 (first+last frame, 4-15 s, audio always on)", lastFrame: true,
+    model: "minimax-h3/image-to-video", resolutions: ["768P", "2K"], speaks: true, refs: 0, maxPrompt: 7000,
+    build: (r) => ({ prompt: r.prompt, first_frame_url: r.frame, ...(r.lastFrame ? { last_frame_url: r.lastFrame } : {}), duration: Math.max(4, Math.min(15, Math.round(r.duration || 6))), resolution: r.res === "2K" ? "2K" : "768P" }),
+    cost: (r) => (r.res === "2K" ? 13 : 8) * Math.max(4, Math.round(r.duration || 6)),
+  },
+
+  // ------------------------------------------------------- motion transfer
+  // Video to video: the acting, camera and timing of a reference clip (r.video) performed by a character from an
+  // image (r.frame). "move" animates the character into the image's own scene; "replace" puts the character into
+  // the clip's scene. Billed per second of the clip.
+  "kling3-mc": {
+    key: "kling3-mc", kind: "transfer", tier: "standard", label: "Kling 3.0 Motion Control (clip acting → character)", transfer: "move",
+    model: "kling-3.0/motion-control", resolutions: ["720p", "1080p"], maxPrompt: 2500, maxVideoMB: 100, maxSecs: 30, maxRefs: 1,
+    build: (r) => ({ prompt: r.prompt || "", input_urls: [r.frame], video_urls: [r.video], character_orientation: "video", mode: r.res === "1080p" ? "1080p" : "720p" }),
+    cost: (r) => (r.res === "1080p" ? 27 : 20) * Math.max(3, Math.round(r.duration || 5)),
+  },
+  // Edit models: they rework the source clip itself (camera, timing and room stay), steered by identity refs.
+  // MiniMax bills the input clip's seconds as well as the generated ones; Wan 2.7 only the generated ones.
+  "wan27-edit": {
+    key: "wan27-edit", kind: "transfer", tier: "standard", label: "Wan 2.7 Video Edit (edits the clip with identity refs)", transfer: "edit",
+    model: "wan/2-7-videoedit", resolutions: ["720p", "1080p"], maxVideoMB: 100, maxPrompt: 5000, maxSecs: 10, maxRefs: 1,
+    build: (r) => ({ video_url: r.video, prompt: r.prompt || "", reference_image: r.frame, resolution: r.res === "1080p" ? "1080p" : "720p", duration: 0, audio_setting: "origin", nsfw_checker: true }),
+    cost: (r) => (r.res === "1080p" ? 24 : 16) * Math.max(2, Math.round(r.duration || 5)), // billed on the generated seconds only (measured)
+  },
+  "minimax-h3-ref": {
+    key: "minimax-h3-ref", kind: "transfer", tier: "budget", label: "MiniMax H3 reference-to-video (clip as motion reference)", transfer: "edit",
+    model: "minimax-h3/reference-to-video", resolutions: ["768P", "2K"], maxVideoMB: 50, maxPrompt: 7000, maxSecs: 15, maxRefs: 9,
+    build: (r) => ({ prompt: r.prompt || "", reference_image_urls: r.refs || [r.frame], reference_video_urls: [r.video], duration: Math.min(15, Math.max(4, Math.round(r.duration || 5))), aspect_ratio: r.ar || "adaptive", resolution: r.res === "2K" ? "2K" : "768P" }),
+    cost: (r) => (r.res === "2K" ? 13 : 8) * 2 * Math.max(4, Math.round(r.duration || 5)) + 4 * Math.max(0, (r.refs || []).length - 5),
+  },
+  "wan-move": {
+    key: "wan-move", kind: "transfer", tier: "budget", label: "Wan 2.2 Animate Move (clip acting → character in its image)", transfer: "move",
+    model: "wan/2-2-animate-move", resolutions: ["480p", "580p", "720p"], maxVideoMB: 10, maxRefs: 1,
+    build: (r) => ({ video_url: r.video, image_url: r.frame, resolution: ["480p", "580p", "720p"].includes(r.res) ? r.res : "720p" }),
+    cost: (r) => per({ "480p": 6, "580p": 9.5, "720p": 12.5 }, r.res, "720p") * Math.max(1, Math.round(r.duration || 5)),
+  },
+  "wan-replace": {
+    key: "wan-replace", kind: "transfer", tier: "budget", label: "Wan 2.2 Animate Replace (character into the clip's scene)", transfer: "replace",
+    model: "wan/2-2-animate-replace", resolutions: ["480p", "580p", "720p"], maxVideoMB: 10, maxRefs: 1,
+    build: (r) => ({ video_url: r.video, image_url: r.frame, resolution: ["480p", "580p", "720p"].includes(r.res) ? r.res : "720p" }),
+    cost: (r) => per({ "480p": 6, "580p": 9.5, "720p": 12.5 }, r.res, "720p") * Math.max(1, Math.round(r.duration || 5)),
+  },
+
   // ------------------------------------------------------- talking heads
   infinitetalk: {
     key: "infinitetalk", kind: "talk", tier: "budget", label: "InfiniteTalk (image + audio → talking video)",

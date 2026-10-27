@@ -36,7 +36,7 @@ export default async function (t, ROOT) {
 
   const gen = read("engine/gen.mjs"), pv = read("engine/lib/providers.mjs");
   t("providers: a refused APIMart submit moves to the next provider and the budget is checked again at its price", pv.includes("if (i) await onSwitch?.(o, lastErr)") && gen.includes("caps(o.credits, credits)"));
-  t("providers: an accepted job is never resubmitted elsewhere; the lock names its provider for recover", gen.includes("JSON.stringify({ taskId, provider,") && gen.includes('PV.wait(j.provider || "kie"'));
+  t("providers: an accepted job is never resubmitted elsewhere; the lock names its provider for recover", gen.includes("JSON.stringify({ pid: process.pid, taskId, provider,") && gen.includes('PV.wait(j.provider || "kie"'));
   t("providers: the ledger keeps what APIMart says it charged", gen.includes("charged != null ? charged / 0.005 : credits"));
   t("providers: live prices come from both providers before every Production Book", read("engine/lib/pricing.mjs").includes("await apimartPrices({ maxAgeH })") && read("engine/lib/pricing.mjs").includes("apimartOffer(key"));
   t("providers: the vision judge tries APIMart first, then Kie", read("engine/lib/judge.mjs").indexOf('tries.push(["apimart"') < read("engine/lib/judge.mjs").indexOf('tries.push(["kie"'));
