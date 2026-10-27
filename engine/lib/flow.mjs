@@ -110,7 +110,7 @@ function castCheck(sl) {
   if (sl.format !== "launch") { const r = castCheckChars(sl); return cam.length ? no([...(r.ok ? [] : [r.detail]), ...cam].join("; ")) : r; }
   // Launch films: the style bible is valid and its files exist, the narrator has a voice, any characters pass the
   // usual cast gate, and the visual identity is locked: one key image of the world, approved in the creator's words.
-  const bad = [...L.styleRules(launchJSON(sl, "style"), { slug: sl.slug, cast: castIds(sl) }), ...cam];
+  const bad = [...L.styleRules(launchJSON(sl, "style"), { slug: sl.slug, cast: castIds(sl), plan: launchJSON(sl, "plan") }), ...cam];
   if (launchJSON(sl, "concepts")?.config?.voiceover && !sl.launch?.voice?.eleven) bad.push("the film has a voice-over and the narrator has no voice (sl.launch.voice.eleven)");
   if (castIds(sl).length) { const c = castCheckChars(sl); if (!c.ok) bad.push(c.detail); }
   if (!(sl.lookTest?.said && fs.existsSync(path.join(dir(sl), sl.lookTest.file || "-")))) bad.push('the visual identity is not locked yet: one key image of the world in the style (gen.mjs still --project), approved with studio.mjs approve-look <slug> --file <image> --said "..."');
@@ -168,24 +168,45 @@ function radioCheck(sl) {
 const HANDS = /\b(slides?|sliding|places?|placing|picks? up|picking up|pours?|pouring|taps? (?:her|his|the) glass|hands? (?:her|him|it|over)|snatch|tears?|tearing|rips?|ripping|signs?|signing|writes?|writing|types?|typing|ties?|buttons?)\b/i;
 const FAST = /\b(runs?|running|sprints?|jumps?|leaps?|slams?|fights?|punch|slaps?|throws?|falls?|chases?)\b(?! (?:the|a|an|this|that|his|her|their) (?:con|show|game|plan|company|business|risk|numbers))/i;
 const DARK = /\b(night|candle|candlelit|neon|moonlit|dark room|low[- ]key|shadows?)\b/i;
+// SITCOM SCRIPT RULES (from the writing bible): the opening states what the lead wants, every line is a setup, a
+// punchline or a tag, every scene lands at least one punchline, and nobody lists steps or phases.
+const LIST_WORDS = /\b(step|phase)\s+(one|two|three|four|1|2|3|4)\b/i;
+export function sitcomScriptRules(sl) {
+  if (sl.format !== "sitcom" || (sl.flow?.created || "") < "2026-10-26") return [];
+  const out = [], scenes = sl.scenes || [];
+  if (scenes.length && (scenes[0].want || "").trim().split(/\s+/).length < 5) out.push(`scene ${scenes[0].id}: the opening must state what the lead wants (scenes[0].want, one sentence)`);
+  for (const sc of scenes) {
+    const lines = P.sceneShots(sl, sc).flatMap((s) => (s.dialogue || []).map((l) => ({ ...l, shot: s.id })));
+    for (const l of lines) {
+      if (!["setup", "punch", "tag"].includes(l.beat)) out.push(`${l.shot}: "${String(l.text).slice(0, 40)}" is not marked setup, punch or tag (every line sets up or pays off)`);
+      if (LIST_WORDS.test(l.text || "")) out.push(`${l.shot}: "${String(l.text).slice(0, 40)}" lists steps or phases; say it as a want instead`);
+    }
+    if (lines.length && !lines.some((l) => l.beat === "punch")) out.push(`scene ${sc.id}: no punchline`);
+  }
+  return out;
+}
+
 export function dramaRules(sl) {
   if (sl.format === "sitcom") return [];
+  // Anime keeps only the generation limits (shots per generation, words per second): night, neon, crowds, fast action
+  // and long held reactions are part of its look, not photoreal-drama risks.
+  const real = sl.format !== "anime";
   const out = [];
   for (const sc of sl.scenes || []) {
     const shots = P.sceneShots(sl, sc);
     if (shots.length > 3) out.push(`scene ${sc.id}: ${shots.length} shots in one generation (max 3)`);
-    if (!sl.lowLightOk && DARK.test(`${sc.lighting || ""} ${sc.summary || ""}`)) out.push(`scene ${sc.id}: low or night light (reads as "AI"); use bright natural light, or sl.lowLightOk with the creator's word`);
+    if (real && !sl.lowLightOk && DARK.test(`${sc.lighting || ""} ${sc.summary || ""}`)) out.push(`scene ${sc.id}: low or night light (reads as "AI"); use bright natural light, or sl.lowLightOk with the creator's word`);
     for (const s of shots) {
       const inFrame = (s.inFrame || s.characters || []).length;
-      if (inFrame > 2) out.push(`${s.id}: ${inFrame} characters in frame (max 2; use shot/reverse shot)`);
+      if (real && inFrame > 2) out.push(`${s.id}: ${inFrame} characters in frame (max 2; use shot/reverse shot)`);
       const words = (s.dialogue || []).reduce((n, l) => n + l.text.split(/\s+/).length, 0);
       if (words > Math.max(4, Math.floor(P.shotSecs(s) * 3))) out.push(`${s.id}: ${words} words in ${P.shotSecs(s)} s (max ~3 per second)`);
-      if (HANDS.test(s.motion || "")) out.push(`${s.id}: hand-and-object action ("${(s.motion.match(HANDS) || [])[0]}") often fails: show the object already in hand and cut`);
-      if (FAST.test(s.motion || "")) out.push(`${s.id}: fast motion ("${(s.motion.match(FAST) || [])[0]}") often fails: suggest it with cuts`);
+      if (real && HANDS.test(s.motion || "")) out.push(`${s.id}: hand-and-object action ("${(s.motion.match(HANDS) || [])[0]}") often fails: show the object already in hand and cut`);
+      if (real && FAST.test(s.motion || "")) out.push(`${s.id}: fast motion ("${(s.motion.match(FAST) || [])[0]}") often fails: suggest it with cuts`);
       // Cut rhythm: a spoken shot runs at most 6 s, a silent reaction at most 2.5 s (held to its peak, not past it).
       const speaks = (s.dialogue || []).length > 0;
       if (speaks && P.shotSecs(s) > 6) out.push(`${s.id}: ${P.shotSecs(s)} s talking shot (max 6; split it into shot/reverse shot)`);
-      if (!speaks && P.shotSecs(s) > 2.5) out.push(`${s.id}: ${P.shotSecs(s)} s reaction (max 2.5; cut at the peak)`);
+      if (real && !speaks && P.shotSecs(s) > 2.5) out.push(`${s.id}: ${P.shotSecs(s)} s reaction (max 2.5; cut at the peak)`);
       // Empty mood words give the model nothing to film and push the glossy "AI" look.
       const vague = `${s.image || ""} ${s.motion || ""}`.match(VAGUE);
       if (vague) out.push(`${s.id}: vague word "${vague[0]}" in the description (use concrete verbs and details)`);
@@ -205,6 +226,18 @@ export function dramaRules(sl) {
   // over 90 s (AI episodes hold up best short). Without an intake length: 25-90 s.
   const want = sl.intake?.platform?.seconds;
   const [lo, hi] = want ? [Math.max(15, want * 0.8), Math.min(90, want * 1.25)] : [25, 90];
+  // Micro-drama structure (new projects): every scene shifts the power between the two people, a turn lands at least every
+  // 30 s, and the episode ends on a named cliffhanger, not on a resolution.
+  if (sl.format === "micro-drama" && (sl.flow?.created || "") >= "2026-10-26") {
+    let at = 0, lastTurn = 0;
+    for (const sc of sl.scenes || []) {
+      const ps = sc.powerShift;
+      if (!ps?.from || !ps?.to || !ps?.line) out.push(`scene ${sc.id}: no power shift (scene.powerShift { from, to, line }: who holds the power before and after, and the line that flips it)`);
+      at += P.sceneShots(sl, sc).reduce((n, s) => n + P.shotSecs(s), 0);
+      if (ps?.from) { if (at - lastTurn > 30) out.push(`scene ${sc.id}: ${Math.round(at - lastTurn)} s without a turn (max 30)`); lastTurn = at; }
+    }
+    if (!["partial-revelation", "reversal", "intrusion", "deadline"].includes(sl.cliffhanger)) out.push("the episode needs a cliffhanger ending (sl.cliffhanger: partial-revelation, reversal, intrusion or deadline)");
+  }
   if (sl.radio?.length && (sl.radio.length < lo || sl.radio.length > hi)) out.push(`${sl.radio.length} s episode in the radio cut (range ${Math.round(lo)}-${Math.round(hi)} s${want ? `, asked for ${want} s` : ""})`);
   return out;
 }
@@ -215,6 +248,8 @@ function boardCheck(sl) {
   const k = kindOf(sl), bad = [];
   if (k === "scenes") {
     for (const sc of sl.scenes || []) if (!exists(sl, sc.grid)) bad.push(`scene ${sc.id} has no storyboard`);
+    // Storyboard panels are judged against the set plate and the character sheets (new projects only).
+    if ((sl.flow?.created || "") >= "2026-10-26") for (const s of sl.shots || []) if (s.board?.file && s.board.eval?.pass !== true && !s.board.eval?.accepted) bad.push(`${s.id}: its storyboard panel ${s.board.eval ? `failed its eval: ${s.board.eval.fails.join("; ")}` : "was not judged"}`);
     // One locked close-up angle per person with singles in more than one scene, made before the grids
     // (otherwise a person's background changes from scene to scene).
     const angles = P.anglesNeeded(sl);
@@ -250,6 +285,23 @@ function boardCheck(sl) {
       else if (!exists(sl, s.frame)) bad.push(`${s.id}: no first frame`);
       if (s.last && !exists(sl, s.last)) bad.push(`${s.id}: the last frame ${s.last} is missing`);
       if (s.lastPrompt && !s.last) bad.push(`${s.id}: no choreographed last frame (gen.mjs frame ${sl.slug} ${s.id} last --planned)`);
+      // A chained shot opens on the previous shot's own last frame (a copy), or the cut jumps; a last frame drawn from
+      // another opening is stale.
+      const prevShot = sl.shots[sl.shots.indexOf(s) - 1];
+      if (sl.format === "launch" && s.chain === "exact" && prevShot && !!prevShot.inserts?.length === !!s.inserts?.length) {
+        const src = prevShot.last || (!prevShot.lastPrompt ? prevShot.frame : null);
+        if (!src || s.frameSrc !== src) bad.push(`${s.id}: chain "exact" but its first frame is not ${prevShot.id}'s last frame (gen.mjs frame ${sl.slug} ${s.id} first --planned copies it)`);
+      }
+      if (sl.format === "launch" && s.last && s.lastFrom && s.lastFrom !== s.frame) bad.push(`${s.id}: the last frame was drawn from another first frame; draw it again`);
+      // Launch frames are judged against the set map and the sheets; a frame that failed (or was never judged) can't
+      // reach the animatic, unless the creator accepted that exact frame.
+      if (sl.format === "launch" || (kindOf(sl) === "clips" && s.characters?.length && (sl.flow?.created || "") >= "2026-10-26")) for (const [w, f] of [["first", s.frame], ["last", s.last]]) {
+        if (!f || /^@/.test(f) || !exists(sl, f)) continue;
+        if (w === "first" && s.chain === "exact" && s.frameSrc) continue; // a copy of a judged last frame
+        const ev = s[`${w}Eval`];
+        if (!ev || ev.file !== f) bad.push(`${s.id}: the ${w} frame was not judged (gen.mjs frame-eval ${sl.slug} ${s.id} ${w})`);
+        else if (!ev.pass && !ev.accepted) bad.push(`${s.id}: the ${w} frame failed its eval: ${ev.fails.join("; ")}`);
+      }
       if (!films(s)) continue;
       if (!s.prompt?.trim()) bad.push(`${s.id}: no prompt`);
       else {
@@ -275,6 +327,17 @@ function launchBoard(sl) {
   const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
   if (!plan) return bad;
   if (sl.launch?.applied !== sha(launchFile(sl, "plan"))) bad.push("the shotlist is not the current plan (launch.mjs apply)");
+  // Every setting drawn in two or more shots has an anchor frame (a checked frame that follows its map), sent first to
+  // every frame of that setting so the layout never drifts.
+  const st0 = launchJSON(sl, "style");
+  for (const e of st0?.environments || []) {
+    const n = (plan.shots || []).filter((s) => s.source === "generate" && (s.assets || []).includes(e.id)).length;
+    if (n >= 2 && e.map && (!e.anchor || !fs.existsSync(path.join(dir(sl), e.anchor)))) bad.push(`the setting ${e.id} has no anchor frame (draw its first frame, check it against the map, set environments[].anchor)`);
+  }
+  // The narration take is measured against the blueprint; off it, only the creator's words let it through.
+  const vm = sl.launch?.voice?.measure;
+  if (sl.launch?.voice?.takeMode && !vm) bad.push("the narration take was not measured (launch.mjs voice --take --recut)");
+  else if (vm?.off?.length && !vm.accepted) bad.push(`the narration is off the blueprint: ${vm.off.join("; ")} (re-record, or launch.mjs voice-accept <slug> --said "...")`);
   for (const s of plan.shots || []) if (s.vo) {
     const v = sl.launch?.vo?.[s.id];
     if (!v || v.text !== s.vo || !fs.existsSync(path.join(dir(sl), v.file || "-"))) bad.push(`${s.id}: voice-over not recorded (launch.mjs voice)`);
@@ -336,17 +399,23 @@ function bookCheck(sl) {
   if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && !(sl.shots || []).some((s) => (s.clips || []).some((c) => c.test && c.model === sl.defaults?.videoModel)))
     return no(`no motion test on ${sl.defaults?.videoModel || "the chosen model"} (gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", or launch.mjs waive-test <slug> --said "...")`);
   // People acting and no model with evidence of doing that job well yet: two candidates are compared on it.
+  // Every filmed format compares at least two video models on the same representative shot before the book (the best
+  // fit and the cheapest good alternative), so the pick is seen, not assumed; only the creator's words skip it.
   const tested = Object.keys(PR.testedModels(sl));
-  const needs = PR.needsOf(sl, (() => { try { return P.style(sl.style); } catch { return null; } })());
-  const proven = needs.length && (sl.priceCheck?.options || []).some((o) => (PR.fitOf(o.key, needs) ?? 0) >= PR.GOOD_FIT);
-  if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && needs.length && !proven && tested.length < 2)
-    return no(`people act in this film: compare at least two models on one shot before the book (tested: ${tested.join(", ") || "none"}), or waive it in the creator's words`);
+  const films = kindOf(sl) !== "longform" || (sl.longform?.scenes || []).some((s) => s.motion !== "kenburns");
+  const waived = sl.launch?.motionTestWaived?.said || sl.modelCompareWaived?.said;
+  if (films && !waived && tested.length < 2)
+    return no(`compare at least two video models on one shot before the book (tested: ${tested.join(", ") || "none"}; gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", or studio.mjs waive-compare <slug> --said "...")`);
+  // Models the providers sell that the engine doesn't run yet are put to the creator before every book.
+  if (sl.priceCheck?.newOnKie?.length && sl.newModelsReviewed?.at !== sl.priceCheck.at)
+    return no(`show the creator the new models on Kie (${sl.priceCheck.newOnKie.slice(0, 6).join(", ")}${sl.priceCheck.newOnKie.length > 6 ? "..." : ""}) and record their call (studio.mjs new-models <slug> --said "...")`);
   if (sl.bookEstimate == null) return no("the book has no cost estimate");
   return ok(`estimado ${sl.bookEstimate} cr`);
 }
 
 // A take of a clips project is usable only when every eval on it passed.
-export const evalsPass = (t) => !!t && t.evals?.identity?.pass === true && t.evals?.jumps?.internal === 0 && t.evals?.dialogue?.pass === true;
+// motion: measured on launch takes with people; a take that barely moves reads slow and lifeless.
+export const evalsPass = (t) => !!t && t.evals?.identity?.pass === true && t.evals?.jumps?.internal === 0 && t.evals?.dialogue?.pass === true && t.evals?.motion?.pass !== false;
 // A take that failed an eval is usable only when the creator accepted that exact take (studio.mjs accept-take).
 export const takeOk = (t) => evalsPass(t) || !!t?.accepted?.said;
 
@@ -433,7 +502,20 @@ export function projectText(sl) {
   if (kindOf(sl) === "longform") return (sl.longform?.script || []).map((l) => l.text || l).join(" ");
   return (sl.shots || []).flatMap((s) => (s.dialogue || []).map((l) => l.text)).join(" ");
 }
+// Every format that sells a product records, in the creator's words, what it does NOT do and what every video must
+// say; the script gate refuses a line that promises a missing feature or a script that leaves out a must-say point.
+export const SELLS = new Set(["launch", "ugc", "influencer"]);
+export function productFacts(sl) {
+  const f = sl.format === "launch" ? launchJSON(sl, "brief") || {} : sl.product || {};
+  const out = [], text = projectText(sl);
+  if (SELLS.has(sl.format) && sl.format !== "launch" && !sl.product?.doesNot) out.push(`this ${sl.format} video sells a product but doesn't record what it does NOT do (studio.mjs product ${sl.slug} --does-not "what:word,word" --said "...")`);
+  for (const d of sl.format === "launch" ? [] : f.doesNot || []) { const w = d.words.find((x) => L.wordIn(x, text)); if (w) out.push(`the script says "${w}", a feature the product doesn't have (${d.what})`); }
+  for (const m of sl.format === "launch" ? [] : f.mustSay || []) if (!m.words.some((w) => L.wordIn(w, text))) out.push(`the script never says "${m.what}"`);
+  return out;
+}
 export function copyGate(sl) {
+  const facts = productFacts(sl);
+  if (facts.length) return facts;
   const ids = sl.refsChoice?.ids || [];
   return ids.length ? RF.copyOverlap(projectText(sl), ids).filter((x) => x.share > RF.COPY_MAX).map((x) => `the script repeats ${Math.round(x.share * 100)} % of reference ${x.ref}'s phrases (max ${Math.round(RF.COPY_MAX * 100)} %): a reference teaches, it isn't copied`) : [];
 }
@@ -445,7 +527,7 @@ export const STEPS = {
   concept: { name: "Concepto", who: "creator", check: withRefs((sl) => (!fs.existsSync(path.join(dir(sl), "concept.md")) ? no("no concept.md") : sl.format === "launch" ? launchConcept(sl) : ok()), refsGate), next: "write concept.md (launch: also launch/brief.json and launch/concepts.json; launch.mjs check), then approve concept" },
   // Meditations: the intention's rules (pace, pauses, voice share, music tempo, picture, safety) block the script
   // gate (one universal engine for guided meditations, the intention only changes the numbers).
-  script: { name: "Guion", who: "creator", check: withRefs((sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("no script") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : (sl.shots || []).length ? ok() : no("no shots or dialogue")), copyGate), next: "write the script in the shotlist, then approve script" },
+  script: { name: "Guion", who: "creator", check: withRefs((sl) => (kindOf(sl) === "longform" ? (!((sl.longform?.script || []).length || sl.longform?.voiceFree) ? no("no script") : meditationRules(sl).length ? no(meditationRules(sl).join("; ")) : ok(intentOf(sl).label)) : sl.format === "launch" ? launchScript(sl) : !(sl.shots || []).length ? no("no shots or dialogue") : sitcomScriptRules(sl).length ? no(sitcomScriptRules(sl).join("; ")) : ok()), copyGate), next: "write the script in the shotlist, then approve script" },
   cast: { name: "Casting y sets", who: "creator", check: castCheck, next: "cast.mjs sheet / approve-character, luego approve cast" },
   radio: { name: "Radio cut", who: "auto", check: radioCheck, next: "radio.mjs" },
   board: { name: "Storyboard and prompts", who: "auto", check: boardCheck, next: "gen.mjs storyboard + animatic.mjs (scenes) or gen.mjs frame (clips)" },
@@ -552,6 +634,8 @@ export function approve(slug, id, said, extra = {}) {
       // A re-approved book never takes back headroom the creator already approved (top-ups or an earlier book).
       const prev = sl.budget?.approvedCredits ?? 0, next = Math.max(Math.ceil(spent + sl.bookEstimate), prev);
       sl.budget = { approvedCredits: next, approvedAt: new Date().toISOString(), history: [...(sl.budget?.history || []), { add: next - prev, note: `Production Book approved: "${said.trim()}"` }] };
+      // The plan this book priced: a later plan change stops paid jobs until the creator approves the new estimate.
+      if (sl.format === "launch") sl.bookPlan = planSha(sl);
     }
   });
 }

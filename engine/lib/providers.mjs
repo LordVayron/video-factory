@@ -49,7 +49,10 @@ export async function submitBest(modelKey, req, { onSwitch } = {}) {
     } catch (e) {
       lastErr = e;
       if (o.provider !== "apimart" || i === list.length - 1) throw e;
-      process.stderr.write(`  APIMart refused ${modelKey} (${e.message.slice(0, 140)}); trying ${list[i + 1].provider}\n`);
+      // An empty wallet is routine (the other provider takes the job); the provider's "top up" text is never relayed,
+      // so nobody is asked to recharge a provider the engine can route around.
+      const why = /insufficient balance|top up|余额/i.test(e.message) ? "no balance" : e.message.replace(/please top up[^.;)]*/gi, "").slice(0, 140);
+      process.stderr.write(`  APIMart can't take ${modelKey} (${why}); using ${list[i + 1].provider}\n`);
     }
   }
   throw lastErr;

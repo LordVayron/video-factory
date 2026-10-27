@@ -62,7 +62,28 @@
         "paper app windows",
         "sticky notes without writing",
         "coffee mug"
-      ]
+      ],
+      "map": {
+        "camera": "the camera faces the founder's desk from the front, always from the same side; the image is never mirrored",
+        "items": [
+          {
+            "name": "paper app windows",
+            "at": "center of the picture",
+            "look": "as drawn on the set sheet: paper app windows"
+          },
+          {
+            "name": "sticky notes without writing",
+            "at": "left side of the picture, on its own base",
+            "look": "as drawn on the set sheet: sticky notes without writing"
+          },
+          {
+            "name": "coffee mug",
+            "at": "right side of the picture, on its own base",
+            "look": "as drawn on the set sheet: coffee mug"
+          }
+        ]
+      },
+      "ref": "brand/desk-sheet.png"
     },
     {
       "id": "studio",
@@ -73,7 +94,33 @@
         "ring light",
         "clapperboard",
         "three tiny screens"
-      ]
+      ],
+      "map": {
+        "camera": "the camera faces the pop-up tabletop studio from the front, always from the same side; the image is never mirrored",
+        "items": [
+          {
+            "name": "mailbox",
+            "at": "center of the picture",
+            "look": "as drawn on the set sheet: mailbox"
+          },
+          {
+            "name": "ring light",
+            "at": "left side of the picture, on its own base",
+            "look": "as drawn on the set sheet: ring light"
+          },
+          {
+            "name": "clapperboard",
+            "at": "right side of the picture, on its own base",
+            "look": "as drawn on the set sheet: clapperboard"
+          },
+          {
+            "name": "three tiny screens",
+            "at": "left side of the picture, on its own base",
+            "look": "as drawn on the set sheet: three tiny screens"
+          }
+        ]
+      },
+      "ref": "brand/studio-sheet.png"
     }
   ],
   "brand": {
@@ -86,5 +133,9 @@
     ]
   },
   "world": "one wooden desk under a window, where a pop-up tabletop studio unfolds",
-  "thread": "sample-founder"
+  "thread": "sample-founder",
+  "grade": {
+    "brightness": 95,
+    "saturation": 30
+  }
 }

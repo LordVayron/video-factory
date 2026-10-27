@@ -10,7 +10,10 @@ import { isNoise } from "./noise.mjs";
 export const isVocal = (l) => l.vocal || /^(mwa|ha|awoo|woof|meow|grr|hm+|ah+|oh+)[-a-z! ]*$/i.test(String(l.text || "").trim());
 
 // lines: [{ id, text }]. A file with no scripted lines passes when nothing much is said either.
-export function dialogueCheck(file, lines, lang = "en") {
+// pronounce: a brand name read in another language ({ word, said }, set in the creator's words); the transcriber spells
+// it differently, so it is left out of the word match (the voice step already matched it).
+export function dialogueCheck(file, lines, lang = "en", pronounce = null) {
+  if (pronounce?.said && pronounce.word) { const re = new RegExp(`\\b${pronounce.word}\\b`, "gi"); lines = lines.map((l) => ({ ...l, text: String(l.text).replace(re, "").replace(/\s+/g, " ").trim() })); }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dlg-"));
   const L = path.join(tmp, "lines.json"), A = path.join(tmp, "align.json");
   fs.writeFileSync(L, JSON.stringify(lines));

@@ -12,6 +12,8 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { carriesInstructions, subjectProblems } from "../unquote.mjs";
+import { creatorMessages, isQuestion, norm, APPROVAL } from "./creator.mjs";
+import { checkedProblem } from "./stamp.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 // APIMart (the main provider) counts like Kie; its public price list (/api/pricing) is free to read.
@@ -47,10 +49,38 @@ function subjectOf(args, raw, dir) {
   return fs.existsSync(abs) ? first(fs.readFileSync(abs, "utf8")) : null;
 }
 
-export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf = branchIn } = {}) {
+// Engine commands that spend (provider jobs, the vision judge, ElevenLabs). Free subcommands are listed apart.
+const SPEND = /\b(gen|launch|cut|edit|longform|continuity|cast|series|refs|qc)\.mjs\s+("[^"]*"|\S+)/g;
+const FREE = { gen: /^(credits|prices|models|estimate|recover)$/, launch: /^(check|apply|animatic|review|build|package|waive-test|voice-accept|style-from-refs)$/, cut: /^$/, edit: /^$/, longform: /^(estimate|build|script|image)$/, continuity: /^$/, cast: /^(approve|list|show)$/, series: /^(new|show)$/, refs: /^(add|breakdown|page|approve|list)$/, qc: /^$/ };
+const spends = (raw) => [...raw.matchAll(SPEND)].some((m) => !FREE[m[1]].test(m[2].replace(/^["']|["']$/g, "")));
+// Commands whose --said spends more or retries past a stop: the creator's words must say yes.
+const YES_NEEDED = /\b(gen\.mjs\s+\S+|phase\.mjs\s+budget|studio\.mjs\s+(override|accept-take|engine-update|approve-replan|waive-compare)|launch\.mjs\s+(voice-accept|waive-test))\b/;
+
+export function decide({ tool_name: tool, tool_input: input = {}, transcript_path }, { branchOf = branchIn, messages = creatorMessages(transcript_path), checkStamp = false } = {}) {
   // Rule 1: commands.
   if (/^(Bash|PowerShell)$/.test(tool)) {
     const raw = String(input.command || "");
+    // What runs: heredoc bodies are data (file contents, test fixtures), and quoted text is an argument.
+    const run = raw.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\1\b/g, "");
+    const bare = run.replace(/'[^']*'/g, "''").replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    // Rule 6: no shell loop around a paid engine command. A loop of single jobs skipped the engine's batch order
+    // (a shot drawn from a stale previous frame) and its cost and time preview; batches have their own commands.
+    if (spends(run) && (/\b(for|while|until)\b[\s\S]*?\bdo\b|\bForEach-Object\b|\bforeach\s*\(|%\s*\{/.test(bare)))
+      return deny("no shell loop around paid engine commands. Use the engine's batch command (gen.mjs frame-chain, gen.mjs scenes, gen.mjs storyboard...), which keeps the order, shows the cost and time first and stops on the first failure.");
+    if (messages?.length) {
+      const last = messages.at(-1).text;
+      // Rule 7: a question gets an answer, not a paid job.
+      if (spends(run) && isQuestion(last)) return deny(`the creator's last message is a question ("${last.slice(0, 120)}"). Answer it; spend nothing until they say to.`);
+      // Rule 8: --said carries the creator's literal words, from a message they wrote.
+      for (const m of run.matchAll(/--said\s+("((?:[^"\\]|\\.)*)"|'([^']*)'|\S+)/g)) {
+        const said = m[2] ?? m[3] ?? m[1];
+        if (/^\$|\$\{?\w/.test(said)) return deny("--said must be the creator's words written literally, not a variable.");
+        const n = norm(said);
+        const from = messages.find((x) => norm(x.text).includes(n));
+        if (!from) return deny(`--said "${said.slice(0, 80)}" is not in any message the creator wrote. Quote their exact words, or ask them.`);
+        if (YES_NEEDED.test(run) && (!APPROVAL.test(n) || isQuestion(from.text))) return deny(`--said "${said.slice(0, 80)}" doesn't say yes to spending or retrying. Ask the creator for a clear yes.`);
+      }
+    }
     // Parts of the command that only read files (grep lib/kie.mjs, sed -n, cat...) can't call anything: drop them
     // before looking for inline code, so a read next to an unrelated `node -e` is not mistaken for an API call.
     const READ = /^\s*(cd|grep|rg|sed\s+-n|cat|head|tail|less|ls|wc|diff|git\s+(log|diff|show|status)|echo|printf|find)\b/;
@@ -75,6 +105,8 @@ export function decide({ tool_name: tool, tool_input: input = {} }, { branchOf =
       if (!repo) continue;
       const onMain = branchOf(repo) === "main";
       const toMain = m[2] === "push" && (/(^|\s|:)main\b/.test(m[3]) || (onMain && !/\s(-u\s+)?origin\s+\S/.test(m[3]) && !/\bv\d+\.\d+\.\d+\b|--tags/.test(m[3])));
+      // Rule 9: a commit in the factory's private repo only after npm run check passed on this exact code.
+      if (m[2] === "commit" && checkStamp && repo === ROOT) { const why = checkedProblem(ROOT); if (why) return deny(why); }
       if ((m[2] === "commit" && onMain) || toMain) return deny(`no ${m[2]} straight to main in ${path.basename(repo)}: work on a branch and open a PR (routine step 0). Merging is done with gh pr merge after the owner approves.`);
       // Rule 5: commit subjects follow Conventional Commits (type: summary, under 72 characters).
       if (m[2] === "commit") {
@@ -136,7 +168,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   process.stdin.on("end", () => {
     let call;
     try { call = JSON.parse(raw); } catch { process.exit(0); }
-    const d = decide(call);
+    const d = decide(call, { checkStamp: true });
     if (d) process.stdout.write(JSON.stringify(d));
     process.exit(0);
   });

@@ -1,0 +1,1950 @@
+{
+  "kling 4.0": {
+    "family": "kling 4.0",
+    "docs": "https://kie.ai/kling-4-0?model=kling-4.0%2Fkeyframe-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 10,
+      "refVideo": true,
+      "audio": true,
+      "keyframes": 10
+    },
+    "audioOut": true,
+    "maxSecs": 30,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 8000,
+    "usdPerSec": 0.085,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "First and last frame plus up to 8 keyframes, 10 reference images and 5 videos, native stereo audio with lip sync, up to 30 s per job; strongest control in the catalog, mid price (Kie cheaper than APIMart's $0.157/s).",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "Vidu Q4": {
+    "family": "Vidu Q4",
+    "docs": "https://kie.ai/vidu-q4?model=vidu-q4%2Freference-to-video",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 15,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 16,
+    "resolutions": [
+      "540p",
+      "720p",
+      "1080p",
+      "2k",
+      "4k"
+    ],
+    "promptLimit": 20000,
+    "usdPerSec": 0.036,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "micro-drama",
+      "ugc",
+      "influencer",
+      "anime",
+      "fantasy",
+      "cinematic",
+      "sitcom"
+    ],
+    "why": "First frame or 15 reference images with voice references, synchronized dialogue and effects, up to 16 s, 4K; no last frame, so not for chained launch shots. Kie is cheaper than APIMart ($0.0912/s at 720p).",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "HappyHorse-1.1": {
+    "family": "HappyHorse-1.1",
+    "docs": "https://kie.ai/happyhorse-1-1?model=happyhorse-1-1%2Fimage-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 9,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.1125,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "cinematic",
+      "fantasy",
+      "micro-drama",
+      "anime",
+      "meditation"
+    ],
+    "why": "Character consistency from up to 9 references, first frame, 15 s at 1080p; no last frame and no sound, so silent hero shots, not chained launch joins.",
+    "checkedAt": "2026-10-26"
+  },
+  "HappyHorse-1.0": {
+    "family": "HappyHorse-1.0",
+    "docs": "https://kie.ai/happyhorse-1-0?model=happyhorse%2Freference-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 9,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.14,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "cinematic",
+      "fantasy",
+      "micro-drama"
+    ],
+    "why": "Ranked first for no-audio text and image to video on Artificial Analysis per the page; strong physics and motion stability, plus video edit. First frame only; APIMart sells it at $0.13/s at 720p.",
+    "checkedAt": "2026-10-26"
+  },
+  "gemini-omni-video": {
+    "family": "gemini-omni-video",
+    "docs": "https://kie.ai/gemini-omni",
+    "inputs": {
+      "text": true,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 7,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "promptLimit": 20000,
+    "usdPerSec": 0.14,
+    "use": "edit",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "The first Gemini Omni Flash, sold per video; Gemini Omni 1.1 Flash adds first and last frame control at a lower price, so it replaces this one.",
+    "checkedAt": "2026-10-26"
+  },
+  "google/gemini-omni-flash-1-1": {
+    "family": "google/gemini-omni-flash-1-1",
+    "docs": "https://kie.ai/gemini-omni-1-1-flash",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 7,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "360p",
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "promptLimit": 20000,
+    "usdPerSec": 0.063,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "First and last frame, 7 references, a reference video for scene extension, character IDs, 360p drafts; $0.42 for 6 s at up to 1080p on Kie, cheaper per second than APIMart ($0.088/s at 720p).",
+    "checkedAt": "2026-10-26"
+  },
+  "kling 2.6": {
+    "family": "kling 2.6",
+    "docs": "https://kie.ai/kling-2-6?model=kling-2.6%2Ftext-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "hd"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.055,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Kie sells only text and first-frame modes; APIMart sells the same model with a first and last frame (pro) at $0.0625/s, so the APIMart route replaces this one.",
+    "checkedAt": "2026-10-26"
+  },
+  "kling 2.5 turbo": {
+    "family": "kling 2.5 turbo",
+    "docs": "https://kie.ai/kling-2-5?model=kling%2Fv2-5-turbo-text-to-video-pro",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "1080p"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.042,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy"
+    ],
+    "why": "First and tail frame at 1080p for $0.42 per 10 s, strong prompt adherence and physics; its audio can't be turned off (a silent launch film mutes it).",
+    "checkedAt": "2026-10-26"
+  },
+  "Kling 2.1": {
+    "family": "Kling 2.1",
+    "docs": "https://kie.ai/kling/v2-1?model=kling%2Fv2-1-pro",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.05,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Older generation; Kling 2.5 Turbo does first and last frame at 1080p for less with better adherence.",
+    "checkedAt": "2026-10-26"
+  },
+  "hailuo 2.3": {
+    "family": "hailuo 2.3",
+    "docs": "https://kie.ai/hailuo-2-3?model=hailuo%2F2-3-image-to-video-pro",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "768p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.025,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "anime",
+      "micro-drama",
+      "fantasy",
+      "meditation"
+    ],
+    "why": "Cheap image to video ($0.15 for 6 s at 768p) with facial micro-expressions and anime, illustration and watercolor styles; first frame only, no sound.",
+    "checkedAt": "2026-10-26"
+  },
+  "hailuo 02": {
+    "family": "hailuo 02",
+    "docs": "https://kie.ai/hailuo-api?model=hailuo%2F02-image-to-video-standard",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "512p",
+      "768p",
+      "1080p"
+    ],
+    "promptLimit": 1500,
+    "usdPerSec": 0.025,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy"
+    ],
+    "why": "First and last frame at $0.025/s (768p), $0.01/s at 512p: the cheapest chained-shot option, good for motion tests and drafts; older quality.",
+    "checkedAt": "2026-10-26"
+  },
+  "wan 2.7 video": {
+    "family": "wan 2.7 video",
+    "docs": "https://kie.ai/wan-2-7-video?model=wan%2F2-7-videoedit",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 5,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.08,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "First and last frame with a 9-grid input, driving audio for lip sync, reference to video with voice timbre, and video edit; APIMart sells it at about $0.066/s at 720p.",
+    "checkedAt": "2026-10-26"
+  },
+  "wan 2.6": {
+    "family": "wan 2.6",
+    "docs": "https://kie.ai/wan-2-6?model=wan%2F2-6-video-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.07,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "ugc",
+      "micro-drama",
+      "influencer"
+    ],
+    "why": "Native audio with lip sync, multi-shot storytelling, 15 s; no last frame. APIMart is cheaper ($0.05/s).",
+    "checkedAt": "2026-10-26"
+  },
+  "wan 2.6 flash": {
+    "family": "wan 2.6 flash",
+    "docs": "https://kie.ai/wan-2-6-flash?model=wan%2F2-6-flash-video-to-video",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 1500,
+    "usdPerSec": 0.02,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "ugc",
+      "micro-drama",
+      "anime",
+      "meditation"
+    ],
+    "why": "Fast and cheap image or reference to video ($0.02/s at 720p silent, $0.04 with audio), multi-shot option; APIMart's i2v flash is cheaper still ($0.0168/s).",
+    "checkedAt": "2026-10-26"
+  },
+  "wan 2.5": {
+    "family": "wan 2.5",
+    "docs": "https://kie.ai/wan-2-5?model=wan%2F2-5-text-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 800,
+    "usdPerSec": 0.06,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Superseded by Wan 2.6 and 2.7 (longer, last frame, references) at similar prices; 800-character prompt limit.",
+    "checkedAt": "2026-10-26"
+  },
+  "Wan 2.2 A14B Turbo API image to Video": {
+    "family": "Wan 2.2 A14B Turbo API image to Video",
+    "docs": "https://kie.ai/wan/v2-2?model=wan%2F2-2-a14b-image-to-video-turbo",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 5,
+    "resolutions": [
+      "480p",
+      "720p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.04,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "720p maximum, no sound, no last frame; newer Wan models do more for the same or less.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "Wan 2.2 A14B Turbo API text to Video": {
+    "family": "Wan 2.2 A14B Turbo API text to Video",
+    "docs": "https://kie.ai/wan/v2-2?model=wan%2F2-2-a14b-text-to-video-turbo",
+    "inputs": {
+      "text": true,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 5,
+    "resolutions": [
+      "480p",
+      "720p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.04,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Text only, 720p maximum, no sound; every production starts from drawn frames, which this can't take.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "Wan 2.2 A14B Turbo API Speech to Video": {
+    "family": "Wan 2.2 A14B Turbo API Speech to Video",
+    "docs": "https://kie.ai/wan-speech-to-video-turbo",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 5,
+    "resolutions": [
+      "480p",
+      "580p",
+      "720p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.06,
+    "use": "lip-sync",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "About 5 s per job at $0.12/s; Kling AI Avatar and OmniHuman 2.0 lip-sync minutes of audio for less.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "wan 2.2 Animate": {
+    "family": "wan 2.2 Animate",
+    "docs": "https://kie.ai/wan-animate",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 30,
+    "resolutions": [
+      "480p",
+      "580p",
+      "720p"
+    ],
+    "usdPerSec": 0.03,
+    "use": "avatar",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "ugc"
+    ],
+    "why": "Drives a character image with a reference video's motion, or replaces the person in a video, up to 30 s; useful for clone-me and dance or demo templates.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "bytedance/seedance-v1-lite": {
+    "family": "bytedance/seedance-v1-lite",
+    "docs": "https://kie.ai/bytedance/seedance-v1?model=bytedance%2Fv1-lite-text-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 10000,
+    "usdPerSec": 0.01,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "First Seedance generation; Seedance 2.0 Mini (already run by the engine) and Seedance 1.5 Pro on APIMart beat it.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "bytedance/seedance-v1-pro": {
+    "family": "bytedance/seedance-v1-pro",
+    "docs": "https://kie.ai/bytedance/seedance-v1?model=bytedance%2Fv1-pro-text-to-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 10000,
+    "usdPerSec": 0.014,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Superseded by Seedance 1.5 Pro on APIMart (first and last frame plus audio at $0.044/s) and the Seedance 2 family.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "bytedance/seedance-v1-pro-fast": {
+    "family": "bytedance/seedance-v1-pro-fast",
+    "docs": "https://kie.ai/bytedance/seedance-v1?model=bytedance%2Fv1-pro-fast-image-to-video",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.036,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Image to video only, first generation; Seedance 2.0 Fast replaces it.",
+    "checkedAt": "2026-10-26"
+  },
+  "Runway": {
+    "family": "Runway",
+    "docs": "https://kie.ai/runway-api?model=runway%2Fextend-ai-video",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.012,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "cinematic",
+      "fantasy",
+      "meditation"
+    ],
+    "why": "Gen-4 Turbo at $0.06 per 720p video (about $0.012/s), coherent cinematic motion and extend; no last frame or sound, so silent single shots and drafts.",
+    "checkedAt": "2026-10-26"
+  },
+  "kling 2.6 motion control": {
+    "family": "kling 2.6 motion control",
+    "docs": "https://kie.ai/kling-2.6-motion-control",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 30,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.055,
+    "use": "avatar",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "ugc"
+    ],
+    "why": "Moves a character image with a reference video's full-body motion and hand gestures, up to 30 s; for spokespeople, demos and AI influencers.",
+    "checkedAt": "2026-10-26"
+  },
+  "omnihuman-2-0": {
+    "family": "omnihuman-2-0",
+    "docs": "https://kie.ai/omnihuman-2-0?model=omnihuman-2-0",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 300,
+    "resolutions": [
+      "720p"
+    ],
+    "promptLimit": 300,
+    "usdPerSec": 0.07,
+    "use": "avatar",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "podcast",
+      "ugc"
+    ],
+    "why": "Talking avatar from one image and up to 5 min of audio, with gestures and multi-person scenes, $0.07/s at 720p.",
+    "checkedAt": "2026-10-26"
+  },
+  "omnihuman-1-5": {
+    "family": "omnihuman-1-5",
+    "docs": "https://kie.ai/omnihuman-1-5?model=omnihuman-1-5",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 60,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 300,
+    "usdPerSec": 0.135,
+    "use": "avatar",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "podcast",
+      "ugc"
+    ],
+    "why": "1080p talking portrait with emotion-aware gestures, also anime and pets; best under 15 s, twice OmniHuman 2.0's price.",
+    "checkedAt": "2026-10-26"
+  },
+  "Kling AI Avatar": {
+    "family": "Kling AI Avatar",
+    "docs": "https://kie.ai/kling-ai-avatar?model=kling%2Fai-avatar-standard",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 300,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.04,
+    "use": "avatar",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "podcast",
+      "ugc"
+    ],
+    "why": "Long talking avatars (5 min) with speech and singing, realistic or illustrated, $0.04/s at 720p, $0.08/s at 1080p 48 fps: the cheapest long-form avatar.",
+    "checkedAt": "2026-10-26"
+  },
+  "MeiGen-AI InfiniteTalk": {
+    "family": "MeiGen-AI InfiniteTalk",
+    "docs": "https://kie.ai/infinitalk",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "480p",
+      "720p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.015,
+    "use": "lip-sync",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "podcast",
+      "ugc"
+    ],
+    "why": "Lip-synced talking portrait from one image, $0.015/s at 480p for drafts, 15 s per job.",
+    "checkedAt": "2026-10-26",
+    "priceAt": "2026-10-26"
+  },
+  "volcengine": {
+    "family": "volcengine",
+    "docs": "https://kie.ai/volcengine-video-to-video-lip-sync",
+    "inputs": {
+      "text": false,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 240,
+    "resolutions": [
+      "360p",
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.04,
+    "use": "lip-sync",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "podcast",
+      "ugc"
+    ],
+    "why": "Re-lip-syncs an existing video to new audio (dubbing a filmed take), up to 4 min, $0.04/s; single speaker.",
+    "checkedAt": "2026-10-26"
+  },
+  "APIMart: Kling V4 Video Generation": {
+    "family": "APIMart: Kling V4 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v4/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 10,
+      "refVideo": true,
+      "audio": true,
+      "keyframes": 8
+    },
+    "audioOut": true,
+    "maxSecs": 30,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.14,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "Same Kling 4.0 as on Kie (keyframes, references, stereo audio, 30 s, edit and extend); APIMart costs more ($0.157/s vs $0.1425/s at 720p), so it is the fallback route.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "kling-v4",
+    "priceKey": "720P",
+    "priceAt": "2026-10-27"
+  },
+  "APIMart: Vidu Q4 Preview Video Generation": {
+    "family": "APIMart: Vidu Q4 Preview Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/vidu-q4-preview/generation.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 15,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 16,
+    "resolutions": [
+      "540p",
+      "720p",
+      "1080p",
+      "2k",
+      "4k"
+    ],
+    "promptLimit": 20000,
+    "usdPerSec": 0.0912,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "micro-drama",
+      "ugc",
+      "influencer",
+      "anime",
+      "fantasy",
+      "cinematic",
+      "sitcom"
+    ],
+    "why": "Vidu Q4 (first frame or 15 references, audio, 16 s); Kie sells it cheaper.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "viduq4-preview",
+    "priceKey": "720P"
+  },
+  "APIMart: FLUX 3 Video Generation": {
+    "family": "APIMart: FLUX 3 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/flux-3-video/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false,
+      "keyframes": 8
+    },
+    "audioOut": true,
+    "maxSecs": 20,
+    "resolutions": [
+      "hd",
+      "fhd"
+    ],
+    "usdPerSec": 0.136,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime"
+    ],
+    "why": "Start, end and up to 8 evenly spaced middle frames, synced audio that can be turned off, 20 s, and a draft mode at about a third of the price ($0.048/s): fits chained shots and cheap motion tests.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "flux-3-video",
+    "priceKey": "HD"
+  },
+  "APIMart: SkyReels V4 Video Generation": {
+    "family": "APIMart: SkyReels V4 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/skyreels-v4/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 4,
+      "refVideo": true,
+      "audio": true,
+      "keyframes": 6
+    },
+    "audioOut": false,
+    "maxSecs": 15,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.088,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime"
+    ],
+    "why": "First, end and 6 middle keyframes plus subject references and voice-driven lip sync, 15 s, $0.088/s at 720p (fast); no sound output.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "skyreels-v4-fast",
+    "priceKey": "720P"
+  },
+  "APIMart: PixVerse V6 Max Video Generation": {
+    "family": "APIMart: PixVerse V6 Max Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/pixverse-v6-max/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "360p",
+      "540p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.0391,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "cinematic",
+      "fantasy",
+      "anime",
+      "micro-drama",
+      "ugc",
+      "meditation"
+    ],
+    "why": "PixVerse's higher tier, $0.039/s at 720p, optional audio; text or one image only (no last frame, no references), so single shots.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "pixverse-v6-max",
+    "priceKey": "720P"
+  },
+  "APIMart: Pixverse v6 Video Generation": {
+    "family": "APIMart: Pixverse v6 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/pixverse-v6/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 7,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "360p",
+      "540p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.032,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc"
+    ],
+    "why": "The PixVerse v6 the engine runs on Kie, cheaper here ($0.032/s vs $0.036/s at 720p); its first and last frame transition takes only 5 or 8 s.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "pixverse-v6",
+    "priceKey": "720P"
+  },
+  "APIMart: Kling v3 Omni Video Generation": {
+    "family": "APIMart: Kling v3 Omni Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v3-omni/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 12,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.0672,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "First and last frame, up to 3 subjects with 2–4 images each, a reference or base video, up to 6 shots per job and audio, $0.067/s at 720p.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "kling-v3-omni"
+  },
+  "APIMart: Kling 3.0 Turbo Video Generation": {
+    "family": "APIMart: Kling 3.0 Turbo Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-3.0-turbo/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 3072,
+    "usdPerSec": 0.1144,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "First frame only at $0.114/s; Kling v3 Omni does first and last frame with references for less.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "kling-3.0-turbo",
+    "priceKey": "720P"
+  },
+  "APIMart: Kling Video O1 Video Generation": {
+    "family": "APIMart: Kling Video O1 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-video-o1/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 5,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.0672,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime"
+    ],
+    "why": "Start and end frames, references and a base video to edit, $0.067/s at 720p; 5 or 10 s only.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "kling-video-o1"
+  },
+  "APIMart: Kling 2.6 Video Generation": {
+    "family": "APIMart: Kling 2.6 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v2-6/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.0625,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy"
+    ],
+    "why": "First and last frame at 1080p (pro) for $0.0625/s; audio in pro, but not together with a last frame; 5 or 10 s.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "kling-v2-6",
+    "priceKey": "pro"
+  },
+  "APIMart: Kling v2.6 Motion Control Video Generation": {
+    "family": "APIMart: Kling v2.6 Motion Control Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/kling-v2-6/kling-v2-6-motion-control-generation.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 30,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.05712,
+    "use": "avatar",
+    "verdict": "candidate",
+    "fits": [
+      "influencer",
+      "ugc"
+    ],
+    "why": "Motion transfer from a reference video onto a character image (v2.6 at $0.057/s, v3 at $0.103/s), up to 30 s.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "kling-v2-6-motion-control"
+  },
+  "APIMart: Vidu Q3(pro/turbo) Video Generation": {
+    "family": "APIMart: Vidu Q3(pro/turbo) Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/vidu-q3-pro/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 16,
+    "resolutions": [
+      "540p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 2000,
+    "usdPerSec": 0.048,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc"
+    ],
+    "why": "First and last frame with audio up to 16 s; Turbo $0.048/s at 720p, Pro $0.12/s.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "viduq3-turbo",
+    "priceKey": "720P"
+  },
+  "APIMart: Vidu Q3(mix/standard) Reference-to-Video": {
+    "family": "APIMart: Vidu Q3(mix/standard) Reference-to-Video",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/vidu-q3/generation.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 7,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 16,
+    "resolutions": [
+      "540p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.08,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "micro-drama",
+      "influencer",
+      "ugc"
+    ],
+    "why": "Up to 7 reference images keep one character across shots, 16 s, $0.08/s at 720p; no frame control.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "viduq3",
+    "priceKey": "720P"
+  },
+  "APIMart: Grok Official Video Models": {
+    "family": "APIMart: Grok Official Video Models",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/grok-imagine/official.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 4,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 15,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 8000,
+    "usdPerSec": 0.112,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "The official Grok Imagine endpoints cost more than the Grok Imagine 1.5 route the engine already runs, with no frame control.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "grok-imagine-video-1.5",
+    "priceKey": "720P"
+  },
+  "APIMart: MiniMax-H3-Max Video Generation": {
+    "family": "APIMart: MiniMax-H3-Max Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/max.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 9,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "480p",
+      "768p",
+      "1080p"
+    ],
+    "promptLimit": 7000,
+    "usdPerSec": 0.05712,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "H3's higher tier: first and last frame or multimodal references, 1080p, $0.057/s at 768p; the engine runs plain H3 only.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "MiniMax-H3-Max",
+    "priceKey": "768P"
+  },
+  "APIMart: MiniMax-H3 Video Generation": {
+    "family": "APIMart: MiniMax-H3 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 9,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "768p",
+      "2k"
+    ],
+    "promptLimit": 7000,
+    "usdPerSec": 0.05712,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "The MiniMax H3 the engine already runs through Kie, where 768p costs $0.04/s against $0.057/s here.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "MiniMax-H3",
+    "priceKey": "768P"
+  },
+  "APIMart: MiniMax-H3 Regeneration": {
+    "family": "APIMart: MiniMax-H3 Regeneration",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/regeneration.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "2k"
+    ],
+    "usdPerSec": 0.03432,
+    "use": "upscale",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Re-renders a finished H3 768p take at 2K; a finishing step, not a generator (deliveries are 720p).",
+    "checkedAt": "2026-10-26",
+    "apimartId": "MiniMax-H3-Regeneration",
+    "priceKey": "2K"
+  },
+  "APIMart: MiniMax-H3 Context-IR Prompt Enhancement": {
+    "family": "APIMart: MiniMax-H3 Context-IR Prompt Enhancement",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-h3/context-ir.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 1,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 1,
+    "resolutions": [
+      "none"
+    ],
+    "usdPerSec": 0,
+    "use": "edit",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Returns an enhanced text prompt and no video; the engine writes its own granular prompts.",
+    "checkedAt": "2026-10-26"
+  },
+  "APIMart: MiniMax-Hailuo-2.3 Video Generation": {
+    "family": "APIMart: MiniMax-Hailuo-2.3 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-hailuo-2.3/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "768p",
+      "1080p"
+    ],
+    "promptLimit": 2000,
+    "usdPerSec": 0.0248,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "anime",
+      "micro-drama",
+      "fantasy",
+      "meditation"
+    ],
+    "why": "Hailuo 2.3 Fast at $0.025/s (768p), Standard $0.049/s: cheap expressive image to video with camera commands; first frame only.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "MiniMax-Hailuo-2.3-Fast"
+  },
+  "APIMart: MiniMax-Hailuo-02 Video Generation": {
+    "family": "APIMart: MiniMax-Hailuo-02 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/minimax-hailuo/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "512p",
+      "768p",
+      "1080p"
+    ],
+    "usdPerSec": 0.04,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy"
+    ],
+    "why": "First and last frame from $0.0104/s at 512p: the cheapest chained motion test; Kie sells 768p cheaper.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "MiniMax-Hailuo-02",
+    "priceKey": "768P"
+  },
+  "APIMart: HappyHorse 1.1 Video Generation": {
+    "family": "APIMart: HappyHorse 1.1 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/happyhorse-1.1/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 9,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.13,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "cinematic",
+      "fantasy",
+      "micro-drama",
+      "anime",
+      "meditation"
+    ],
+    "why": "HappyHorse 1.1 (first frame or 9 references, 15 s); Kie is cheaper ($0.1125/s at 720p).",
+    "checkedAt": "2026-10-26",
+    "apimartId": "happyhorse-1.1",
+    "priceKey": "720P"
+  },
+  "APIMart: HappyHorse 1.0 Video Generation": {
+    "family": "APIMart: HappyHorse 1.0 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/happyhorse-1.0/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 9,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 2500,
+    "usdPerSec": 0.13,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "cinematic",
+      "fantasy",
+      "micro-drama"
+    ],
+    "why": "HappyHorse 1.0 with video edit, $0.13/s at 720p here against $0.14/s on Kie.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "happyhorse-1.0",
+    "priceKey": "720P"
+  },
+  "APIMart: Wan2.7 Video Generation": {
+    "family": "APIMart: Wan2.7 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.7/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.0664,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc"
+    ],
+    "why": "Wan 2.7 first and last frame, continuation and driving audio, 15 s, cheaper here ($0.066/s) than on Kie ($0.08/s).",
+    "checkedAt": "2026-10-26",
+    "apimartId": "wan2.7"
+  },
+  "APIMart: Wan2.7-R2V Reference-to-Video": {
+    "family": "APIMart: Wan2.7-R2V Reference-to-Video",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.7-r2v/generation.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 5,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.0664,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "micro-drama",
+      "influencer",
+      "ugc",
+      "sitcom"
+    ],
+    "why": "Characters from reference images or videos, each with its own reference voice, 15 s, $0.066/s.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "wan2.7-r2v"
+  },
+  "APIMart: Wan2.7-VideoEdit Video Editing": {
+    "family": "APIMart: Wan2.7-VideoEdit Video Editing",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.7-videoedit/generation.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 4,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "promptLimit": 5000,
+    "usdPerSec": 0.0664,
+    "use": "edit",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Edits or restyles existing footage; not a generator for a production's shots.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "wan2.7-videoedit"
+  },
+  "APIMart: Wan2.6 Video Generation": {
+    "family": "APIMart: Wan2.6 Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.6/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.05,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "ugc",
+      "micro-drama",
+      "influencer"
+    ],
+    "why": "Wan 2.6 with generated or supplied audio, 15 s, $0.05/s at 720p (cheaper than Kie).",
+    "checkedAt": "2026-10-26",
+    "apimartId": "wan2.6"
+  },
+  "APIMart: wan2.6-i2v-flash Image-to-Video": {
+    "family": "APIMart: wan2.6-i2v-flash Image-to-Video",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.6/i2v-flash-generation.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.0168,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "ugc",
+      "micro-drama",
+      "anime",
+      "meditation"
+    ],
+    "why": "The cheapest image to video in the catalog ($0.0168/s at 720p silent, $0.034 with audio), multi-shot option.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "wan2.6-i2v-flash",
+    "priceKey": "720P"
+  },
+  "APIMart: wan2.5-preview Video Generation": {
+    "family": "APIMart: wan2.5-preview Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/wan2.5/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": true
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.0664,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Audio can't be turned off and Wan 2.6 and 2.7 replace it at lower or equal prices.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "wan2.5-preview",
+    "priceKey": "720P"
+  },
+  "APIMart: gemini-omni-1.1-flash-ext Video Generation": {
+    "family": "APIMart: gemini-omni-1.1-flash-ext Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/omni-flash-ext/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 3,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 10,
+    "resolutions": [
+      "360p",
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "usdPerSec": 0.05,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "ugc",
+      "influencer",
+      "micro-drama"
+    ],
+    "why": "Gemini Omni 1.1 Flash with reference fusion and a reference video, $0.30 per job (about $0.05/s for 6 s); no last frame.",
+    "checkedAt": "2026-10-26"
+  },
+  "APIMart: Gemini Omni 1.1 Flash Video Generation": {
+    "family": "APIMart: Gemini Omni 1.1 Flash Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/gemini-omni-1.1-flash/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 10,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "360p",
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "usdPerSec": 0.088,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "First and last frame, references, edit and extension with audio; the model picks the length (3–10 s), which a timed plan has to allow for. Kie sells it cheaper per job.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "gemini-omni-1.1-flash",
+    "priceKey": "720P"
+  },
+  "APIMart: Gemini Omni Flash Video Generation": {
+    "family": "APIMart: Gemini Omni Flash Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/gemini-omni-flash-preview/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": false,
+      "refImages": 16,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 10,
+    "resolutions": [
+      "720p"
+    ],
+    "usdPerSec": 0.088,
+    "use": "edit",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "The preview Omni Flash, 720p only; Gemini Omni 1.1 Flash replaces it at the same price.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "gemini-omni-flash-preview",
+    "priceKey": "720P"
+  },
+  "APIMart: VEO3 Official Video Generation": {
+    "family": "APIMart: VEO3 Official Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/veo3/generation-official.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 8,
+    "resolutions": [
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "usdPerSec": 0.064,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "Veo 3.1 Fast and Quality through Google's official route, billed per second: Fast $0.064/s at 720p ($0.08 with audio), Quality $0.16/s, first and last frame, 4/6/8 s.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "veo3.1-fast-official",
+    "priceKey": "720P"
+  },
+  "APIMart: VEO3 Video Remix": {
+    "family": "APIMart: VEO3 Video Remix",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/veo3/remix.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 0,
+      "refVideo": true,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 15,
+    "resolutions": [
+      "720p",
+      "1080p",
+      "4k"
+    ],
+    "usdPerSec": 0.14,
+    "use": "extend",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Extends a finished 8 s Veo take to 15 s; an extension step, not a generator.",
+    "checkedAt": "2026-10-26"
+  },
+  "APIMart: seedance-1-5-pro Video Generation": {
+    "family": "APIMart: seedance-1-5-pro Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/seedance-1-5-pro/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": true,
+    "maxSecs": 12,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.044,
+    "use": "general",
+    "verdict": "candidate",
+    "fits": [
+      "launch",
+      "cinematic",
+      "fantasy",
+      "anime",
+      "ugc",
+      "influencer",
+      "micro-drama",
+      "sitcom"
+    ],
+    "why": "First and last frame with audio up to 12 s, $0.044/s at 720p ($0.02 at 480p).",
+    "checkedAt": "2026-10-26",
+    "apimartId": "seedance-1-5-pro",
+    "priceKey": "720P"
+  },
+  "APIMart: seedance-1-0-pro Video Generation": {
+    "family": "APIMart: seedance-1-0-pro Video Generation",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/doubao/generation.md",
+    "inputs": {
+      "text": true,
+      "firstFrame": true,
+      "lastFrame": true,
+      "refImages": 0,
+      "refVideo": false,
+      "audio": false
+    },
+    "audioOut": false,
+    "maxSecs": 12,
+    "resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "usdPerSec": 0.02,
+    "use": "general",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Seedance 1.5 Pro adds audio at the same price as 1.0 Pro Quality; the 1.0 Fast tier can't take a first and last frame together.",
+    "checkedAt": "2026-10-26",
+    "apimartId": "seedance-1-0-pro-fast",
+    "priceKey": "720P"
+  },
+  "APIMart: Virtual Avatar Assets": {
+    "family": "APIMart: Virtual Avatar Assets",
+    "docs": "https://docs.apimart.ai/en/api-reference/videos/seedance-2-0/private-avatar.md",
+    "inputs": {
+      "text": false,
+      "firstFrame": false,
+      "lastFrame": false,
+      "refImages": 20,
+      "refVideo": true,
+      "audio": true
+    },
+    "audioOut": false,
+    "maxSecs": 1,
+    "resolutions": [
+      "none"
+    ],
+    "usdPerSec": 0,
+    "use": "avatar",
+    "verdict": "not-for",
+    "fits": [],
+    "why": "Registers approved avatar assets for Seedance 2.0; it makes no video by itself.",
+    "checkedAt": "2026-10-26"
+  }
+}

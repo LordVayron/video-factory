@@ -32,6 +32,8 @@ t("vocal noise is not dialogue", ["MAH", "Ooooo", "hmmm", "Mwahaha", "woooof"].e
 t("real words are dialogue", !["stick", "foot", "scary", "rent"].some(isNoise));
 const gen = fs.readFileSync(path.join(ROOT, "engine", "gen.mjs"), "utf8");
 t("budget guard counts jobs in flight", gen.includes("inFlight.get(slug)"));
+t("budget guard counts jobs of other processes under one mutex (parallel gen.mjs runs cannot pass the cap together)", gen.includes("othersInFlight(slug)") && gen.includes("budgetMutex(slug)") && gen.includes("writeClaim(slug, credits)"));
+t("recover gives old locks one short look, drops tasks dead for hours and skips jobs of live processes", gen.includes("timeoutMs: age > 30 * 60e3 ? 20e3") && gen.includes("age < 3 * 36e5") && gen.includes("j.pid !== process.pid && alive(j.pid)"));
 const kie = fs.readFileSync(path.join(ROOT, "engine", "lib", "kie.mjs"), "utf8");
 t("kie.run never resubmits after a timeout", kie.includes("/timed out/i.test(e.message) ||"));
 
@@ -69,7 +71,7 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
   t(`code comments explain why, without dates or production stories (${storied.slice(0, 5).join(", ") || "none"})`, !storied.length);
   // The engine speaks English (the agent reads its messages and talks to the creator in their language). Spanish text
   // stays only where it is data: the claim detector for Spanish scripts and the quote detector.
-  const DATA_ES = /const CLAIMY = |const WHO = /;
+  const DATA_ES = /const CLAIMY = |const WHO = |\/\/ data: the creator's words/;
   const spanish = srcs.filter((f) => f.endsWith(".mjs") && !f.endsWith("check.mjs")).flatMap((f) => fs.readFileSync(path.join(ROOT, f), "utf8").split("\n").map((l, i) => [f, i + 1, l]))
     .filter(([, , l]) => !/^\s*\/\//.test(l) && !DATA_ES.test(l) && /[áéíóúñ¿¡]/.test(l.replace(/\/\/.*$/, ""))).map(([f, i]) => `${f}:${i}`);
   t(`engine messages are in English (${spanish.slice(0, 5).join(", ") || "none"})`, !spanish.length);
@@ -90,4 +92,10 @@ await (await import("./check-providers.mjs")).default(t, ROOT);
 }
 
 console.log(failed ? `\n${failed} check(s) failed.` : "\nAll checks passed.");
+// The guard lets a commit through only when the checks passed on exactly this code (engine/ and scripts/).
+if (!failed) {
+  const { codeSha } = await import("./hooks/stamp.mjs");
+  fs.mkdirSync(path.join(ROOT, ".cache"), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, ".cache", "check-pass.json"), JSON.stringify({ sha: codeSha(), at: new Date().toISOString() }));
+}
 process.exit(failed ? 1 : 0);

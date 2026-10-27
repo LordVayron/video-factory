@@ -35,6 +35,11 @@ export function customStyleRules(st) {
   if (st.kind !== "custom") return out;
   const refs = (st.refs || []).filter((f) => fs.existsSync(path.isAbsolute(f) ? f : path.join(st.dir || "", f)));
   if (refs.length < 2) out.push(`the ${st.id} style was made from references and has ${refs.length}; it needs at least 2 of the creator's images`);
+  // The creator's images teach the style; models only get originals made for it (no existing characters to copy).
+  const own = new Set(st.generated || []);
+  const foreign = (st.refs || []).filter((f) => !own.has(f));
+  if (foreign.length) out.push(`the ${st.id} style sends the creator's own images to the model (${foreign.join(", ")}); make 4-6 original references in the style and list them in style.generated`);
+  if (own.size && own.size < 4) out.push(`the ${st.id} style has ${own.size} original references; make at least 4`);
   if ((st.look || "").trim().split(/\s+/).length < 12) out.push(`the ${st.id} style doesn't describe its look (at least 12 words: line, color, texture, light, depth)`);
   if (!(st.negative || "").trim()) out.push(`the ${st.id} style has no "never" list (negative)`);
   if (!st.launch) out.push(`the ${st.id} style doesn't say how real footage is blended in (launch.insertTreatment)`);
@@ -65,6 +70,10 @@ export const ProductBrief = z.object({
   icp: z.object({ role: str, context: z.string().optional(), pains: z.array(z.string()).optional(), objection: z.string().optional() }),
   currentAlternative: z.string().optional(),
   capabilities: z.array(Capability).min(1),
+  // What the product does NOT do, from the creator: a script line that names one of these is a false claim.
+  doesNot: z.array(z.object({ what: str, words: z.array(z.string().trim().min(2)).min(1) })).optional(),
+  // The points the creator said every film must make (e.g. both of the product's main jobs), each with words to find in the VO.
+  mustSay: z.array(z.object({ what: str, words: z.array(z.string().trim().min(2)).min(1) })).optional(),
   artifact: z.string().optional(),
   tone: z.string().optional(),
   cta: z.object({ label: str, destination: z.string().optional() }),
@@ -103,6 +112,8 @@ export const PlannedShot = z.object({
   vo: z.string().optional(), voDirection: z.string().optional(), acting: z.string().optional(), visualHook: z.object({ what: z.string().min(10), at: z.number().min(0) }).optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
   sfx: z.array(Sfx).default([]), music: z.enum(["low", "mid", "high"]).default("mid"),
   // The transition into this shot from the previous one (xfade names; "cut" or none is a hard cut).
+  // What a set-map item shows in this shot's first frame (state) and last frame (endState), by item name.
+  state: z.record(z.string(), z.string()).optional(), endState: z.record(z.string(), z.string()).optional(),
   chain: z.enum(["exact", "same-set", "cut"]).optional(), pause: z.number().min(0).max(2).optional(), transitionAsked: z.object({ said: z.string().trim().min(2) }).optional(),
   rippleAt: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(), zoomInto: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0.1).max(0.9), secs: z.number().min(0.3).max(2).default(0.9), said: z.string().optional() }).optional(), transitionIn: z.enum(TRANSITIONS).optional(), transitionSecs: z.number().min(0.15).max(0.8).default(0.4), transitionOut: z.string().optional(),
   claim: z.string().optional(), brand: z.string().optional(),
@@ -125,7 +136,7 @@ export const ShotPlan = z.object({
   musicPrompt: z.string().optional(),
   // The score is derived, never picked from a list: the premise, the emotion to evoke, the product or story
   // context and the narrator lead to an approach (instruments, tempo, energy) that says why it fits this film.
-  musicBrief: z.object({ premise: z.string().min(3), emotion: z.string().min(3), context: z.string().min(3), narrator: z.string().optional(), approach: z.object({ instruments: z.string().min(3), tempo: z.string().min(1), energy: z.string().min(3), why: z.string().min(10) }), voiceRoom: z.string().optional(), turns: z.array(z.object({ at: z.number().min(0), line: z.string().optional(), music: z.string().min(3) })).default([]) }).optional(),
+  musicBrief: z.object({ premise: z.string().min(3), emotion: z.string().min(3), context: z.string().min(3), narrator: z.string().optional(), style: z.string().optional(), approach: z.object({ instruments: z.string().min(3), tempo: z.string().min(1), energy: z.string().min(3), why: z.string().min(10) }), voiceRoom: z.string().optional(), turns: z.array(z.object({ at: z.number().min(0), line: z.string().optional(), music: z.string().min(3) })).default([]) }).optional(),
   // The creator can waive the thread closing the film, in their words (when an idle thread in the last shot makes no sense).
   threadCloseWaived: z.object({ said: z.string().trim().min(2), reason: z.string().trim().min(2) }).optional(),
   // A narrated film is cut to its narration: one take, every line placed where it falls in that take.
@@ -138,7 +149,13 @@ export const StyleBible = z.object({
   text: z.object({ font: str, fontFile: z.string().optional(), color: hex, box: hex.optional(), accent: hex.optional(), uiBox: hex.optional() }),
   negative: z.array(z.string()).min(3),
   characters: z.array(z.object({ id: z.string(), role: str, scale: z.string().optional(), props: z.array(z.string()).default([]) })).default([]),
-  environments: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), name: str, layout: str, props: z.array(z.string()).default([]), ref: z.string().optional() })).min(1),
+  // anchor: one approved frame that already follows the map; every frame of the setting gets it as its first reference.
+  // map: where the camera stands and where every object sits on screen, so frames drawn one by one never move, mirror
+  // or turn the set. It goes into every frame and clip prompt of a shot in this setting.
+  environments: z.array(z.object({ id: z.string().regex(/^[\w-]+$/), name: str, layout: str, props: z.array(z.string()).default([]), ref: z.string().optional(), anchor: z.string().optional(),
+    map: z.object({ camera: str, items: z.array(z.object({ name: str, look: z.string().optional(), at: str, facing: z.string().optional(), state: z.string().optional(),
+      // When an item changes during the film: from that shot's first or last frame on, it shows this state.
+      changes: z.array(z.object({ from: z.string().regex(/^\w+:(first|last)$/), state: str })).optional() })).min(1) }).optional() })).min(1),
   brand: z.object({ name: z.string().trim().min(1), logo: z.string().optional(), logoWidth: z.number().min(0.1).max(0.95).optional(), logoIn: z.number().min(0).max(3).optional(), logoY: z.number().min(0.2).max(0.8).optional(), safeMargin: z.number().min(0.03).max(0.15).default(0.06), uiLabels: z.array(z.string()).default([]) }),
   // One world and one thread (one place, and one recurring character or object leading every cut).
   world: z.string().optional(),
@@ -178,6 +195,7 @@ export function briefRules(raw) {
   if (b.message.differentiator && !caps.has(b.message.differentiatorCapability || "-")) out.push("the differentiator doesn't point to a verified capability (message.differentiatorCapability); remove it or verify it");
   // One audience: a film for everyone speaks to no one.
   if (/\b(everyone|anyone|everybody|all (?:businesses|teams|people)|todos|cualquiera|todo el mundo)\b/i.test(b.message.icp)) out.push(`the ICP "${b.message.icp}" is not a single one; choose one concrete ideal customer`);
+  if (!b.doesNot) out.push("the brief doesn't record what the product does NOT do (doesNot); ask the creator, so the script can't promise a feature it lacks (an empty list is an answer)");
   if (!b.interview.length && !b.sources.some((s) => s.kind === "creator")) out.push("no interview: confirm at least the ICP, the pain and the CTA with the creator (brief.interview)");
   return out;
 }
@@ -290,6 +308,62 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
     const text = `${s.prompt} ${s.motion || ""}`.toLowerCase();
     if (text.includes(c.subject.toLowerCase()) && !text.includes(c.rule.toLowerCase())) out.push(`${s.id}: muestra "${c.subject}" y no repite su regla de continuidad ("${c.rule}")`);
   }
+  // A setting seen in two or more generated shots needs a set map: frames drawn one by one otherwise move objects
+  // between shots, turn devices around or mirror the whole set.
+  for (const e of style?.environments || []) {
+    const n = plan.shots.filter((s) => s.source === "generate" && s.assets.includes(e.id)).length;
+    if (n >= 2 && !e.map) out.push(`the setting ${e.id} appears in ${n} shots and has no set map (environments[].map: the camera side and where every object sits on screen)`);
+    // An object placed without its look is redrawn differently in every frame, even with a props sheet attached.
+    for (const i of e.map?.items || []) if (n >= 2 && !i.look) out.push(`the setting ${e.id}: "${i.name}" has no look in the set map (copy its exact design from the props or set sheet)`);
+    // Every setting seen in two or more shots has its own sheet (angles, floor plan, or the props with their states):
+    // without one, each frame redesigns the place.
+    if (n >= 2 && !e.ref) out.push(`the setting ${e.id} appears in ${n} shots and has no sheet (environments[].ref: a set or props sheet made for this film)`);
+  }
+  for (const [k, s] of plan.shots.entries()) {
+    if (s.source !== "generate") continue;
+    const people = (style?.characters || []).some((c) => s.assets.includes(c.id));
+    // Granular prompts: the frame prompt names the camera and the framing and runs long enough to leave nothing to chance.
+    const words = s.prompt.trim().split(/\s+/).length;
+    if (words < 60) out.push(`${s.id}: the frame prompt has ${words} words; write it granular (at least 60: camera height, side and lens, framing, every object's place and state, pose, exclusions)`);
+    if (!/\b(camera|lens|\d+\s?mm)\b/i.test(s.prompt)) out.push(`${s.id}: the frame prompt doesn't place the camera (height, side, lens)`);
+    // Characters act: a shot with people carries a performance direction, or the model gives stiff, slow motion.
+    if (people && (!s.acting || s.acting.trim().split(/\s+/).length < 8)) out.push(`${s.id}: a shot with people needs an acting direction (shot.acting, at least 8 words: gestures, expression, weight shifts, energy)`);
+    // One fluid piece: two shots in a row in the same setting join frame to frame (chain "exact"), unless the
+    // creator asked for a transition in words.
+    const prev = plan.shots[k - 1];
+    const shared = prev && prev.source === "generate" && s.assets.some((a) => (style?.environments || []).some((e) => e.id === a) && prev.assets.includes(a));
+    if (shared && s.chain !== "exact" && !s.transitionAsked) out.push(`${s.id}: follows ${prev.id} in the same setting; chain it frame to frame (chain "exact": it starts on ${prev.id}'s last frame) so the cut disappears`);
+    if (shared && s.chain === "exact" && !prev.end) out.push(`${prev.id}: ${s.id} starts on its last frame, so ${prev.id} needs a choreographed end (shot.end)`);
+  }
+  // Rhythm: the film cuts as often as the chosen reference (average shot no longer than 1.5x the reference's); fewer,
+  // longer shots read slow even when each one moves.
+  if (reference?.avgShot) {
+    const gen = plan.shots.filter((s) => s.source !== "card");
+    const avgShot = gen.reduce((n, s) => n + s.duration, 0) / Math.max(1, gen.length);
+    if (avgShot > reference.avgShot * 1.5) out.push(`shots average ${avgShot.toFixed(2)} s; the reference averages ${reference.avgShot} s, so keep them under ${(reference.avgShot * 1.5).toFixed(2)} s (split long beats into more chained shots)`);
+  }
+  // Copy structure (the reference method): the first line names the viewer's pain without the product, the product is
+  // named before the middle of the film, and the last line carries the brand or the call to action.
+  const pname = (brief?.product?.name || "").toLowerCase();
+  const spoken = plan.shots.filter((s) => s.vo);
+  if (pname && spoken.length >= 3) {
+    if (spoken[0].vo.toLowerCase().includes(pname)) out.push(`${spoken[0].id}: the first line names ${brief.product.name}; open on the viewer's pain, the product comes after`);
+    const first = spoken.find((s) => s.vo.toLowerCase().includes(pname));
+    const total = plan.durationSeconds || plan.shots.reduce((n, s) => n + s.duration, 0);
+    if (!first || first.start > total / 2) out.push(`${brief.product.name} is not named before the middle of the film (${(total / 2).toFixed(1)} s)`);
+    const last = spoken.at(-1).vo.toLowerCase(), cta = (brief.cta?.label || "").toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    if (!last.includes(pname) && !cta.some((w) => last.includes(w))) out.push(`${spoken.at(-1).id}: the last line carries neither ${brief.product.name} nor the call to action`);
+  }
+  // The narration reads at an 8th-grade level or below (Flesch-Kincaid), so it sounds like a person talking.
+  const voText = plan.shots.map((s) => s.vo || "").join(" ").trim();
+  if (voText) {
+    const sents = Math.max(1, (voText.match(/[.!?]+(\s|$)/g) || []).length), wordsV = voText.split(/\s+/).filter(Boolean);
+    const syl = (w) => { const x = w.toLowerCase().replace(/[^a-z]/g, ""); if (!x) return 0; const m = x.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, "").replace(/^y/, "").match(/[aeiouy]{1,2}/g); return Math.max(1, m ? m.length : 1); };
+    const grade = 0.39 * (wordsV.length / sents) + 11.8 * (wordsV.reduce((n, w) => n + syl(w), 0) / wordsV.length) - 15.59;
+    if (grade > 8.5) out.push(`the narration reads at grade ${grade.toFixed(1)}; rewrite it at an 8th-grade level or below (short sentences, everyday words)`);
+  }
+  // The style bible sets the brightness every shot is graded to (dark frames read cheap and lose the characters).
+  if (style && !(style.grade && style.grade.brightness >= 85)) out.push("the style bible has no brightness floor (grade.brightness, 85 or more)");
   // The brand ending breathes: at least 3.5 s on screen.
   const end = plan.shots.at(-1);
   if (end.role === "brand" && end.duration < 3.5) out.push(`${end.id}: the brand ending lasts ${end.duration.toFixed(2)} s (min 3.5 s so it can breathe)`);
@@ -327,6 +401,8 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
     // Claims: a number, a superlative or a promise of speed needs a capability from the brief behind it.
     const said = [s.vo, ...s.text.map((o) => o.text)].filter(Boolean).join(" ");
     if (s.claim && brief && !caps.has(s.claim)) out.push(`${s.id}: the claim points to "${s.claim}", which is not a capability in the brief`);
+    // A feature the product doesn't have is never said or shown.
+    for (const d of brief?.doesNot || []) { const w = d.words.find((x) => wordIn(x, `${said} ${s.prompt || ""}`)); if (w) out.push(`${s.id}: "${w}" promises something the product doesn't do (${d.what})`); }
     if (CLAIMY.test(said) && !s.claim) out.push(`${s.id}: "${said.slice(0, 60)}" claims something measurable; point it to a verified capability (shot.claim) or remove it`);
     // Continuity: every drawn shot lives in an environment of the style bible, and its assets exist there.
     if (style && s.source !== "card") {
@@ -341,6 +417,9 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   const proofShot = plan.shots.find((s) => s.role === "proof" || s.claim === msg?.proofCapability);
   if (!proofShot) out.push("no shot shows the proof (role proof, or shot.claim = message.proofCapability)");
   else if (msg && proofShot.claim !== msg.proofCapability) out.push(`the proof shot ${proofShot.id} doesn't point to the proof capability (${msg.proofCapability})`);
+  // Every point the creator said the film must make is said: a main job left out undersells the product.
+  const allVo = plan.shots.map((s) => [s.vo, ...(s.text || []).map((o) => o.text)].filter(Boolean).join(" ")).join(" ");
+  for (const m of brief?.mustSay || []) if (!m.words.some((w) => wordIn(w, allVo))) out.push(`the script never says "${m.what}" (the creator wants it in every film; none of: ${m.words.join(", ")})`);
   if (!roles.some((r) => ["interaction", "demo"].includes(r))) out.push("no shot shows the product in action (role interaction or demo)");
   const name = brief?.product?.name || style?.brand?.name;
   const named = (s) => s.logo || (name && s.text.some((o) => o.text.toLowerCase().includes(name.toLowerCase())));
@@ -407,13 +486,29 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
 }
 
 // ---- style bible: locked look, real files
-export function styleRules(raw, { slug, cast = [] } = {}) {
+export function styleRules(raw, { slug, cast = [], plan = null } = {}) {
   const { data: st, problems } = parse(StyleBible, raw, "style-bible.json");
   if (!st) return problems;
   const out = [];
   const abs = (f) => (path.isAbsolute(f) ? f : path.join(P.projectDir(slug), f));
   if (st.brand.logo && slug && !fs.existsSync(abs(st.brand.logo))) out.push(`the logo ${st.brand.logo} doesn't exist`);
   if (st.text.fontFile && slug && !fs.existsSync(abs(st.text.fontFile))) out.push(`the font ${st.text.fontFile} doesn't exist`);
+  // An image model draws one moment: a conditional state ("black until he goes live") gets drawn as its first half.
+  for (const e of st.environments) for (const i of e.map?.items || []) if (/\b(until|only after|once he|once she|when he|when she|after he|after she|before he|before she)\b/i.test(i.state || "")) out.push(`${e.id} map: "${i.name}" has a conditional state ("${i.state}"); write what it shows in one frame and put changes in shot.state / shot.endState`);
+  for (const e of st.environments) for (const i of e.map?.items || []) for (const c of i.changes || []) if (plan && !plan.shots.some((x) => x.id === c.from.split(":")[0])) out.push(`${e.id} map: "${i.name}" changes at ${c.from}, which is not a shot of the plan`);
+  // Every screen in a set says what it shows: a screen without a state was drawn as anything, and the judge rejected it.
+  const SCREEN = /\b(monitor|screen|phone|tablet|laptop|tv|television|display|computer)\b/i;
+  for (const e of st.environments) for (const i of e.map?.items || []) if (SCREEN.test(i.name) && !i.state?.trim()) out.push(`${e.id} map: "${i.name}" is a screen with no state; say what it shows in the first shot and add changes for every shot where it shows something else`);
+  // A shot with a screen insert opens on the green; the timeline must say so, or the frame is drawn with the old screen.
+  if (plan) {
+    const order = plan.shots.map((x) => x.id);
+    const stateAt = (i, id) => { let v = i.state || ""; for (const c of i.changes || []) { const [cid, w] = c.from.split(":"), j = order.indexOf(cid), k = order.indexOf(id); if (j < k || (j === k && w === "first")) v = c.state; } return v; };
+    for (const s of plan.shots.filter((x) => x.inserts?.length)) for (const e of st.environments.filter((x) => (s.assets || []).includes(x.id) && x.map)) {
+      const screens = e.map.items.filter((i) => SCREEN.test(i.name));
+      if (screens.length && !screens.some((i) => /green/i.test(s.state?.[i.name] || stateAt(i, s.id)))) out.push(`${s.id} has a screen insert, but no screen of ${e.id} is green at its first frame; add a change to green from ${s.id}:first (and back after the insert)`);
+    }
+  }
+  for (const e of st.environments) if (e.anchor && slug && !fs.existsSync(abs(e.anchor))) out.push(`the anchor frame of ${e.id} doesn't exist: ${e.anchor}`);
   for (const e of st.environments) if (e.ref && slug && !fs.existsSync(abs(e.ref))) out.push(`the setting image ${e.id} doesn't exist: ${e.ref}`);
   // The style bible's preset is a style launch films can use, and a custom one passes its own rules.
   if (!launchStyles().includes(st.preset)) out.push(`the style "${st.preset}" is not available for launch films (${launchStyles().join(", ")}, or your own with launch.mjs style-from-refs)`);
@@ -430,21 +525,29 @@ export function styleRules(raw, { slug, cast = [] } = {}) {
 // deterministic graphic (brand, UI, CTA) the editor draws. Generated shots are filmed a little longer than planned;
 // the edit cuts each one to its exact frame count.
 const genSecs = (d) => Math.min(8, Math.max(4, Math.ceil(d + 0.5)));
+// The set map of every setting in the shot, written the same way into each frame and clip prompt.
+// A whole word or phrase in a text (letter boundaries, so accented words match too).
+export const wordIn = (w, text) => new RegExp(`(?<!\\p{L})${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, "iu").test(text);
+
+export function setMapText(st, s) {
+  const maps = (st.environments || []).filter((e) => e.map && (s.assets || []).includes(e.id));
+  return maps.map((e) => `Fixed set map of ${e.name}, identical in every shot and never mirrored or flipped: ${e.map.camera}. ${e.map.items.map((i) => `${i.name}${i.look ? ` (${i.look}, exactly as on the props sheet)` : ""}: ${i.at}${i.facing ? `, facing ${i.facing}` : ""}${(s.state?.[i.name] ?? i.state) ? `, ${s.state?.[i.name] ?? i.state}` : ""}`).join("; ")}.${Object.keys(s.endState || {}).length && s.withEnd ? ` By the end of the shot: ${Object.entries(s.endState).map(([k, v]) => `${k}: ${v}`).join("; ")}.` : ""}`).join(" ");
+}
 // cast: [{ name, look }] of the bible characters in the shot. Their locked look goes into the prompt with their sheet
 // as the reference, and nobody else may appear (otherwise frames add strangers).
 export function framePrompt(st, look, s, cast = []) {
   const pal = st.palette.join(", ");
   const who = cast.length ? `Characters, exactly as in the reference sheet${cast.length > 1 ? "s" : ""} (same faces, hair, clothes and colors): ${cast.map((c) => `${c.name}: ${c.look}`).join("; ")}. No other people and no animals anywhere in the frame.` : "No people and no animals anywhere in the frame.";
-  return [look, s.prompt.trim().replace(/\.?$/, "."), who, `Art direction: ${st.artStyle}; ${st.line}; ${st.texture}; ${st.lighting}${st.colorTemp ? `, ${st.colorTemp}` : ""}; depth: ${st.depth}. Palette: ${pal}.`,
+  return [look, s.prompt.trim().replace(/\.?$/, "."), setMapText(st, s), who, `Art direction: ${st.artStyle}; ${st.line}; ${st.texture}; ${st.lighting}${st.colorTemp ? `, ${st.colorTemp}` : ""}; depth: ${st.depth}. Palette: ${pal}.`,
     s.composition ? `Composition: ${s.composition}.` : "", s.layers ? `Layers: ${s.layers}.` : "",
     `Never: ${[...st.negative, s.negative].filter(Boolean).join(", ")}.`, "No text, no letters, no numbers, no logos anywhere in the frame.",
-    s.inserts?.length ? `Exactly ${s.inserts.length} screen${s.inserts.length > 1 ? "s" : ""}, each filled edge to edge with one flat solid bright green (#00FF00), no reflections, no glare, nothing drawn on ${s.inserts.length > 1 ? "them" : "it"}; nothing else in the picture is green.` : ""].filter(Boolean).join(" ");
+    s.inserts?.length ? `Exactly ${s.inserts.length} screen${s.inserts.length > 1 ? "s" : ""}, each filled edge to edge with one flat solid bright green (#00FF00), no reflections, no glare, nothing drawn on ${s.inserts.length > 1 ? "them" : "it"}; nothing else in the picture is green: every other screen (phones, tablets, other monitors) stays exactly as described, dark or showing its own picture, never green.` : ""].filter(Boolean).join(" ");
 }
 // shot.acting: a performance direction for the people in the shot. The style's "small actions" rule makes people
 // stiff, so with acting the people move fully and naturally while the set, objects and identities stay locked.
 export function clipPromptOf(st, motionRule, s) {
   const acting = s.acting?.trim();
-  return [s.motion.trim().replace(/\.?$/, "."), acting ? `Acting: ${acting.replace(/\.?$/, ".")} The people are fully alive, like real actors in a real conversation: expressive faces, real reactions to each other, natural breathing, weight shifts, head turns and hand gestures with intention; never a frozen pose or a mouth that only moves.` : "",
+  return [s.motion.trim().replace(/\.?$/, "."), setMapText(st, { ...s, withEnd: true }), acting ? `Acting: ${acting.replace(/\.?$/, ".")} The people are fully alive, like real actors in a real conversation: expressive faces, real reactions to each other, natural breathing, weight shifts, head turns and hand gestures with intention; never a frozen pose or a mouth that only moves.` : "",
     s.end ? `The shot ends exactly on the last frame image: ${s.end.trim().replace(/\.?$/, ".")}` : "",
     `Camera: ${s.camera}.`, s.still?.length ? `These stay exactly as they are and do not move: ${s.still.join("; ")}.` : "",
     acting ? "The set, the frames and every object move only as described. Nobody and nothing appears, disappears, multiplies or slides out of the frame; no people, hands or creatures that are not described; faces, hair and clothes never change."
@@ -454,9 +557,25 @@ export function clipPromptOf(st, motionRule, s) {
 }
 export function toShots(plan, st, styleDef, cast = []) {
   const chars = new Set(cast);
-  const envRef = (s) => s.assets.map((a) => st.environments.find((e) => e.id === a)?.ref).filter(Boolean);
-  return plan.shots.map((s) => ({
+  const envRef = (s) => s.assets.flatMap((a) => { const e = st.environments.find((x) => x.id === a); return [e?.anchor, e?.ref]; }).filter((f, i, all) => f && all.indexOf(f) === i);
+  // The set map's timeline: each item's state at this shot's first and last frame (a shot's own state wins).
+  const order = plan.shots.map((x) => x.id);
+  const timed = (s) => {
+    const k = order.indexOf(s.id), at = {}, end = {};
+    for (const e of st.environments || []) if ((s.assets || []).includes(e.id)) for (const i of e.map?.items || []) for (const c of i.changes || []) {
+      const [id, w] = c.from.split(":"), j = order.indexOf(id);
+      if (j < k || (j === k && w === "first")) at[i.name] = c.state;
+      if (j <= k) end[i.name] = c.state;
+    }
+    return { ...s, state: { ...at, ...s.state }, endState: { ...Object.fromEntries(Object.entries(end).filter(([n, v]) => at[n] !== v)), ...s.endState }, mapState: { first: { ...at, ...s.state }, last: { ...end, ...s.state, ...s.endState } } };
+  };
+  return plan.shots.map(timed).map((s) => ({
     id: s.id, source: s.source, role: s.role, summary: s.beat, planned: { start: s.start, duration: s.duration },
+    // The chain decides how the first frame is made (copied from the previous last frame, or drawn from it).
+    ...(s.chain ? { chain: s.chain } : {}),
+    ...(s.end ? { end: s.end } : {}),
+    // Each set-map item's state at this shot's first and last frame, for the frame judge.
+    mapState: s.mapState,
     duration: s.source === "generate" ? genSecs(s.duration) : s.duration,
     characters: s.assets.filter((a) => chars.has(a)),
     refs: envRef(s),
@@ -464,7 +583,7 @@ export function toShots(plan, st, styleDef, cast = []) {
     ...(s.source !== "card" ? { framePrompt: framePrompt(st, styleDef?.look || "", s, s.assets.filter((a) => chars.has(a)).map((id) => { const c = P.character(id); return { name: c.name, look: c.look }; })) } : {}),
     ...(s.source === "generate" ? { prompt: clipPromptOf(st, styleDef?.motion, s), audioMode: "silent" } : {}),
     // The last frame: the same scene and characters at the shot's end state (drawn with the first frame as reference).
-    ...(s.source === "generate" && s.end && !/\blocked\b/i.test(s.camera) ? { lastPrompt: framePrompt(st, styleDef?.look || "", { ...s, prompt: `The same scene a few seconds later, the same framing${/push|pull/i.test(s.camera) ? ` after the camera's ${s.camera}` : ""}: ${s.end}` }, s.assets.filter((a) => chars.has(a)).map((id) => { const c = P.character(id); return { name: c.name, look: c.look }; })) } : {}),
+    ...(s.source === "generate" && s.end && !/\blocked\b/i.test(s.camera) ? { lastPrompt: framePrompt(st, styleDef?.look || "", { ...s, state: { ...s.state, ...s.endState }, prompt: `The same scene a few seconds later, the same framing${/push|pull/i.test(s.camera) ? ` after the camera's ${s.camera}` : ""}: ${s.end}` }, s.assets.filter((a) => chars.has(a)).map((id) => { const c = P.character(id); return { name: c.name, look: c.look }; })) } : {}),
     dialogue: [],
   }));
 }

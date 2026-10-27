@@ -28,10 +28,12 @@ import * as F from "./lib/flow.mjs";
 import { identityCheck } from "./lib/identity.mjs";
 import { backgroundCheck } from "./lib/backgrounds.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
+import { pacingIssues } from "./lib/pacing.mjs";
 import * as PR from "./lib/pricing.mjs";
 import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm, needsOf, NEEDS, testedModels, forTheJob, evidenceOf, recordFit, fitOf } from "./lib/pricing.mjs";
 import * as L from "./lib/launch.mjs";
 import * as CAM from "./lib/camera.mjs";
+import { engineSha } from "./lib/freeze.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -71,7 +73,7 @@ const commands = {
     for (const [k, v] of Object.entries(F.FORMATS)) console.log(`${k.padEnd(12)} ${v.kind.padEnd(9)} ${F.recipe({ format: k, intake: {} }).join(" → ")}`);
   },
 
-  new() {
+  async new() {
     const slug = pos[0];
     const need = ["--title", "--series", "--format", "--start", "--platform", "--ar", "--seconds", "--lang", "--cast", "--budget", "--refs"];
     const missing = need.filter((n) => !flag(n));
@@ -119,7 +121,7 @@ const commands = {
       if (format === "launch") fs.mkdirSync(path.join(dir, "launch"), { recursive: true });
     }
     P.updateShotlist(slug, (sl) => {
-      Object.assign(sl, { format, series, cast: chars, intake, flow: { v: 5, created: now(), approved: {}, overrides: [], log: [{ at: now(), event: "intake" }] } });
+      Object.assign(sl, { format, series, cast: chars, intake, flow: { v: 5, created: now(), approved: {}, overrides: [], log: [{ at: now(), event: "intake" }] }, engine: { sha: engineSha(), at: now() } });
       // A meditation of 30 s or less is a demo or preview (short lead-in and fades, voice by ~2 s).
       if (format === "meditation" && intake.platform.seconds <= 30) Object.assign(sl.longform, { demo: true, seconds: intake.platform.seconds });
     });
@@ -130,6 +132,7 @@ const commands = {
     const bankIds = RF.approved(format);
     { const rec = CAM.recommendedKit(format); console.log(rec ? `camera kit recommended for ${format}: ${rec} (${CAM.KITS[rec].label}). Offer it and the alternatives (studio.mjs camera ${slug} --list); the cast gate waits for the creator's choice.` : `camera: the ${format} style owns the look; only framing and moves apply.`); }
     if (bankIds.length) console.log(`approved ${format} references: ${bankIds.join(", ")}. Offer them to the creator (studio.mjs refs ${slug} --use ... | --none); the concept waits for their choice.`);
+    await commands.catalog([slug]);
     commands.status([slug]);
   },
 
@@ -141,6 +144,20 @@ const commands = {
     console.log(`${sl.title} · ${F.FORMATS[sl.format]?.label} · ${sl.series ? "series " + sl.series : "single video"} · spent $${(P.ledgerTotal(slug) * 0.005).toFixed(2)}${sl.budget ? ` de $${(sl.budget.approvedCredits * 0.005).toFixed(2)} aprobados` : ""}\n`);
     for (const s of steps) console.log(`${s.ok ? " ✓" : s === current ? " →" : "  "} ${s.name.padEnd(22)} ${s.who === "creator" ? "[creator]" : "[auto]  "}${s.detail || ""}`);
     console.log(current ? `\nSiguiente: ${current.name}. ${current.next}` : "\nProyecto cerrado.");
+    // The clock and the rework count, on every status: a production that drifts for hours or days is seen at once.
+    const mins = (a) => Math.round((Date.now() - Date.parse(a)) / 60000), fmt = (m) => (m >= 1440 ? `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h` : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
+    const delivered = (sl.flow?.log || []).some((e) => e.event === "deliver"), bookAt = sl.flow?.approved?.book?.at;
+    const since = sl.remake?.at || sl.flow?.created || "";
+    const runs = P.readJSON(path.join(P.PROJECTS, slug, "ledger.json"), []).filter((e) => e.ok && !e.test && (e.at || "") > since);
+    const assets = new Set(runs.map((e) => e.label)).size;
+    // Warnings, not gates: the live catalog check and the model research are reported on every status.
+    if (!delivered && !sl.cancelled && !sl.startCheck) console.log(`WARNING: the live catalog check hasn't run for this project (studio.mjs catalog ${slug}); prices and new models may be stale.`);
+    if (!delivered && sl.priceCheck?.unresearched?.length) console.log(`WARNING: ${sl.priceCheck.unresearched.length} video model(s) on sale have no fresh researched profile (${sl.priceCheck.unresearched.slice(0, 5).join(", ")}${sl.priceCheck.unresearched.length > 5 ? "..." : ""}); research them (studio.mjs model-research --file ...) before ruling them out.`);
+    if (sl.cancelled) console.log(`CANCELLED (${sl.cancelled.at}): nothing more is spent on it.`);
+    else if (!delivered) {
+      console.log(`Clock: ${fmt(mins(sl.remake?.at || sl.flow?.created))} since ${sl.remake ? `remake v${sl.remake.n}` : "the intake"}${bookAt ? `; ${fmt(mins(bookAt))} since the book was approved (limit: 15 min to delivery${mins(bookAt) > 15 ? ", OVER" : ""})` : ""}.`);
+      console.log(`Paid jobs: ${runs.length} for ${assets} assets${runs.length > 2 * assets && runs.length >= 10 ? " (more than two per asset: REWORK STOP is on)" : ""}.`);
+    }
   },
 
   approve() {
@@ -279,7 +296,9 @@ const commands = {
   async prices() {
     const slug = pos[0];
     let sl = P.loadShotlist(slug);
-    F.requireStep(sl, "models", "studio prices");
+    // A remake re-runs the model analysis before anything paid (frames included): it needs only the approved cast.
+    const remakePricing = sl.remake && (!(sl.priceCheck?.at > sl.remake.at) || !!flag("--pick"));
+    F.requireStep(sl, remakePricing ? "cast" : "models", "studio prices");
     // A scene filmed shot by shot (sl.filmBy "shot") is priced like clips: every shot is its own generation.
     const byShot = F.kindOf(sl) === "scenes" && sl.filmBy === "shot";
     const kind = byShot ? "clips" : F.kindOf(sl);
@@ -302,11 +321,16 @@ const commands = {
     const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
     if (!pick) throw new F.FlowStop(`--pick ${want} is not among the options: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
     const fresh = newFamilies(live.rows);
+    // MODEL RESEARCH: the whole catalog of both providers, not only the models the engine runs.
+    const cat = await PR.apimartCatalog();
+    const unresearched = PR.researchGaps(live.rows, cat), candidates = PR.researchCandidates(live.rows, sl.format, cat);
     sl = P.updateShotlist(slug, (x) => {
-      x.priceCheck = { at: now(), needs, seconds: secs, fetched: live.fetched, warning: live.warning || null, options: options.slice(0, 10), recommended: rec, pick, picked: want ? "creator" : "recommended", newOnKie: fresh };
+      x.priceCheck = { at: now(), needs, seconds: secs, fetched: live.fetched, warning: live.warning || null, options: options.slice(0, 10), recommended: rec, pick, picked: want ? "creator" : "recommended", newOnKie: [...fresh, ...candidates.map((c) => c.family).filter((f) => !fresh.includes(f))], unresearched, candidates: candidates.map((c) => ({ family: c.family, usdPerSec: c.usdPerSec, why: c.why })) };
       if (kind === "longform") { x.longform.videoModel = pick.key; x.longform.res = pick.res; }
       else x.defaults = { ...(x.defaults || {}), videoModel: pick.key, res: pick.res };
     });
+    if (unresearched.length) console.log(`MODEL RESEARCH: ${unresearched.length} video model(s) on sale at APIMart or Kie have no researched profile; read each one's documentation and record it (studio.mjs model-research --file <profiles.json>) before ruling it out:\n  ${unresearched.join("\n  ")}\n`);
+    if (candidates.length) console.log(`Researched models the engine doesn't run yet that could serve a ${sl.format} (test or add them before ruling them out):\n${candidates.map((c) => `  ${c.family}: $${c.usdPerSec}/s, ${c.why}`).join("\n")}\n`);
     console.log(`Live prices from APIMart and Kie (each model on the cheaper provider; APIMart wins ties)${live.fetched ? " (just fetched)" : ` (${live.ageH.toFixed(1)} h old)`} · ${secs} s de video · ${F.FORMATS[sl.format].label}${live.warning ? `\nAVISO: ${live.warning}` : ""}\n`);
     const tested = testedModels(sl), job = forTheJob(options, needs);
     const row = (o, tag) => { const w = measuredWpm(o.key); console.log(`${o === pick ? " →" : o === rec ? " *" : "  "} ${`${o.key}@${o.res}`.padEnd(16)} ${tag.padEnd(14)} $${o.usd.toFixed(2).padStart(6)} ${(o.provider || "kie").padEnd(7)}${o.alt ? ` (${o.alt.provider} $${o.alt.usd.toFixed(2)})` : ""}  ${w ? `habla ${w} wpm${maxWpm && w > maxWpm ? " (fast)" : ""}  ` : ""}${needs.length ? (evidenceOf(o.key, needs).map((e) => e.note).join("; ") || o.note) : o.note}`); };
@@ -374,12 +398,14 @@ Good for this job (best first, then cheapest):`);
       if (vs.r_frame_rate !== `${fps}/1`) issues.push(`${vs.r_frame_rate} fps, ${fps} is required`);
       if (plan && Math.abs(report.frames - Math.round(plan.durationSeconds * fps)) > 1) issues.push(`${report.frames} frames; ${plan.durationSeconds} s at ${fps} fps is ${Math.round(plan.durationSeconds * fps)} (tolerance 1 frame)`);
       const vo = (plan?.shots || []).filter((s) => s.vo).map((s) => ({ id: s.id, text: s.vo }));
-      if (vo.length) { const d = dialogueCheck(file, vo, sl.lang); report.voiceover = d; issues.push(...d.issues.map((x) => `voice-over: ${x}`)); }
+      if (vo.length) { const d = dialogueCheck(file, vo, sl.lang, sl.launch?.voice?.pronounce); report.voiceover = d; issues.push(...d.issues.map((x) => `voice-over: ${x}`)); }
       const overlays = (plan?.shots || []).flatMap((s) => (s.text || []).map((o) => ({ text: o.text, t: s.start + ((o.at || 0) + Math.min(o.until ?? s.duration, s.duration)) / 2 })));
       if (!noJudge) try { const tc = await L.textCheck(file, overlays); report.text = tc.read; issues.push(...tc.issues); }
       catch (e) { issues.push(`couldn't read the final's text: ${e.message.slice(0, 120)}`); }
       issues.push(...L.qualityRules(L.read(slug, "quality"), F.fileSha(file)));
     }
+    // Talking short-form formats are paced like their playbook: voice at once, the format's wpm, no stalls.
+    if (["influencer", "ugc", "podcast"].includes(sl.format)) { const pi = pacingIssues(file, sl.format, report.duration, sl.lang); report.pacing = pi; issues.push(...pi.map((x) => `pacing: ${x}`)); }
     // The 4 fps contact sheet (thumbnails for the whole cut). Identity is checked above at full resolution.
     const sheet = path.join(dir, "out", `${slug}-sheet.jpg`);
     const fps = longform ? `1/${Math.max(10, Math.round(report.duration / 60))}` : "4";
@@ -392,12 +418,118 @@ Good for this job (best first, then cheapest):`);
     process.exitCode = res.pass ? 0 : 1;
   },
 
+  // The AI label for a realistic synthetic video: how it is labelled on each platform it goes to.
+  // A plan changed after the approved book: the creator approves the new live estimate for this exact plan, and that
+  // amount becomes the budget the remaining jobs may spend.
+  "approve-replan"() {
+    const slug = pos[0], said = flag("--said"), usd = Number(flag("--usd"));
+    if (!slug || !said || !(usd > 0)) throw new F.FlowStop('approve-replan <slug> --usd N --said "the creator\'s exact words"');
+    const sl = P.loadShotlist(slug);
+    if (!sl.priceCheck?.at || Date.now() - new Date(sl.priceCheck.at).getTime() > 7 * 864e5 || (sl.remake && !(sl.priceCheck.at > sl.remake.at))) throw new F.FlowStop(`run studio.mjs prices ${slug} first (after the remake started): the creator approves a live estimate`);
+    P.updateShotlist(slug, (x) => {
+      x.replanApproved = { plan: F.planSha(x), usd, said, at: now() };
+      const spent = P.ledgerTotal(slug), next = Math.ceil(spent + usd / 0.005);
+      x.budget = { ...(x.budget || {}), approvedCredits: next, history: [...(x.budget?.history || []), { add: next - (x.budget?.approvedCredits || 0), note: `replan approved: "${said}"` }] };
+    });
+    console.log(`replan approved: $${usd} on top of what is spent; the budget lock is now ${(P.ledgerTotal(slug) * 0.005 + usd).toFixed(2)} USD`);
+  },
+
+  // REMAKE: redoing a video is a new version that walks every step in order. Steps whose material still holds are
+  // marked reused; the model analysis and the estimate always run again, and nothing paid runs before the creator
+  // approves that estimate (REMAKE STOP in gen.mjs).
+  // ENGINE FREEZE release: continue this production on the changed engine, in the creator's words.
+  "engine-update"() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop("engine-update <slug> --said 'the creator exact words'");
+    const sl = P.updateShotlist(slug, (x) => { x.engine = { sha: engineSha(), at: now(), said, from: x.engine?.sha }; x.flow.log.push({ at: now(), event: "engine-update", said }); });
+    console.log(`${slug} continues on engine ${sl.engine.sha} (was ${sl.engine.from || "unrecorded"}).`);
+  },
+  // What the product does NOT do and what every video must say, in the creator's words (formats that sell something).
+  // --does-not "makes clips:clips,clip maker" (repeatable; "none" records an empty list), --must-say "streams live:live,stream".
+  product() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop("product <slug> --does-not 'what:word,word' | none --must-say 'what:word,word' --said 'the creator exact words'");
+    const parse = (v) => { const [what, words] = v.split(":"); return { what: what.trim(), words: (words || what).split(",").map((w) => w.trim()).filter(Boolean) }; };
+    const dn = argv.flatMap((a, i) => (a === "--does-not" && argv[i + 1] ? [argv[i + 1]] : [])), ms = argv.flatMap((a, i) => (a === "--must-say" && argv[i + 1] ? [argv[i + 1]] : []));
+    P.updateShotlist(slug, (x) => { x.product = { doesNot: dn.filter((v) => v !== "none").map(parse), mustSay: ms.map(parse), said, at: now() }; });
+    console.log(`${slug}: ${dn.filter((v) => v !== "none").length} thing(s) it doesn't do, ${ms.length} must-say point(s).`);
+  },
+  // Records researched model profiles (read from each model's documentation): a JSON array of
+  // { family, docs, inputs, audioOut, maxSecs, resolutions, usdPerSec, use, verdict, fits, why }.
+  "model-research"() {
+    const file = flag("--file");
+    if (!file || !fs.existsSync(file)) throw new F.FlowStop("model-research --file <profiles.json>");
+    const n = PR.recordResearch(JSON.parse(fs.readFileSync(file, "utf8")));
+    console.log(`model research: ${n} families on record (engine/data/model-research.json)`);
+  },
+  // LIVE CATALOG CHECK: both providers' catalogs and prices, fetched fresh. Runs at every intake; the concept gate
+  // waits for it. Re-run any time with studio.mjs catalog <slug>.
+  async catalog(args = pos) {
+    const slug = args[0];
+    if (!slug) throw new F.FlowStop("catalog <slug>");
+    let c;
+    try { c = await PR.liveCatalogCheck(); } catch (e) { console.log(`LIVE CATALOG CHECK failed: ${e.message.slice(0, 160)}. Run studio.mjs catalog ${slug} again before the concept.`); return; }
+    P.updateShotlist(slug, (x) => { x.startCheck = { at: c.at, newModels: c.newModels, priceChanges: c.priceChanges.length }; });
+    console.log(`Live catalog check: Kie price list${c.fetched ? " fetched now" : " (cached: " + (c.warning || "") + ")"}, APIMart docs catalog ${c.catalog} video pages.`);
+    if (c.newModels.length) console.log(`  NEW video models since the last research (research them before the book): ${c.newModels.join(", ")}`);
+    else console.log("  No new video models: every model on sale has a researched profile.");
+    if (c.priceChanges.length) console.log(`  Price changes (${c.priceChanges.length}):\n${c.priceChanges.slice(0, 25).map((p) => `    ${p.model}: $${p.was} → $${p.now} ${p.unit || ""}`).join("\n")}`);
+    else console.log("  No price changes.");
+  },
+  // A cancelled project spends nothing more (every paid job refuses it).
+  cancel() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop("cancel <slug> --said 'the creator exact words'");
+    P.updateShotlist(slug, (x) => { x.cancelled = { at: now(), said }; x.flow.log.push({ at: now(), event: "cancel", said }); });
+    console.log(`${slug} cancelled; nothing more will be spent on it.`);
+  },
+  remake() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop('remake <slug> --said "the creator\'s exact words"');
+    let sl = P.loadShotlist(slug);
+    sl = P.updateShotlist(slug, (x) => { x.remake = { n: (x.remake?.n || 0) + 1, at: now(), said }; x.engine = { sha: engineSha(), at: now() }; x.flow.log = [...(x.flow.log || []), { at: now(), event: `remake v${x.remake.n}`, said }]; });
+    console.log(`remake v${sl.remake.n} started. Every step, in order:`);
+    for (const id of F.recipe(sl)) {
+      const st = F.stepStatus(sl, id), always = ["models", "book"].includes(id);
+      console.log(`  ${always ? "→ redo " : st.ok ? "✓ reuse" : "→ redo "} ${F.STEPS[id].name}${always ? " (always re-run on a remake)" : st.ok ? "" : `: ${String(st.detail || "").slice(0, 140)}`}`);
+    }
+    console.log(`\nNext, before anything paid: studio.mjs prices ${slug} (the best model at the best live price for this plan), gen.mjs estimate ${slug}, then the creator approves that estimate (studio.mjs approve-replan ${slug} --usd N --said "...").`);
+  },
+
+  // The creator's call on the models the providers sell that the engine doesn't run yet (listed by studio.mjs prices).
+  "new-models"() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop('new-models <slug> --said "the creator\'s exact words"');
+    const sl = P.loadShotlist(slug);
+    if (!sl.priceCheck?.at) throw new F.FlowStop(`run studio.mjs prices ${slug} first`);
+    P.updateShotlist(slug, (x) => { x.newModelsReviewed = { at: x.priceCheck.at, said, list: x.priceCheck.newOnKie || [] }; });
+    console.log("the creator's call on the new models is recorded for this price check");
+  },
+
+  // Skipping the two-model comparison, only in the creator's words.
+  "waive-compare"() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop('waive-compare <slug> --said "the creator\'s exact words"');
+    P.updateShotlist(slug, (x) => { x.modelCompareWaived = { said, at: now() }; });
+    console.log("model comparison waived in the creator's words (recorded in the book)");
+  },
+
+  disclose() {
+    const slug = pos[0];
+    if (!slug || !flag("--label") || !flag("--said")) throw new F.FlowStop('disclose <slug> --label "how it is labelled on each platform" --said "the creator\'s exact words"');
+    P.updateShotlist(slug, (x) => { x.aiDisclosure = { label: flag("--label"), said: flag("--said"), at: now() }; });
+    console.log("AI disclosure recorded; it goes into the delivery receipt");
+  },
+
   deliver() {
     const slug = pos[0];
     const sl = P.loadShotlist(slug);
     F.requireStep(sl, "deliver", "studio deliver");
+    // Realistic synthetic people or voices are labelled as AI on YouTube and TikTok; the receipt carries how.
+    const realistic = ["influencer", "ugc", "podcast", "micro-drama", "cinematic"].includes(sl.format) || (() => { try { return P.style(sl.style).kind === "realistic"; } catch { return false; } })();
+    if (realistic && !sl.aiDisclosure && (sl.flow?.created || "") >= "2026-10-26") throw new F.FlowStop('realistic synthetic people or voices: record how the video is labelled as AI before delivering (studio.mjs disclose <slug> --label "..." --said "...")');
     const file = F.finalFile(sl);
-    const receipt = { file: P.rel(slug, file), sha: F.fileSha(file), at: now(), qc: sl.finalQc5.report, overrides: sl.flow.overrides || [] };
+    const receipt = { file: P.rel(slug, file), sha: F.fileSha(file), at: now(), qc: sl.finalQc5.report, overrides: sl.flow.overrides || [], ...(sl.aiDisclosure ? { aiDisclosure: sl.aiDisclosure } : {}) };
     P.writeJSON(path.join(P.projectDir(slug), "delivery.json"), receipt);
     P.updateShotlist(slug, (x) => { x.flow.log.push({ at: receipt.at, event: "deliver", sha: receipt.sha }); });
     // Launch films ship with their source: brief, concepts, script, shot plan, style bible, QC, manifest, captions.

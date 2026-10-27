@@ -59,7 +59,7 @@
         "sample-founder",
         "desk"
       ],
-      "prompt": "First-person view of a large hand reaching up toward five blank paper cards shaped like app windows floating in an arc above a wooden desk, a coffee mug at right, a laptop at back left, late afternoon window light",
+      "prompt": "First-person view of a large hand reaching up toward five blank paper cards shaped like app windows floating in an arc above a wooden desk, a coffee mug at right, a laptop at back left, late afternoon window light. Camera: first-person close-up at eye height of the subject, 35 mm lens, from the same side as the previous shot; static, slight drift. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the hand reaches for the floating paper windows as they drift apart; one window slips past the fingers and flutters down",
       "risks": [
         "hand anatomy"
@@ -73,7 +73,8 @@
       "visualHook": {
         "what": "the hand pulls a sticky idea card off a corkboard crammed with ideas",
         "at": 0.5
-      }
+      },
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     },
     {
       "id": "S2",
@@ -96,7 +97,7 @@
         "sample-founder",
         "desk"
       ],
-      "prompt": "A tired founder resting their chin on a wooden desk next to a tall leaning tower of blank storyboard pages, coffee mug, soft window light, eye level at desk height",
+      "prompt": "A tired founder resting their chin on a wooden desk next to a tall leaning tower of blank storyboard pages, coffee mug, soft window light, eye level at desk height. Camera: medium shot at desk level at eye height of the subject, 35 mm lens, from the same side as the previous shot; slow push in. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the tower of pages leans slowly and slides over in a soft cascade; the founder blinks and sighs",
       "risks": [],
       "connect": {
@@ -109,7 +110,8 @@
         "the window",
         "the lamp"
       ],
-      "chain": "same-set"
+      "chain": "exact",
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     },
     {
       "id": "S3",
@@ -137,13 +139,13 @@
         "studio",
         "desk"
       ],
-      "prompt": "A small closed cardboard box sitting in the center of a wooden desk beside a coffee mug, warm afternoon window light, room around it for paper panels to unfold",
+      "prompt": "A small closed cardboard box sitting in the center of a wooden desk beside a coffee mug, warm afternoon window light, room around it for paper panels to unfold. Camera: wide shot of the desk at eye height of the subject, 35 mm lens, from the same side as the previous shot; static. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the box flaps open and paper panels fold up like a pop-up book into three tiny film stages with little lights",
       "risks": [
         "complex transformation"
       ],
       "transitionIn": "fade",
-      "vo": "Then a little studio opens on your desk.",
+      "vo": "Then Video Factory opens on your desk.",
       "connect": {
         "type": "object",
         "how": "the box beside the founder unfolds into the studio"
@@ -188,7 +190,7 @@
         "sample-crew",
         "studio"
       ],
-      "prompt": "A large hand holding a blank paper card above a tiny red mailbox at the front of a miniature film studio, three thumb-sized crew members looking up, a director with a beret, a camera operator and a set builder",
+      "prompt": "A large hand holding a blank paper card above a tiny red mailbox at the front of a miniature film studio, three thumb-sized crew members looking up, a director with a beret, a camera operator and a set builder. Camera: close shot on the mailbox at eye height of the subject, 35 mm lens, from the same side as the previous shot; small push on the mailbox. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the hand lowers the card into the mailbox slot; the tiny crew cheer and run to pull it out; the factory crew keeps working at their stations",
       "risks": [
         "hand anatomy",
@@ -204,7 +206,8 @@
         "the window",
         "the lamp"
       ],
-      "chain": "same-set"
+      "chain": "exact",
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     },
     {
       "id": "S5",
@@ -243,7 +246,7 @@
         "sample-crew",
         "studio"
       ],
-      "prompt": "Inside a miniature bathroom set the size of a phone, a tiny creator holds up a small blank bottle toward a tiny camera operated by a thumb-sized crew member, soft light from a little lamp",
+      "prompt": "Inside a miniature bathroom set the size of a phone, a tiny creator holds up a small blank bottle toward a tiny camera operated by a thumb-sized crew member, soft light from a little lamp. Camera: medium shot of the first stage at eye height of the subject, 35 mm lens, from the same side as the previous shot; gentle drift right. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the tiny creator lifts the bottle and smiles at the camera while the crew member steadies the tiny camera; the factory crew keeps working at their stations",
       "risks": [
         "small characters"
@@ -258,7 +261,8 @@
         "the window",
         "the lamp"
       ],
-      "chain": "same-set"
+      "chain": "exact",
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     },
     {
       "id": "S6",
@@ -288,7 +292,7 @@
       "assets": [
         "studio"
       ],
-      "prompt": "A miniature corner with a glowing ring light and a tiny phone on a tripod, a small cheerful influencer character with curly hair and a yellow sweater in front of it",
+      "prompt": "A miniature corner with a glowing ring light and a tiny phone on a tripod, a small cheerful influencer character with curly hair and a yellow sweater in front of it. Camera: medium shot of the second stage at eye height of the subject, 35 mm lens, from the same side as the previous shot; static. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the influencer waves at the tiny phone and tilts their head as the ring light glows softly",
       "risks": [],
       "connect": {
@@ -301,7 +305,7 @@
         "the window",
         "the lamp"
       ],
-      "chain": "same-set"
+      "chain": "exact"
     },
     {
       "id": "S7",
@@ -333,7 +337,7 @@
         "sample-crew",
         "studio"
       ],
-      "prompt": "A tiny theatre stage with a red curtain, two small actors facing each other in a tense moment under a spotlight, a thumb-sized director with a beret watching from the front",
+      "prompt": "A tiny theatre stage with a red curtain, two small actors facing each other in a tense moment under a spotlight, a thumb-sized director with a beret watching from the front. Camera: wide of the third stage at eye height of the subject, 35 mm lens, from the same side as the previous shot; slow push in. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "one actor turns away slowly with a dramatic gesture while the director leans forward in excitement; the factory crew keeps working at their stations",
       "risks": [
         "two characters"
@@ -348,7 +352,8 @@
         "the window",
         "the lamp"
       ],
-      "chain": "same-set"
+      "chain": "exact",
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     },
     {
       "id": "S8",
@@ -383,7 +388,7 @@
       "assets": [
         "desk"
       ],
-      "prompt": "A clean cream paper desk surface in warm light with a few cassette tapes at the edges, open space in the center",
+      "prompt": "A clean cream paper desk surface in warm light with a few cassette tapes at the edges, open space in the center. Camera: graphic card at eye height of the subject, 35 mm lens, from the same side as the previous shot; static. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the cassette tapes slide gently into place at the edges, warm light shifts softly; the camera is locked",
       "transitionIn": "cut",
       "vo": "Every take is checked before it reaches you.",
@@ -419,7 +424,7 @@
         "sample-founder",
         "studio"
       ],
-      "prompt": "The founder leaning toward the miniature studio with a relaxed warm smile, three tiny glowing screens on the studio's front showing colorful abstract shapes, warm window light",
+      "prompt": "The founder leaning toward the miniature studio with a relaxed warm smile, three tiny glowing screens on the studio's front showing colorful abstract shapes, warm window light. Camera: medium close-up at eye height of the subject, 35 mm lens, from the same side as the previous shot; slow push in (editor). Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the founder smiles and leans in toward the tiny screens, which flicker softly; a slow drift",
       "connect": {
         "type": "pull-out",
@@ -430,7 +435,8 @@
         "the desk",
         "the window",
         "the lamp"
-      ]
+      ],
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     },
     {
       "id": "S10",
@@ -465,7 +471,7 @@
         "sample-founder",
         "studio"
       ],
-      "prompt": "The tabletop studio seen wide in soft warm light, its little lights glowing, open space above for a title",
+      "prompt": "The tabletop studio seen wide in soft warm light, its little lights glowing, open space above for a title. Camera: graphic card at eye height of the subject, 35 mm lens, from the same side as the previous shot; static. Framing: the subject fills the central third of the picture, the set fills the rest exactly as on the set sheet; every object keeps its place, design, color and state from the sheet. Never: text, logos, extra people, extra objects, a mirrored picture.",
       "motion": "the studio lights glow and the tiny screens flicker softly; the camera is locked",
       "transitionIn": "fade",
       "transitionSecs": 0.3,
@@ -481,7 +487,8 @@
       ],
       "transitionAsked": {
         "said": "(sample) the creator's exact words that asked for or approved this go here"
-      }
+      },
+      "acting": "moves with clear intention and energy: expressive face, natural weight shifts, purposeful hand gestures, reacts to what happens"
     }
   ],
   "musicBrief": {
@@ -504,7 +511,7 @@
       },
       {
         "at": 6,
-        "line": "Then a little studio opens on your desk.",
+        "line": "Then Video Factory opens on your desk.",
         "music": "momentum starts: glockenspiel and soft rhythm"
       },
       {
