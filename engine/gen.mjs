@@ -39,6 +39,10 @@ import { missingMarks, castOf, identityCheck } from "./lib/identity.mjs";
 import { jumpCheck, jumpLines } from "./lib/jumps.mjs";
 import * as TR from "./lib/transfer.mjs";
 import { evalFrame } from "./lib/frameeval.mjs";
+import { endMatch } from "./lib/joins.mjs";
+import * as BR from "./lib/brand.mjs";
+import * as D from "./lib/direction.mjs";
+import { cutsMatch, screenText, stillCheck, stillRules } from "./lib/critics.mjs";
 import { freezeProblem, engineSha } from "./lib/freeze.mjs";
 import * as MS from "./lib/modelsheet.mjs";
 import { voiceProfile } from "./lib/voices.mjs";
@@ -47,8 +51,18 @@ import { motionScore, MIN_MOTION } from "./lib/meditation.mjs";
 // or slow, above the ceiling it shakes or morphs. Launch films act big; talking formats stay calm.
 const MOTION_BAND = { launch: [1.5, 7], fantasy: [0.8, 7], cinematic: [0.3, 7], influencer: [0.3, 2], podcast: [0.3, 2], ugc: [0.3, 2.5] };
 const motionBand = (sl) => MOTION_BAND[sl.format] || [0.3, 7];
+// The shot list in direction terms (a launch film keeps its camera language in its plan and style bible).
+const dirShots = (sl) => {
+  const lf = (k) => { try { return P.readJSON(path.join(P.projectDir(sl.slug), "launch", k)); } catch { return null; } };
+  return sl.format === "launch" ? D.directionShots(sl, lf("shot-plan.json"), lf("style-bible.json")?.environments || []) : D.directionShots(sl);
+};
+// A character sheet image to send as a reference (the standard model sheet first).
+const sheetOf = (id) => {
+  const c = P.character(id), d = path.join(P.BIBLE, "characters", id);
+  return ["model-sheet.png", ...(c.sheets || []), ...(c.refs || [])].map((x) => path.join(d, x)).find((x) => fs.existsSync(x)) || null;
+};
 import * as eleven from "./lib/eleven.mjs";
-import { requireStep, requirePilot, assertV5, takeOk, evalsPass, kindOf, FlowStop, planSha } from "./lib/flow.mjs";
+import { requireStep, requirePilot, assertV5, takeOk, evalsPass, kindOf, FlowStop, samePlan, v6, sequencesOf } from "./lib/flow.mjs";
 import { dialogueCheck, isVocal } from "./lib/dialogue.mjs";
 
 const argv = process.argv.slice(2);
@@ -83,6 +97,19 @@ function mediaDuration(file) {
     return Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]).toString().trim());
   } catch { return null; }
 }
+
+// A sequence take becomes its shots' takes: split at the planned beats in camera mode (the views flow into each
+// other), where the model really cut in cuts mode (the beats when the cuts found don't match the views).
+function splitTake(slug, q, take, byId, real) {
+  const file = P.abs(slug, take.file), len = mediaDuration(file), found = (take.evals?.cuts?.offsets || []).map((o) => o.at);
+  const at = (q.mode || D.DEFAULT_MODE) === "camera" || found.length !== real.length - 1 ? [...D.beatsOf(q, byId), len] : [0, ...found, len];
+  return real.map((s, i) => {
+    const seg = P.abs(slug, `clips/${s.id}-from-${path.basename(take.file, ".mp4")}.mp4`);
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", at[i].toFixed(3), "-to", at[i + 1].toFixed(3), "-i", file, "-an", "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", seg]);
+    return { id: s.id, file: P.rel(slug, seg) };
+  });
+}
+const shotTake = (part, take, qid, extra = {}) => ({ file: part.file, model: take.model, prompt: take.prompt, at: new Date().toISOString(), fromSequence: { id: qid, take: take.file }, evals: { identity: { pass: true, issues: [] }, jumps: { internal: 0, list: [] }, dialogue: { pass: true, issues: [] }, ...(take.evals?.motion ? { motion: take.evals.motion } : {}) }, ...extra });
 
 // Run one paid job: submit, wait, download, ledger. Returns local file path(s).
 // Run one paid job: submit, wait, download, ledger, register in the shotlist.
@@ -170,8 +197,8 @@ async function jobRun({ slug, modelKey, req, outBase, label, ext, register, test
     // REMAKE STOP: a remake spends nothing until the model analysis ran again and the creator approved its estimate.
     if (sl0.remake && !test && !(sl0.priceCheck?.at > sl0.remake.at && sl0.replanApproved?.at > sl0.remake.at)) throw new FlowStop(`REMAKE STOP: remake v${sl0.remake.n} runs the model analysis and gets the estimate approved before any paid job (studio.mjs prices ${slug}, gen.mjs estimate ${slug}, studio.mjs approve-replan ${slug} --usd N --said "...").`);
     if (sl0.format === "launch" && sl0.flow?.approved?.book && !test) {
-      const cur = planSha(sl0), booked = sl0.bookPlan;
-      if (booked && booked !== cur && sl0.replanApproved?.plan !== cur) throw new FlowStop(`REPLAN STOP: the plan changed after the approved Production Book. Run studio.mjs prices ${slug}, show the creator the new estimate (gen.mjs estimate ${slug}) and record their yes (studio.mjs approve-replan ${slug} --usd N --said "...") before any paid job.`);
+      const booked = sl0.bookPlan;
+      if (booked && !samePlan(booked, sl0) && !samePlan(sl0.replanApproved?.plan, sl0)) throw new FlowStop(`REPLAN STOP: the plan changed after the approved Production Book. Run studio.mjs prices ${slug}, show the creator the new estimate (gen.mjs estimate ${slug}) and record their yes (studio.mjs approve-replan ${slug} --usd N --said "...") before any paid job.`);
     }
     // BALANCE STOP: the providers' live balance must cover the job before it is sent; an empty wallet is reported,
     // never discovered by burning the last credits.
@@ -317,13 +344,25 @@ async function frameEvalOf(slug, id, which) {
   ].filter((r, i, all) => all.findIndex((x) => x.file === r.file) === i);
   const expect = which === "first" ? s.firstPrompt || s.framePrompt : s.lastUsedPrompt || s.lastPrompt;
   const ev = await evalFrame({ frame: P.abs(slug, f), refs, maps, cast: cast.map((c) => ({ name: c.name, look: c.look })), expect: (expect || "").slice(0, 1500) });
+  let flaggedNow = null;
   P.updateShotlist(slug, (x) => {
     const t = P.shot(x, id);
     t[`${which}Eval`] = { file: f, pass: ev.pass, fails: ev.fails, summary: ev.summary, model: ev.model, at: new Date().toISOString() };
     // Notes of why a frame failed feed the next attempt; a pass clears them.
     t.frameNotes = ev.pass ? (t.frameNotes || []).filter((n) => n.which !== which) : [...(t.frameNotes || []), { which, file: f, fails: ev.fails }];
+    // FRAME CAP: two attempts per frame. After the second failure the attempt with the fewest failures is kept and
+    // flagged: the chain goes on, and the Production Book shows it to the creator, whose approval decides it. A frame
+    // never gets a third paid attempt without the creator's words.
+    const tried = (t.frameNotes || []).filter((n) => n.which === which);
+    if (!ev.pass && tried.length >= 2) {
+      const best = tried.filter((n) => fs.existsSync(P.abs(slug, n.file))).sort((a, b) => a.fails.length - b.fails.length)[0] || tried.at(-1);
+      t[which === "first" ? "frame" : "last"] = best.file;
+      t[`${which}Eval`] = { ...t[`${which}Eval`], file: best.file, fails: best.fails, flagged: true, attempts: tried.length };
+      flaggedNow = best;
+    }
   });
-  console.log(ev.pass ? `frame eval ${id} ${which}: pass (${ev.summary})` : `FRAME STOP ${id} ${which}: ${ev.fails.join("; ")}`);
+  if (flaggedNow) console.log(`FRAME FLAGGED ${id} ${which}: kept ${flaggedNow.file} after two attempts (${flaggedNow.fails.join("; ")}); the Production Book shows it to the creator`);
+  else console.log(ev.pass ? `frame eval ${id} ${which}: pass (${ev.summary})` : `frame eval ${id} ${which} failed (attempt 1 of 2): ${ev.fails.join("; ")}`);
   return ev;
 }
 
@@ -844,19 +883,20 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const s = P.shot(sl, id);
     if (s.source === "card") throw new FlowStop(`${id} is a card: the editor draws it, it has no generated frame`);
     // Launch films: no frame is paid for before the creator approved the storyboard animatic of this plan.
-    if (sl.format === "launch" && has("--planned") && sl.launch?.animaticApproved?.plan !== planSha(sl)) throw new FlowStop(`${id}: the creator hasn't approved this plan's animatic (launch.mjs animatic ${slug} --approve --said "...")`);
+    if (sl.format === "launch" && has("--planned") && !samePlan(sl.launch?.animaticApproved?.plan, sl)) throw new FlowStop(`${id}: the creator hasn't approved this plan's animatic (launch.mjs animatic ${slug} --approve --said "...")`);
     // chain "exact": the first frame IS the previous shot's drawn last frame (copied, free), so the cut disappears.
     const i0 = sl.shots.indexOf(s), prev = sl.shots[i0 - 1];
     // After a shot with a green screen insert, a copy would open on the green: that first frame is drawn from it instead.
     const afterInsert = !!prev?.inserts?.length !== !!s.inserts?.length;
-    if (sl.format === "launch" && which === "first" && s.chain === "exact" && !afterInsert) {
+    // v6 draws every keyframe it asks for (a scene opening, or a fresh one after a drifted take): nothing to copy.
+    if (!v6(sl) && sl.format === "launch" && which === "first" && s.chain === "exact" && !afterInsert) {
       // A locked shot has no separate last frame: its first frame is also how it ends.
       const src = prev?.last || (prev?.frame && !prev?.lastPrompt ? prev.frame : null);
       if (!src) throw new FlowStop(`${id} starts on ${prev?.id}'s last frame; draw that frame first (gen.mjs frame ${slug} ${prev?.id} last --planned)`);
       if (s.frameSrc === src && s.frame && fs.existsSync(P.abs(slug, s.frame))) return console.log(`${P.abs(slug, s.frame)} (already ${prev.id}'s last frame)`);
       // Never chain from a frame that didn't pass: a copy of a stale or rejected frame spreads its error down the film.
       const srcEv = src === prev.last ? prev.lastEval : prev.firstEval;
-      const srcOk = (src === prev.frame && prev.frameSrc) || (srcEv?.file === src && (srcEv.pass || srcEv.accepted));
+      const srcOk = (src === prev.frame && prev.frameSrc) || (srcEv?.file === src && (srcEv.pass || srcEv.accepted || srcEv.flagged));
       if (!srcOk) throw new FlowStop(`${id} starts on ${prev.id}'s ${src === prev.last ? "last" : "first"} frame, which hasn't passed its eval; fix ${prev.id} first`);
       const base = nextName(P.abs(slug, "frames"), `${id}-first`, ".png"), out = base + ".png";
       fs.copyFileSync(P.abs(slug, src), out);
@@ -864,7 +904,8 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t.frame = P.rel(slug, out); t.firstPrompt = prompt; t.frameFrom = `${prev.id}:last`; t.frameSrc = src; if (t.last && t.lastFrom !== t.frame) { delete t.last; delete t.lastEval; delete t.lastFrom; } });
       return console.log(`${out} (${prev.id}'s last frame, free)`);
     }
-    // chain "same-set": drawn from the previous shot's frame with the same framing (GPT Image reframes unless told).
+    // chain "same-set": the same set as the previous frame, seen from this shot's own camera and framing (a new size or
+    // angle; the same framing again reads as a jump cut).
     const setRef = sl.format === "launch" && which === "first" && (s.chain === "same-set" || (s.chain === "exact" && afterInsert)) && (prev?.last || prev?.frame) ? [P.abs(slug, prev.last || prev.frame)] : [];
     const miss = missingMarks(prompt, s.characters || castOf(sl, prompt));
     if (miss.length) throw new FlowStop(`PROMPT STOP: the ${which} frame of ${id} leaves out ${miss.join("; ")}`);
@@ -883,7 +924,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     // goes first, with what must change and what must stay.
     const endLead = which === "last" && s.end && s.frame ? `The first reference image is this shot's OPENING frame. Draw the END of the same shot, a few seconds later: ${s.end}. The people's poses, gestures, expressions and every screen's content change to this end state and must not copy the opening frame; make every change large and unmistakable (a lean back puts the back against the chair's backrest, clearly farther from the desk); the set, the camera position, the props and their places stay exactly the same.` : "";
     // At an insert boundary the shot may reframe (a push-in to the screen): the previous frame fixes the set and the moment, the shot's own camera sets the framing.
-    const sent = [endLead, setRef.length ? (afterInsert ? `The same set and the same moment as the first reference image, every object where it is unless described; the camera and framing follow this shot's description, not the reference: ${prompt}` : `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}`) : prompt, fixes, optics].filter(Boolean).join(" ");
+    const sent = [endLead, setRef.length ? (afterInsert || s.chain === "same-set" ? `The same set and the same moment as the first reference image, every object where it is unless described; the camera and framing follow this shot's description, not the reference: ${prompt}` : `The same set as the first reference image, with exactly the same framing, camera position and zoom; every object stays where it is unless described: ${prompt}`) : prompt, fixes, optics].filter(Boolean).join(" ");
     const [out] = await job({ slug, modelKey: "gpt2.5", req: { prompt: sent, refs, ar: sl.ar || "9:16", size: flag("--size", "2K") }, outBase: nextName(P.abs(slug, "frames"), `${id}-${which}`, ".png"), label: `${id} ${which} frame`, ext: ".png" });
     P.updateShotlist(slug, (x) => { const t = P.shot(x, id); t[which === "first" ? "frame" : "last"] = P.rel(slug, out); t[which === "first" ? "firstPrompt" : "lastUsedPrompt"] = prompt; if (which === "last") { t.lastPlanned = s0?.lastPrompt; t.lastFrom = t.frame; } else { delete t.frameSrc; if (t.last && t.lastFrom !== t.frame) { delete t.last; delete t.lastEval; delete t.lastFrom; } } });
     console.log(out);
@@ -902,11 +943,14 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     await recover(slug);
     let sl = P.loadShotlist(slug);
     requireStep(sl, "board", "gen frame-chain");
-    const copyable = (s, prev) => sl.format === "launch" && s.chain === "exact" && prev && !!prev.inserts?.length === !!s.inserts?.length;
+    // v6: one opening keyframe per sequence, no last frames (the camera reaches the other views inside the take).
+    const keys = v6(sl) ? D.keyShots(sequencesOf(sl)) : null;
+    const copyable = (s, prev) => !keys && sl.format === "launch" && s.chain === "exact" && prev && !!prev.inserts?.length === !!s.inserts?.length;
     const todo = [];
     sl.shots.forEach((s, i) => {
       if (s.source === "card") return;
-      const evOk = (w) => { const f = w === "first" ? s.frame : s.last, ev = s[`${w}Eval`]; return f && (w === "first" && s.frameSrc ? true : ev?.file === f && (ev.pass || ev.accepted)); };
+      if (keys) { if (keys.has(s.id) && s.framePrompt && !(s.frame && s.firstEval?.file === s.frame && (s.firstEval.pass || s.firstEval.accepted || s.firstEval.flagged))) todo.push({ id: s.id, which: "first", free: false }); return; }
+      const evOk = (w) => { const f = w === "first" ? s.frame : s.last, ev = s[`${w}Eval`]; return f && (w === "first" && s.frameSrc ? true : ev?.file === f && (ev.pass || ev.accepted || ev.flagged)); };
       if (s.framePrompt && !evOk("first")) todo.push({ id: s.id, which: "first", free: copyable(s, sl.shots[i - 1]) });
       if (s.lastPrompt && !evOk("last")) todo.push({ id: s.id, which: "last", free: false });
     });
@@ -914,7 +958,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
     const paid = todo.filter((t) => !t.free).length, img = getModel("gpt2.5"), each = img.cost({ size: "2K" });
     const secs = P.readJSON(path.join(P.PROJECTS, slug, "ledger.json"), []).filter((e) => e.ok && e.model === "gpt2.5" && e.secs).map((e) => e.secs).sort((a, b) => a - b);
     const med = secs.length ? secs[Math.floor(secs.length / 2)] : 180;
-    console.log(`frame-chain ${slug}: ${todo.length} frames (${paid} to paint, ${todo.length - paid} copied free), ~${usd(paid * each)}, ~${Math.ceil((paid * (med + 45)) / 60)} min (measured ${med} s per image${secs.length ? "" : ", no measurement yet: assumed"} + ~45 s judge). A rejected frame repaints once, then stops.`);
+    console.log(`frame-chain ${slug}: ${todo.length} frames (${paid} to paint, ${todo.length - paid} copied free), ~${usd(paid * each)}, ~${Math.ceil((paid * (med + 45)) / 60)} min (measured ${med} s per image${secs.length ? "" : ", no measurement yet: assumed"} + ~45 s judge). A rejected frame repaints once; if it fails again the better attempt is kept and flagged for the book.`);
     for (const t of todo) {
       for (let attempt = 1; ; attempt++) {
         pos.splice(0, pos.length, slug, t.id, t.which);
@@ -927,7 +971,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         sl = P.loadShotlist(slug);
         const s = P.shot(sl, t.id), f = t.which === "first" ? s.frame : s.last, ev = s[`${t.which}Eval`];
         if (t.which === "first" && s.frameSrc && s.frame) break;
-        if (ev?.file === f && (ev.pass || ev.accepted)) break;
+        if (ev?.file === f && (ev.pass || ev.accepted || ev.flagged)) break;
         // The frame command stops by itself after two failed evals (FRAME STOP); the loop never goes past it.
       }
     }
@@ -954,6 +998,148 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
   // the locked anchor), jumps (cuts or snaps inside the shot), dialogue. The take is recorded before the evals run,
   // so a paid take is never lost when an eval can't run (the Kie judge can be down): `--eval <n>`
   // re-runs the evals on take n for free. A take that fails is never used by cut.mjs.
+  // ENGINE V6, sequences (docs/engine-v6.md). `sequences <slug>` plans them (free): consecutive shots in one place,
+  // up to the model's longest clip, when the model cuts inside a generation. `sequence <slug> --seq <id>` films one in
+  // a single call (its opening keyframe, the later shots' frames and the cast's sheets as references), measures it
+  // (planned cuts present and no others, identity, motion) and splits a passing take into its shots' takes, so the
+  // review, the edit and the QC work shot by shot as before.
+  sequences() {
+    const slug = pos[0];
+    const sl = P.loadShotlist(slug), model = getModel(sl.defaults?.videoModel || "sd2-fast");
+    const shots = dirShots(sl);
+    const mode = sl.sequenceMode || D.DEFAULT_MODE;
+    const seqs = sequencesOf(sl);
+    const byId = Object.fromEntries(shots.map((s) => [s.id, s]));
+    P.updateShotlist(slug, (x) => {
+      const old = Object.fromEntries((x.sequences || []).map((q) => [q.shots.join(","), q]));
+      x.sequences = seqs.map((q) => ({ ...q, cuts: D.cutsOf(q, byId), ...(old[q.shots.join(",")]?.clips ? { clips: old[q.shots.join(",")].clips, clip: old[q.shots.join(",")].clip } : {}) }));
+    });
+    for (const q of seqs) console.log(`${q.id}: ${q.shots.join(" + ")} · ${q.duration} s${q.editor ? " (made by the editor)" : ""}${q.continues ? ` · continues ${q.continues}` : ""}${D.cutsOf(q, byId).length ? ` · cuts at ${D.cutsOf(q, byId).join(", ")} s` : ""}`);
+    console.log(`${seqs.filter((q) => !q.editor).length} generation(s) for ${shots.filter((s) => s.source === "generate").length} shots on ${model.label} · ${mode === "camera" ? "each scene one continuous camera take" : model.multiShot ? "hard cuts inside each generation" : "one shot per generation (the model doesn't cut inside one)"}`);
+  },
+
+  async sequence() {
+    const slug = pos[0], qid = flag("--seq");
+    if (!slug || !qid) throw new Error('usage: sequence <slug> --seq <id> [--redo] [--eval <take n>] [--test --model <k> --said "..."]');
+    await recover(slug);
+    let sl = P.loadShotlist(slug);
+    const test = has("--test") && !flag("--eval");
+    if (test && (!flag("--model") || !flag("--said"))) throw new FlowStop('sequence --test needs --model <k> and --said "the creator exact words"');
+    requireStep(sl, has("--test") ? "board" : "film", "gen sequence"); // --test --eval n re-measures a test take
+    const q = (sl.sequences || []).find((x) => x.id === qid);
+    if (!q) throw new FlowStop(`no sequence ${qid}: plan them first (gen.mjs sequences ${slug})`);
+    if (q.editor) throw new FlowStop(`${qid} is made by the editor (cards and stills), nothing to film`);
+    const modelKey = test ? flag("--model") : sl.defaults?.videoModel || "sd2-fast", model = getModel(modelKey);
+    if (!test) requirePilot(sl, q.shots);
+    if ((q.mode || D.DEFAULT_MODE) === "cuts" && q.shots.length > 1 && !model.multiShot) throw new FlowStop(`${model.label} can't cut inside one generation; plan the sequences for it again (gen.mjs sequences ${slug})`);
+    // q.views: a sequence can set a shot's view and action for itself (a test of how the model cuts between sizes).
+    const shots = dirShots(sl), byId = Object.fromEntries(shots.map((s) => [s.id, { ...s, ...(q.views?.[s.id] || {}) }]));
+    const real = q.shots.map((id) => P.shot(sl, id));
+    const cast = [...new Set(real.flatMap((s) => s.characters || castOf(sl, s.prompt)))];
+    const silent = sl.format === "launch";
+    const failed = (q.clips || []).filter((c) => !c.test && c.evals && !c.evals.pass);
+    if (!test && failed.length >= 2 && !flag("--said")) throw new FlowStop(`CLIP STOP: ${qid} failed twice; change the plan or refilm only with the creator's words (--said "...")`);
+    let n;
+    // --accept n: the creator keeps a take that failed a critic; it becomes its shots' takes as a passing one would.
+    if (flag("--accept")) {
+      n = Number(flag("--accept"));
+      const said = flag("--said"), reason = flag("--reason"), take = q.clips?.[n - 1], at = new Date().toISOString();
+      if (!take?.evals) throw new FlowStop(`${qid} has no measured take ${n}`);
+      if (!said || !reason) throw new FlowStop(`sequence --accept needs --said "the creator's exact words" and --reason "what fails and why it is accepted"`);
+      const parts = splitTake(slug, q, take, byId, real), accepted = { said, reason, at };
+      P.updateShotlist(slug, (x) => {
+        const t = x.sequences.find((y) => y.id === qid);
+        Object.assign(t.clips[n - 1], { accepted });
+        t.clip = n - 1;
+        for (const p of parts) { const s = P.shot(x, p.id); s.clips = [...(s.clips || []), shotTake(p, take, qid, { accepted })]; s.clip = s.clips.length - 1; }
+        x.flow.overrides = [...(x.flow.overrides || []), { step: "film", take: `${qid} take ${n}`, said, reason, at, fp: "take" }];
+        x.flow.log.push({ at, event: `accept-take ${qid} #${n}`, said, reason });
+      });
+      return console.log(`take ${n} of ${qid} accepted in the creator's words: ${parts.map((p) => p.file).join(", ")}; it is recorded in the Production Book.`);
+    }
+    if (flag("--eval")) n = Number(flag("--eval"));
+    else {
+      if (!test && q.clip != null && q.clips?.[q.clip]?.evals?.pass && !has("--redo")) return console.log(`${qid} already has a take that passes every critic (use --redo for another, inside the budget)`);
+      // The opening keyframe: the previous sequence's real last frame when this one continues an unbroken shot,
+      // otherwise the first shot's drawn and judged frame.
+      let key = real[0].frame && P.abs(slug, real[0].frame);
+      if (q.continues) {
+        const pq = sl.sequences.find((x) => x.id === q.continues), pt = pq?.clips?.[pq.clip];
+        if (!pt?.evals?.pass && !pt?.accepted?.said) throw new FlowStop(`${qid} continues ${q.continues} unbroken: film ${q.continues} first`);
+        // IDENTITY GATE: a take's last frame becomes the next opening only if the faces at its end still match the
+        // approved faces (marks, features, hair, wardrobe). A drifted end would pass its drift on; the scene then opens
+        // on a freshly drawn, judged keyframe instead.
+        const tail = P.abs(slug, `clips/_${qid}-tail.mp4`), len = mediaDuration(P.abs(slug, pt.file));
+        execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", Math.max(0, len - 1.5).toFixed(2), "-i", P.abs(slug, pt.file), "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", tail]);
+        const gate = cast.length ? await identityCheck(tail, cast).catch((e) => ({ pass: false, issues: [`identity check did not run: ${e.message.slice(0, 100)}`] })) : { pass: true, issues: [] };
+        fs.rmSync(tail, { force: true });
+        P.updateShotlist(slug, (x) => { x.sequences.find((y) => y.id === qid).gate = { from: pt.file, pass: gate.pass, issues: gate.issues, at: new Date().toISOString() }; });
+        if (gate.pass) {
+          key = P.abs(slug, `frames/${qid}-from-${path.basename(pt.file, ".mp4")}.png`);
+          fs.mkdirSync(path.dirname(key), { recursive: true });
+          lastFrame(P.abs(slug, pt.file), key);
+        } else {
+          console.log(`IDENTITY GATE: ${q.continues}'s take drifts at its end (${gate.issues.join("; ")}); ${qid} opens on a drawn keyframe instead`);
+          const s0 = real[0], ok = s0.frame && s0.firstEval?.file === s0.frame && (s0.firstEval.pass || s0.firstEval.accepted || s0.firstEval.flagged);
+          if (!ok) throw new FlowStop(`REKEY: ${qid} needs a fresh keyframe because the previous take drifted; draw it (gen.mjs frame ${slug} ${s0.id} first --planned) and film again`);
+          key = P.abs(slug, s0.frame);
+        }
+      }
+      if (!key || !fs.existsSync(key)) throw new FlowStop(`${qid}: ${real[0].id} has no opening frame (the board draws it)`);
+      // A later shot's drawn frame is its framing reference, unless the sequence gave that shot another size.
+      const later = real.slice(1).filter((s) => !q.views?.[s.id]?.shotType).map((s) => s.frame && P.abs(slug, s.frame)).filter((f) => f && fs.existsSync(f));
+      const sheets = cast.map(sheetOf).filter(Boolean);
+      const refFiles = [...later, ...sheets].slice(0, Math.max(0, (model.refs || 1) - 1));
+      const fails = failed.at(-1)?.evals?.issues || [];
+      const prompt = [
+        D.sequencePrompt(q, byId, { cast: cast.map((id) => `${P.character(id).name}: ${P.character(id).look}`), continuity: real.flatMap((s) => s.continuity || []).slice(0, 6), style: (() => { try { const lk = P.style(sl.style)?.look; return lk ? `Style: ${lk}.` : ""; } catch { return ""; } })() }),
+        `Reference image 1 is the exact opening frame.${later.length ? ` Reference images 2 to ${later.length + 1} show the later views, in order.` : ""}${sheets.length ? " The remaining reference images are the character sheets." : ""}`,
+        fails.length ? `Corrections, because the previous take failed: ${fails.join("; ")}.` : "",
+      ].filter(Boolean).join(" ");
+      const req = {
+        prompt: fitPrompt(prompt, model), cast, lines: real.flatMap((s) => s.dialogue || []), ar: sl.ar || "9:16", res: sl.defaults?.res || "720p",
+        duration: Math.ceil(q.duration), frame: await PV.upload(key), refs: await Promise.all(refFiles.map((f) => PV.upload(f))), ...(silent ? { sound: false } : {}),
+      };
+      const [out] = await job({ slug, modelKey, req, outBase: nextName(P.abs(slug, "clips"), `${qid}-take`, ".mp4"), label: `${qid} ${test ? "sequence test" : "sequence"}`, ext: ".mp4", test });
+      console.log("filmed", P.rel(slug, out));
+      P.updateShotlist(slug, (x) => {
+        const t = x.sequences.find((y) => y.id === qid);
+        t.clips = [...(t.clips || []), { file: P.rel(slug, out), model: modelKey, prompt: req.prompt, at: new Date().toISOString(), ...(q.continues ? { openedOn: key } : {}), ...(test ? { test: { said: flag("--said") } } : {}) }];
+        n = t.clips.length;
+      });
+    }
+    sl = P.loadShotlist(slug);
+    const tq = sl.sequences.find((x) => x.id === qid), take = tq.clips[n - 1], file = P.abs(slug, take.file);
+    // Critics: the planned cuts are in the take and no other, the same faces across the cuts, motion in its band.
+    const cuts = cutsMatch(file, q.cuts || []);
+    const identity = await identityCheck(file, cast).catch((e) => ({ pass: false, issues: [`identity check did not run: ${e.message.slice(0, 120)}`] }));
+    const score = cast.length ? motionScore(file) : null, [lo, hi] = motionBand(sl);
+    const motion = score == null ? null : { score, min: lo, max: hi, pass: score >= lo && score <= hi };
+    const lines = real.flatMap((s) => (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${s.id}-${i + 1}`, text: l.text })));
+    const dialogue = silent || !lines.length ? { pass: true, issues: [] } : dialogueCheck(file, lines, sl.lang);
+    // Launch films composite every word themselves: a word the model painted fails the take.
+    const text = silent ? screenText(file) : { issues: [] };
+    const still = await stillCheck(file, [...new Set(real.flatMap((s) => stillRules(s.prompt)))]);
+    console.log(still.ran ? `still check (${still.model}): ${still.violations.length} violation(s)` : still.note);
+    const issues = [...cuts.issues, ...text.issues, ...still.issues, ...(identity.issues || []), ...(motion && !motion.pass ? [`motion ${motion.score} outside ${lo}-${hi}`] : []), ...dialogue.issues];
+    const evals = { pass: !issues.length, cuts, text: { words: text.words || [] }, still: { ran: still.ran, violations: still.violations }, identity: { pass: identity.pass, issues: identity.issues || [] }, motion, dialogue, issues };
+    // Every sequence test is evidence of what a model does with a sequence (mode, planned cuts, cuts found, motion).
+    if (take.test) { const df = path.join(ROOT, "engine", "data", "sequence-tests.json"); const all = fs.existsSync(df) ? P.readJSON(df) : []; all.push({ model: take.model, mode: q.mode || D.DEFAULT_MODE, secs: q.duration, views: q.shots.length, planned: q.cuts || [], found: cuts.found, motion: motion?.score ?? null, pass: evals.pass, at: new Date().toISOString() }); P.writeJSON(df, all); }
+    console.log(evals.pass ? `${qid}: take ${n} passes every critic (cuts at ${cuts.found.join(", ") || "none"} s)` : `${qid}: take ${n} fails:\n - ${issues.join("\n - ")}`);
+    // A passing take becomes its shots' takes, cut where the model really cut.
+    const parts = evals.pass && !take.test ? splitTake(slug, q, { ...take, evals }, byId, real) : [];
+    P.updateShotlist(slug, (x) => {
+      const t = x.sequences.find((y) => y.id === qid);
+      t.clips[n - 1].evals = evals;
+      if (evals.pass && !take.test) t.clip = n - 1;
+      for (const p of parts) {
+        const s = P.shot(x, p.id);
+        s.clips = [...(s.clips || []), shotTake(p, take, qid, { evals: { identity: { pass: true, issues: [] }, jumps: { internal: 0, list: [] }, dialogue: { pass: true, issues: [] }, ...(motion ? { motion } : {}) } })];
+        s.clip = s.clips.length - 1;
+      }
+    });
+  },
+
   async clip() {
     const slug = pos[0], id = flag("--shot");
     if (!slug || !id) throw new Error("usage: clip <slug> --shot <id> [--redo] [--eval <take n>] [--test --model <k> --said \"...\"]");
@@ -996,6 +1182,19 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         fs.mkdirSync(path.dirname(first), { recursive: true });
         lastFrame(P.abs(slug, t.file), first);
       } else first = P.abs(slug, first);
+      // CHAIN FROM THE TAKE: an "exact" shot opens on the previous take's real last frame, not on the frame drawn
+      // before filming. Models rarely land exactly on a drawn end, and every cut built on drawn frames jumped. The
+      // previous shot is filmed first; a shot after real footage in screens keeps its drawn frame (the take ends green).
+      const prevShot = sl.shots[sl.shots.findIndex((x) => x.id === id) - 1];
+      let openedOn = null;
+      if (!test && !m && s.chain === "exact" && prevShot && !prevShot.inserts?.length && !s.inserts?.length) {
+        const pt = prevShot.clips?.[prevShot.clip];
+        if (!takeOk(pt)) throw new FlowStop(`${id} continues ${prevShot.id} in one unbroken shot and opens on its take's last frame: film ${prevShot.id} first (it has no passing take yet)`);
+        first = P.abs(slug, `frames/${id}-from-${path.basename(pt.file, ".mp4")}.png`);
+        fs.mkdirSync(path.dirname(first), { recursive: true });
+        lastFrame(P.abs(slug, pt.file), first);
+        openedOn = pt.file;
+      }
       const req = {
         prompt: fitPrompt([P.clipPrompt(sl, s), clipFixes].filter(Boolean).join(" "), getModel(model)), lines: s.dialogue || [], cast, ar: sl.ar || "9:16", res: s.res || sl.defaults?.res || "720p", duration: test && flag("--secs") ? Number(flag("--secs")) : s.duration,
         frame: await PV.upload(first), lastFrame: s.last ? await PV.upload(P.abs(slug, s.last)) : undefined, ...(silent ? { sound: false } : {}),
@@ -1004,7 +1203,7 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
       console.log("filmed", P.rel(slug, out));
       P.updateShotlist(slug, (x) => {
         const t = P.shot(x, id);
-        t.clips = [...(t.clips || []), { file: P.rel(slug, out), model, prompt: req.prompt, at: new Date().toISOString(), evals: null, ...(test ? { test: { said: flag("--said") } } : {}) }];
+        t.clips = [...(t.clips || []), { file: P.rel(slug, out), model, prompt: req.prompt, at: new Date().toISOString(), evals: null, ...(openedOn ? { openedOn } : {}), ...(test ? { test: { said: flag("--said") } } : {}) }];
         n = t.clips.length;
       });
     }
@@ -1022,6 +1221,21 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
         const score = motionScore(file), [lo, hi] = motionBand(sl);
         evals.motion = { score, min: lo, max: hi, pass: score >= lo && score <= hi };
         console.log(evals.motion.pass ? `MOTION PASS (${score}, band ${lo}-${hi})` : `MOTION FAIL: ${score} outside ${lo}-${hi} for ${sl.format}; ${score < lo ? "the take reads slow or frozen: push the acting and the camera move" : "the take shakes or morphs: calm the move"}. Refilm (one retry, the creator's yes) or accept it in their words`);
+      }
+      // END MATCH: a shot the next one opens on ("exact") must land on its drawn last frame, or that cut jumps. It is
+      // measured here, before the next shot is paid for; a motion test measures it too, so the book knows whether the
+      // model can hold an invisible cut at all.
+      if (silent) { const tx = screenText(file); if (tx.ran) { evals.text = { words: tx.words, pass: !tx.words.length }; console.log(tx.words.length ? `TEXT FAIL: ${tx.issues.join("; ")}` : "TEXT PASS (no words drawn by the model)"); } }
+      const nextShot = sl.shots[sl.shots.findIndex((x) => x.id === id) + 1];
+      if (s.last && fs.existsSync(P.abs(slug, s.last))) {
+        const em = endMatch(file, P.abs(slug, s.last));
+        if (em) {
+          // A next shot that opens on this take's real last frame can't jump, so the drawn end only gates when the next
+          // shot has to open on drawn frames (real footage in a screen on either side).
+          evals.end = { ...em, gates: nextShot?.chain === "exact" && !!(s.inserts?.length || nextShot.inserts?.length) };
+          if (!evals.end.gates) evals.end.pass = true;
+          console.log(evals.end.gates ? (em.pass ? `END PASS (SSIM ${em.ssim} with the drawn last frame)` : `END FAIL: the take ends at SSIM ${em.ssim} from its drawn last frame (min ${em.min}); ${nextShot.id} opens on that frame, so the cut would jump. Refilm, or re-plan ${nextShot.id} as a real cut (another size or angle)`) : `END ${em.ssim} (no shot opens on it)`);
+        }
       }
       console.log([
         identity.pass ? "IDENTITY PASS" : `IDENTITY FAIL\n - ${identity.issues.join("\n - ")}`,
@@ -1087,6 +1301,10 @@ Show the creator each angle frame, then redraw the storyboards: node engine/gen.
           else if (Math.abs(ln.at - t.at) > 0.6) bad.push(`turn "${t.line}" is at ${t.at} s but the line starts at ${ln.at.toFixed(2)} s in the narration`);
         }
         if ((b.turns || []).length < 2) bad.push("musicBrief.turns: at least two turns tied to narration lines");
+        // The brand's music history: the brief starts from what the creator chose for this brand and says how it
+        // stays away from every sound they rejected.
+        const h = BR.history(sl, "music");
+        if ((h.picked.length || h.rejected.length) && (b.brandHistory || "").trim().split(/\s+/).length < 8) bad.push(`musicBrief.brandHistory: say how this score follows the brand's chosen music and avoids the rejected ones. Chosen: ${h.picked.join(" | ") || "none"}. Rejected: ${h.rejected.join(" | ") || "none"}`);
       }
       if (bad.length) throw new FlowStop(`MUSIC STOP: ${bad.join("; ")}`);
       turns = b.turns;

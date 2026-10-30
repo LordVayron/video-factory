@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.13.0, 2026-10-30: engine v6, sequences and critics
+
+- **Sequences (engine v6).** A scene is generated as one continuous camera take with one opening keyframe. The camera reaches each shot's view at the planned time, and a passing take is split into its shots. Hard cuts happen only between scenes. `gen.mjs sequences` plans them for free; `gen.mjs sequence` films one. The price analysis prefers models that cut inside one generation when scenes need it, and sequence tests are recorded in `engine/data/sequence-tests.json`. See `docs/engine-v6.md`.
+- **One keyframe per scene, with an identity gate.** Before a scene continues a take, the faces at its end are checked against the anchors; a drift redraws the keyframe (REKEY).
+- **Critics.** Every cut in the final must be planned, placed at the launch plan's timing. A take with words painted on a screen fails (local OCR). The new still critic checks each sequence take against the shot's stay-as-it-is rules: nothing appears, multiplies, floats out of a screen or turns into a screen. A judge outage is a note, not a failed take.
+- **Autopilot.** `studio.mjs go <slug> --said "..."` runs every automatic step in order and stops only at the creator's decisions or a stop that needs a yes. Independent runs film in parallel.
+- **Launch approvals that stick.** The script, look and book approvals cover only the creator's choices, so frame redraws and prompt edits no longer reopen them. One animatic approval per plan, shown in the book with the motion tests and the creator's decisions. The book reserves one reroll per shot inside the approved total; each frame gets two attempts.
+- **Film grammar.** A cut in the same place changes shot size or angle, or continues one unbroken shot. Each film uses three sizes, and a pull-back that opens on an extreme wide is refused. An exact chain opens on the previous take's real last frame, and every join is measured per take.
+- **Brand memory.** The music, voice and look the creator chose or rejected per brand (`studio.mjs brand`); the music brief must answer them.
+- **Logo end card.** `launch.logoFx` adds a dark scrim with a vignette under the logo and a glitch entrance.
+- **Fixes.**
+  - `accept-take` works on takes filmed as a sequence.
+  - Delivery after a QC override no longer reopens the book.
+  - The vision judge skips a provider that just failed.
+  - Checks run faster, and the launch mock never reaches the providers.
+
 ## 2.12.0, 2026-10-27: production locks
 
 - **Engine freeze.** A production finishes on the engine it started with: every paid job refuses to run once the engine code changed, until the creator agrees (`studio.mjs engine-update <slug> --said`). `studio.mjs cancel` stops a project for good.

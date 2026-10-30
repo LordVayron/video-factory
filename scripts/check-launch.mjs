@@ -10,9 +10,13 @@ import * as F from "../engine/lib/flow.mjs";
 import * as P from "../engine/lib/project.mjs";
 import * as L from "../engine/lib/launch.mjs";
 import * as MS from "../engine/lib/modelsheet.mjs";
+import * as AP from "../engine/lib/autopilot.mjs";
+import * as J from "../engine/lib/joins.mjs";
+import * as BR from "../engine/lib/brand.mjs";
+import { stillRules } from "../engine/lib/critics.mjs";
 
 export default function checkLaunch(t, ROOT) {
-  const node = (args) => spawnSync(process.execPath, args.map((a, i) => (i === 0 ? path.join(ROOT, "engine", a) : a)), { encoding: "utf8", cwd: ROOT });
+  const node = (args) => spawnSync(process.execPath, args.map((a, i) => (i === 0 ? path.join(ROOT, "engine", a) : a)), { encoding: "utf8", cwd: ROOT, env: { ...process.env, FACTORY_OFFLINE: "1" } });
   const ff = (args) => execFileSync("ffmpeg", ["-v", "error", "-y", ...args]);
   const probe = (f, entries) => JSON.parse(execFileSync("ffprobe", ["-v", "error", "-count_frames", "-show_entries", entries, "-of", "json", f]).toString());
   const sample = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, "templates", "launch", "video-factory", f), "utf8"));
@@ -25,6 +29,40 @@ export default function checkLaunch(t, ROOT) {
   t("launch: shot durations must add up to the length (±0.25 s) with no gaps", L.planRules(shifted, { brief, concepts }).some((x) => /add up to/.test(x)) && L.planRules(shifted, { brief, concepts }).some((x) => /no gaps/.test(x)));
   const claimy = structuredClone(plan); claimy.shots[1].vo = "Ten times faster than any agency.";
   t("launch: a measurable claim without a proven capability is blocked", L.planRules(claimy, { brief, concepts }).some((x) => /claims something measurable/.test(x)));
+  // Film grammar: a cut in the same place changes size or angle; the same view again is a jump cut.
+  { const k = plan.shots.findIndex((s, i) => i > 0 && s.chain === "exact" && plan.shots[i - 1].source === "generate" && s.source === "generate");
+    const jc = structuredClone(plan); jc.shots[k].chain = "cut"; jc.shots[k].shotType = jc.shots[k - 1].shotType; delete jc.shots[k].angle; jc.shots[k].composition = jc.shots[k - 1].composition;
+    const jumps = (p) => L.planRules(p, { brief, concepts, style }).some((x) => /a jump cut/.test(x));
+    const sized = structuredClone(jc); sized.shots[k].shotType = L.shotSize(jc.shots[k - 1]) === 5 ? "wide shot" : "close-up";
+    const angled = structuredClone(jc); angled.shots[k].angle = "over-the-shoulder";
+    t("launch: a cut to the same place, size and angle is refused as a jump cut; a new size, a new angle or one unbroken shot passes", jumps(jc) && !jumps(sized) && !jumps(angled) && !jumps(plan)); }
+  { const k = plan.shots.findIndex((s) => s.source === "generate"), pb = structuredClone(plan);
+    pb.shots[k].shotType = "extreme wide"; pb.shots[k].camera = "slow pull back";
+    const closer = structuredClone(pb); closer.shots[k].shotType = "wide";
+    const flags = (p) => L.planRules(p, { brief, concepts, style }).filter((x) => /opens on an extreme wide/.test(x));
+    t("launch: a pull-back that opens on an extreme wide is a craft issue (the model pushes in first); opening closer passes", flags(pb).length === 1 && F.CRAFT.test(flags(pb)[0]) && !flags(closer).length); }
+  t("launch: the still critic reads a shot's own stay-as-it-is rules from its prompt", stillRules("Camera: slow drift. These stay exactly as they are and do not move: every app window stays inside the monitor screen; the lamp keeps its place. The set moves only as described.").join("|") === "every app window stays inside the monitor screen|the lamp keeps its place");
+  { const flat = structuredClone(plan); for (const s of flat.shots) if (s.source === "generate") s.shotType = "medium shot";
+    const r = L.planRules(flat, { brief, concepts, style });
+    t("launch: a film needs three shot sizes and never four shots in a row at one size", r.some((x) => /shot size\(s\); use at least three/.test(x)) && r.some((x) => /four shots in a row at the same size/.test(x))); }
+  t("launch: every generated shot names a shot size", L.planRules({ ...structuredClone(plan), shots: plan.shots.map((s, i) => (i === 0 ? { ...s, shotType: "nice view" } : s)) }, { brief, concepts, style }).some((x) => /names no shot size/.test(x)));
+  // Joins are measured on every take: a picture against itself is a perfect join, against another a jump.
+  { const jd = fs.mkdtempSync(path.join(ROOT, ".cache", "joins-")), a = path.join(jd, "a.png"), b = path.join(jd, "b.png"), v = path.join(jd, "v.mp4");
+    ff(["-f", "lavfi", "-i", "testsrc2=s=640x360:d=1", "-frames:v", "1", a]);
+    ff(["-f", "lavfi", "-i", "mandelbrot=s=640x360", "-frames:v", "1", b]);
+    ff(["-loop", "1", "-i", a, "-t", "1", "-r", "24", "-pix_fmt", "yuv420p", v]);
+    const same = J.endMatch(v, a), other = J.endMatch(v, b);
+    t("launch: a take is measured against its drawn end (END match) the moment it is filmed", same?.pass === true && other?.pass === false);
+    fs.rmSync(jd, { recursive: true, force: true }); }
+  t("launch: a take whose end fails a gating END match fails its evals", !F.evalsPass({ evals: { identity: { pass: true }, jumps: { internal: 0 }, dialogue: { pass: true }, end: { pass: false, gates: true } } }) && F.evalsPass({ evals: { identity: { pass: true }, jumps: { internal: 0 }, dialogue: { pass: true }, end: { pass: true } } }));
+  // Brand memory: what the creator chose and rejected for a brand, kept with their words for every later brief.
+  { const id = `check-brand-${process.pid}`, bf = path.join(P.BIBLE, "brands", `${id}.json`);
+    try {
+      BR.note(id, "music", "picked", "brass band", { said: "yes", project: "x" });
+      BR.note(id, "music", "rejected", "lo-fi", { said: "no", project: "x" });
+      const h = BR.history({ brand: id }, "music");
+      t("launch: the brand memory keeps the creator's chosen and rejected music, with their words", h.picked[0].includes("brass band") && h.rejected[0].includes("lo-fi") && h.rejected[0].includes('"no"'));
+    } finally { fs.rmSync(bf, { force: true }); } }
   const lettered = structuredClone(plan); lettered.shots[0].prompt += ' with a sign that reads "SALE"';
   t("launch: a prompt that asks the model for exact text is blocked (the editor composites text)", L.planRules(lettered, { brief, concepts }).some((x) => /quoted text/.test(x)));
   // ---- every launch film rule
@@ -80,7 +118,8 @@ export default function checkLaunch(t, ROOT) {
   for (const id of [crewId, handId]) fs.rmSync(path.join(ROOT, "bible", "characters", id), { recursive: true, force: true });
   const busy = structuredClone(plan); busy.shots[1].motion = "a; b; c; d";
   t("launch: one clear action per shot (more than three is refused)", /more than three actions/.test(R(busy)));
-  t("launch: the board asks for the animatic again once every frame is drawn", fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("hasn't seen the animatic with the drawn frames"));
+  t("launch: the plan's animatic is approved once; the drawn frames go into the Production Book", !fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("hasn't seen the animatic with the drawn frames") && fs.readFileSync(path.join(ROOT, "engine", "lib", "flow.mjs"), "utf8").includes("goes into the Production Book"));
+  t("launch: craft rules (frame prompts, chaining, acting) hold the storyboard step, never the creator's script", F.CRAFT.test("S1: the frame prompt doesn't place the camera (height, side, lens)") && F.CRAFT.test("S2: follows S1 in the same setting; chain it frame to frame") && !F.CRAFT.test("S1: 14 words in a 3 s shot (max ~3.3 per second)") && !F.CRAFT.test("conversion: the last shot is the visible CTA"));
   // ---- art styles: bible styles with a launch block, or the creator's own from references
   const ls = L.launchStyles();
   t("launch: films can use storybook, anime or hyperreal; phone UGC and podcast styles are not offered", ["storybook", "anime", "hyperreal"].every((x) => ls.includes(x)) && !ls.includes("ugc-phone") && !ls.includes("podcast"));
@@ -240,13 +279,26 @@ export default function checkLaunch(t, ROOT) {
       P.updateShotlist(slug, (x) => { x.shots[0].firstEval = keep; });
       return !st.ok && /failed its eval/.test(st.detail);
     })());
+    t("launch: a frame flagged after its two attempts passes the board and is listed in the book for the creator", (() => {
+      const keep = P.loadShotlist(slug).shots[0].firstEval;
+      P.updateShotlist(slug, (x) => { x.shots[0].firstEval = { ...keep, pass: false, fails: ["the lamp moved"], flagged: true, attempts: 2 }; });
+      const sl1 = P.loadShotlist(slug), st = F.stepStatus(sl1, "board"), listed = F.bookNotes(sl1).some((n) => /flagged after 2 attempts: the lamp moved/.test(n));
+      P.updateShotlist(slug, (x) => { x.shots[0].firstEval = keep; });
+      return !/failed its eval/.test(st.detail || "") && listed;
+    })());
+    {
+      const m = { format: "launch", shots: [{ id: "A", duration: 3 }, { id: "B", duration: 4, characters: ["x"] }, { id: "C", source: "card" }], priceCheck: { pick: { key: "kling3" }, options: [{ key: "kling3" }, { key: "sd2-mini" }, { key: "seedance2-fast" }] } };
+      t("autopilot: motion tests film the hardest shot with the pick and the best other model that takes a last frame", AP.testShot(m).id === "B" && AP.testModels(m)[0] === "kling3" && AP.testModels(m).length === 2 && AP.testModels(m)[1] !== "kling3");
+    }
+    t("a book approved with a motion test of the chosen model on screen counts as the pilot", F.bookTested({ defaults: { videoModel: "m1" }, flow: { approved: { book: { at: "2026-10-28T10:00" } } }, shots: [{ clips: [{ test: true, model: "m1", at: "2026-10-28T09:00" }] }] }) && !F.bookTested({ defaults: { videoModel: "m2" }, flow: { approved: { book: { at: "2026-10-28T10:00" } } }, shots: [{ clips: [{ test: true, model: "m1", at: "2026-10-28T09:00" }] }] }));
     const ass = fs.existsSync(path.join(d, "out", "_launch", "text.ass")) ? fs.readFileSync(path.join(d, "out", "_launch", "text.ass"), "utf8") : "";
     t("launch: every on-screen text and the brand go to the compositor word for word", plan.shots.flatMap((s) => (s.text || []).map((o) => o.text)).every((x) => ass.includes(x)) && ass.includes(style.brand.name));
     // Prices, book and budget (mocked price check), then fake takes, music and effects.
     P.updateShotlist(slug, (x) => { x.defaults = { videoModel: "kling3", res: "720p" }; x.priceCheck = { at: new Date().toISOString(), seconds: 0, options: [], pick: { key: "kling3", label: "Kling 3.0", res: "720p", usd: 0 } }; });
     const book = node(["book.mjs", slug]);
     t("launch: the Production Book builds with the strategy, the timed plan and the style bible", book.status === 0 && /Strategy/.test(fs.readFileSync(path.join(d, "book", "index.html"), "utf8")) && /visual identity locked/.test(fs.readFileSync(path.join(d, "book", "index.html"), "utf8")));
-    t("launch: the book waits for a motion test on the chosen video model (or the creator's waiver)", /motion test/.test(JSON.stringify(F.stepStatus(P.loadShotlist(slug), "book"))));
+    t("launch: a missing motion test is shown in the book for the creator to decide, not a stop", F.bookNotes(P.loadShotlist(slug)).some((n) => /no motion test/.test(n)) && /in the book for the creator/.test(F.STEPS.book.check(P.loadShotlist(slug)).detail));
+    t("launch: the book's total carries a reserve of one reroll per filmed shot", P.loadShotlist(slug).bookReserve > 0 && P.loadShotlist(slug).bookEstimate > P.loadShotlist(slug).bookReserve);
     node(["launch.mjs", "waive-test", slug, "--said", "check"]);
     F.approve(slug, "book", "check");
     P.updateShotlist(slug, (x) => {
@@ -280,14 +332,17 @@ export default function checkLaunch(t, ROOT) {
     // Selective regeneration: changing one shot's animation keeps every other frame and take.
     const p2 = P.readJSON(L.fileOf(slug, "plan")); p2.shots[0].motion += " slowly";
     P.writeJSON(L.fileOf(slug, "plan"), p2);
-    t("launch: changing the plan after approval reopens the script gate, and apply waits for it", !F.stepStatus(P.loadShotlist(slug), "script").ok && node(["launch.mjs", "apply", slug]).status === 2);
+    const fp0 = F.FINGERPRINT.script(P.loadShotlist(slug));
+    t("launch: changing a shot's animation keeps the script approved (craft is not the creator's script)", F.stepStatus(P.loadShotlist(slug), "script").ok);
+    { const p3 = structuredClone(p2); p3.shots[0].vo = (p3.shots[0].vo || "") + " Really."; P.writeJSON(L.fileOf(slug, "plan"), p3);
+      t("launch: changing a voice-over line reopens the script", F.FINGERPRINT.script(P.loadShotlist(slug)) !== fp0); P.writeJSON(L.fileOf(slug, "plan"), p2); }
     F.approve(slug, "script", "check");
     const stopped = node(["launch.mjs", "apply", slug]);
     t("launch: a change that discards a paid take or frame stops and says what redrawing costs (REDRAW STOP)", stopped.status !== 0 && /REDRAW STOP/.test(String(stopped.stdout) + String(stopped.stderr)));
     node(["launch.mjs", "apply", slug, "--said", "check"]);
     const after = P.loadShotlist(slug), s1 = after.shots[0], rest = after.shots.slice(1).filter(F.films);
     t("launch: a changed shot loses only its own take; every other frame and take is kept", !!s1.frame && !s1.clips && rest.every((s) => s.clips?.length === 1));
-    t("launch: the new take is the only video left to estimate (the book reopens)", !F.stepStatus(after, "book").ok);
+    t("launch: refilming one shot after an animation change stays inside the approved book (its reserve)", F.stepStatus(after, "book").ok);
     t("launch: the final QC needs a quality report on the exact final file", L.qualityRules(null, "x").length > 0 && L.qualityRules({ sha: "old", heuristic: true, scores: Object.fromEntries(L.SCORE_KEYS.map((k) => [k, 4])), reasons: Object.fromEntries(L.SCORE_KEYS.map((k) => [k, "ok"])), findings: [] }, "new").some((x) => /another version/.test(x)));
   } finally { if (!process.env.KEEP_LAUNCH_CHECK) fs.rmSync(d, { recursive: true, force: true }); } // KEEP_LAUNCH_CHECK=1: keep the mock project to look at its frames
 }

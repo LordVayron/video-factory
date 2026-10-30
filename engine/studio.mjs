@@ -6,10 +6,12 @@
 //        --start script|idea|scratch --platform <where> --ar 9:16 --seconds 30 --lang en
 //        --cast existing|new|self|mixed|none [--chars a,b] --budget cheapest|fixed:<usd>|max --refs "..." [--style <id>]
 //   node engine/studio.mjs status <slug>                          every step, done or not, and the exact next action
+//   node engine/studio.mjs go <slug> --said "..."                 autopilot: runs every automatic step until the creator decides
 //   node engine/studio.mjs approve <slug> <step> --said "the creator's exact words" [--notes "..."]
 //   node engine/studio.mjs approve-character <id> --said "..."    a new character's sheet, look (with marks) and voice
 //   node engine/studio.mjs approve-pilot <slug> --said "..."              the creator approves the first filmed scene/shot; only then the rest
 //   node engine/studio.mjs accept-take <slug> <shot> <n> --said "..." --reason "..."   use a take that failed an eval
+//   node engine/studio.mjs brand <slug> [--music|--voice|--look "what" --picked|--rejected --said "..."]   brand memory
 //   node engine/studio.mjs override <slug> <step> --said "the creator's exact words" --reason "..."   logged, shown in the book
 //   node engine/studio.mjs prices <slug> [--pick <model>]          live Kie prices → best quality for the cost; sets the project's video model
 //   node engine/studio.mjs qc <slug>                              final QC of out/<slug>.mp4 (identity, dialogue, format, loudness)
@@ -34,11 +36,13 @@ import { livePrices, videoOptions, recommend, newFamilies, QUALITY, measuredWpm,
 import * as L from "./lib/launch.mjs";
 import * as CAM from "./lib/camera.mjs";
 import { engineSha } from "./lib/freeze.mjs";
+import { cutsMatch } from "./lib/critics.mjs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
 const pos = argv.slice(1).filter((a, i, all) => !a.startsWith("--") && !(all[i - 1] || "").startsWith("--"));
 const flag = (n, d = null) => { const i = argv.indexOf(n); return i > -1 && argv[i + 1] != null && !argv[i + 1].startsWith("--") ? argv[i + 1] : d; };
+const has = (n) => argv.includes(n);
 const SERIES = path.join(ROOT, "series");
 const now = () => new Date().toISOString();
 
@@ -69,6 +73,24 @@ const CONCEPT = (sl, a) => `# Concept: ${sl.title}
 function seriesFile(id) { return path.join(SERIES, id, "series.json"); }
 
 const commands = {
+  // Autopilot: every automatic step in order until the creator decides, a STOP needs their yes, or the video is
+  // delivered. --said: the creator's words that started the run (they authorize the motion tests within the test
+  // allowance; every other spend still needs the approved book).
+  async go() {
+    const slug = pos[0], said = flag("--said");
+    if (!slug || !said) throw new F.FlowStop('go <slug> --said "the creator\'s exact words"');
+    F.assertV5(P.loadShotlist(slug));
+    P.updateShotlist(slug, (x) => { F.upgradeApprovals(x); });
+    const { autopilot } = await import("./lib/autopilot.mjs");
+    const r = await autopilot(slug, said);
+    const sl = P.loadShotlist(slug), t = F.status(sl);
+    const mins = (r.secs / 60).toFixed(1);
+    console.log(`\n── autopilot ${slug}: ${r.log.length} command(s) in ${mins} min · spent $${(P.ledgerTotal(slug) * 0.005).toFixed(2)}${sl.budget?.approvedCredits ? ` of $${(sl.budget.approvedCredits * 0.005).toFixed(2)}` : ""}`);
+    if (r.delivered || r.done) console.log(`DELIVERED: out/${slug}.mp4 passed the final QC and has its receipt. Send it, then the retro.`);
+    else console.log(`${r.stop === "creator" ? "YOUR DECISION" : "STOPPED"} at ${t.current?.name || r.step}: ${r.why}${r.cmd ? `\n  (${r.cmd})` : ""}\nThen run again: node engine/studio.mjs go ${slug} --said "..."`);
+    if (r.stop === "engine") process.exitCode = 2;
+  },
+
   formats() {
     for (const [k, v] of Object.entries(F.FORMATS)) console.log(`${k.padEnd(12)} ${v.kind.padEnd(9)} ${F.recipe({ format: k, intake: {} }).join(" → ")}`);
   },
@@ -258,9 +280,31 @@ const commands = {
     console.log(`pilot approved in the creator's words; the rest can be filmed now (gen.mjs scenes / clip)`);
   },
 
+  // Brand memory: record what the creator chose or rejected for this project's brand (music, voice, look), in their words.
+  // brand <slug> --music|--voice|--look "what it was" --picked|--rejected --said "their words"; brand <slug> lists it.
+  async brand() {
+    const BR = await import("./lib/brand.mjs");
+    const slug = pos[0], sl = P.loadShotlist(slug), id = BR.brandOf(sl);
+    if (!id) throw new F.FlowStop(`${slug} has no brand (set "brand" in the shotlist or a product name in the launch brief)`);
+    const kind = BR.KINDS.find((k) => flag(`--${k}`));
+    if (!kind) return console.log(JSON.stringify(BR.load(id), null, 2));
+    const verdict = has("--picked") ? "picked" : has("--rejected") ? "rejected" : null, said = flag("--said");
+    if (!verdict || !said) throw new F.FlowStop(`brand ${slug} --${kind} "what it was" --picked|--rejected --said "the creator's exact words"`);
+    BR.note(id, kind, verdict, flag(`--${kind}`), { said, project: slug });
+    console.log(`${id}: ${kind} ${verdict}: ${flag(`--${kind}`)}`);
+  },
   "accept-take"() {
     const [slug, id, n] = pos, said = flag("--said"), reason = flag("--reason");
     if (!slug || !id || !n || !said || !reason) throw new F.FlowStop('accept-take <slug> <shot> <take number> --said "the creator\'s exact words" --reason "what fails and why it is accepted"');
+    // A take filmed as a sequence: the sequence's take is accepted and split into its shots (a failed sequence take
+    // never reaches the shots, so the shot itself has no take to accept).
+    const cur = P.loadShotlist(slug), own = (() => { try { return P.findItem(cur, id)?.clips?.[Number(n) - 1]; } catch { return null; } })();
+    const q = (cur.sequences || []).find((x) => x.id === id || (!own && (x.shots || []).includes(id)));
+    if (q) {
+      const r = spawnSync(process.execPath, [path.join(ROOT, "engine", "gen.mjs"), "sequence", slug, "--seq", q.id, "--accept", String(n), "--said", said, "--reason", reason], { stdio: "inherit" });
+      if (r.status) process.exit(r.status);
+      return;
+    }
     P.updateShotlist(slug, (sl) => {
       F.assertV5(sl);
       const s = P.findItem(sl, id), t = s.clips?.[Number(n) - 1]; // a shot (clips formats) or a scene (scenes formats)
@@ -316,7 +360,9 @@ const commands = {
     const maxWpm = kind !== "longform" && !["sitcom", "launch"].includes(sl.format) ? 175 : null;
     // What this video asks of the model (painted characters acting, photoreal people...) ranks before price.
     const needs = needsOf(sl, (() => { try { return P.style(sl.style); } catch { return null; } })());
-    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm, needs });
+    // Cuts inside a scene (two shots in a row in one place) ask for a model that cuts inside one generation.
+    const cuts = (() => { try { return (sl.shots || []).some((s, i, a) => i && s.source !== "card" && a[i - 1].source !== "card" && s.chain !== "exact" && (s.place || a[i - 1].place ? s.place === a[i - 1].place : sl.format === "launch")); } catch { return false; } })();
+    const rec = recommend(options, { format: sl.format, budget: sl.intake?.budget, baseline, maxWpm, needs, cuts: cuts && sl.sequenceMode === "cuts" });
     const want = flag("--pick");
     const pick = want ? options.find((o) => o.key === want.split("@")[0] && (!want.includes("@") || o.res === want.split("@")[1])) : rec;
     if (!pick) throw new F.FlowStop(`--pick ${want} is not among the options: ${options.map((o) => `${o.key}@${o.res}`).join(", ")}`);
@@ -376,6 +422,26 @@ Good for this job (best first, then cheapest):`);
       const e = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8" }).stderr;
       report.lufs = Number((e.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop()?.match(/-?[\d.]+/)?.[0]);
       if (!(Math.abs(report.lufs - -14) <= 1.5)) issues.push(`loudness ${report.lufs} LUFS, -14 is required`);
+      // Whole-film critic (v6): every cut in the final is one the plan made. A cut nobody planned is a jump (a take that
+      // snapped, a stitch between shots meant to read as one); found here, before delivery, never by the viewer.
+      if (F.kindOf(sl) === "clips") {
+        // A shot starts where the final puts it: a launch film's plan timing (its takes are longer than their place in
+        // the cut), otherwise the running sum of the shot lengths. Shots of one continuous camera sequence join
+        // without a cut; a cuts-mode sequence's planned cuts are cuts.
+        const timing = sl.format === "launch" ? Object.fromEntries((L.read(slug, "plan")?.shots || []).map((s) => [s.id, s.start])) : {};
+        const seqOf = Object.fromEntries((sl.sequences || []).flatMap((q) => (q.shots || []).map((id) => [id, q])));
+        let t = 0;
+        const planned = [];
+        for (const [i, s] of (sl.shots || []).entries()) {
+          const at = timing[s.id] ?? t, q = seqOf[s.id], prev = sl.shots[i - 1];
+          const oneTake = q && prev && seqOf[prev.id] === q && (q.mode || "camera") === "camera";
+          if (i && !oneTake && !(s.chain === "exact" || /^@\w+:last$/.test(s.frame || ""))) planned.push(+at.toFixed(3));
+          t = at + (s.duration || 0);
+        }
+        const cm = cutsMatch(file, planned, { tol: 0.5 });
+        report.cuts = { planned, found: cm.found, unplanned: cm.unplanned };
+        issues.push(...cm.unplanned.map((x) => `a cut nobody planned at ${x.toFixed(2)} s (a jump in the film)`));
+      }
       // Every scripted line, in order, heard in the final.
       const lines = (sl.shots || []).flatMap((s) => (s.dialogue || []).filter((l) => !isVocal(l)).map((l, i) => ({ id: `${s.id}-${i + 1}`, text: l.text })));
       if (lines.length) { const d = dialogueCheck(file, lines, sl.lang); report.dialogue = d; issues.push(...d.issues.map((x) => `dialogue: ${x}`)); }
@@ -441,8 +507,9 @@ Good for this job (best first, then cheapest):`);
   "engine-update"() {
     const slug = pos[0], said = flag("--said");
     if (!slug || !said) throw new F.FlowStop("engine-update <slug> --said 'the creator exact words'");
-    const sl = P.updateShotlist(slug, (x) => { x.engine = { sha: engineSha(), at: now(), said, from: x.engine?.sha }; x.flow.log.push({ at: now(), event: "engine-update", said }); });
-    console.log(`${slug} continues on engine ${sl.engine.sha} (was ${sl.engine.from || "unrecorded"}).`);
+    let restamped = [];
+    const sl = P.updateShotlist(slug, (x) => { restamped = F.upgradeApprovals(x); x.engine = { sha: engineSha(), at: now(), said, from: x.engine?.sha }; x.flow.log.push({ at: now(), event: "engine-update", said }); });
+    console.log(`${slug} continues on engine ${sl.engine.sha} (was ${sl.engine.from || "unrecorded"}).${restamped.length ? ` Approvals carried to the new fingerprints: ${restamped.join(", ")}.` : ""}`);
   },
   // What the product does NOT do and what every video must say, in the creator's words (formats that sell something).
   // --does-not "makes clips:clips,clip maker" (repeatable; "none" records an empty list), --must-say "streams live:live,stream".
@@ -467,6 +534,8 @@ Good for this job (best first, then cheapest):`);
   async catalog(args = pos) {
     const slug = args[0];
     if (!slug) throw new F.FlowStop("catalog <slug>");
+    // Offline runs (the engine's own checks) never reach the providers.
+    if (process.env.FACTORY_OFFLINE) return console.log("Live catalog check skipped (FACTORY_OFFLINE).");
     let c;
     try { c = await PR.liveCatalogCheck(); } catch (e) { console.log(`LIVE CATALOG CHECK failed: ${e.message.slice(0, 160)}. Run studio.mjs catalog ${slug} again before the concept.`); return; }
     P.updateShotlist(slug, (x) => { x.startCheck = { at: c.at, newModels: c.newModels, priceChanges: c.priceChanges.length }; });

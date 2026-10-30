@@ -306,11 +306,14 @@ export function forTheJob(options, needs, fits = readFits()) {
 // The models this project has tested on a shot (motion tests), with the take each one made.
 export function testedModels(sl) {
   const out = {};
-  for (const s of sl.shots || []) for (const c of s.clips || []) if (c.test && c.model) (out[c.model] ||= []).push({ shot: s.id, file: c.file });
+  for (const s of [...(sl.shots || []), ...(sl.sequences || [])]) for (const c of s.clips || []) if (c.test && c.model) (out[c.model] ||= []).push({ shot: s.id, file: c.file });
   return out;
 }
 
-export function recommend(options, { format, budget, baseline, maxWpm = null, needs = [], fits }) {
+export function recommend(options, { format, budget, baseline, maxWpm = null, needs = [], fits, cuts = false }) {
+  // A film with cuts inside a scene is generated as sequences: a model that cuts inside one generation films each
+  // scene in one call with the same faces and light on both sides of every cut (engine v6). Prefer those.
+  if (cuts) { const ms = options.filter((o) => MODELS[o.key]?.multiShot); if (ms.length) options = ms; }
   // First the best for the job, then the cheapest of the best: among models good for the need, those within one
   // point of the best fit, cheapest first (budget "max" takes the best fit).
   if (needs.length) {

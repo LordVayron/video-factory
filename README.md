@@ -73,8 +73,9 @@ flowchart LR
 - **You approve the creative gates:** concept, script, cast and the Production Book (the budget), in your own words. Nothing is spent on video before that.
 - **The budget is locked in code.** Once you approve the Production Book, the engine refuses any job that would go past it. Extra spend needs your explicit yes.
 - **Audio first.** A "radio cut" of the voices sets every shot's length before any picture is paid for, so pacing is right on the first take.
-- **One generation per scene** with all its shots, in the cheapest model that keeps quality (Seedance 2 Mini by default).
-- **Automatic QC:** every take is checked for identity (faces and marks like freckles or glasses, against a locked face), jumps inside the shot, dialogue, positions, physics, light and geography; the final is checked across every cut before a delivery receipt is issued.
+- **One generation per scene** with all its shots, in the cheapest model that keeps quality: the camera travels from view to view in one continuous take, and hard cuts happen only between scenes.
+- **Autopilot:** `studio.mjs go <slug>` runs every automatic step and stops only at your decisions or at a stop that needs your yes.
+- **Automatic QC:** every take is checked for identity (faces and marks like freckles or glasses, against a locked face), jumps inside the shot, unplanned cuts, words painted on screens, things that appear or multiply, dialogue, positions, physics, light and geography; the final is checked across every cut before a delivery receipt is issued.
 
 ## For long-form: meditation, sleep and ambient
 
@@ -133,6 +134,7 @@ Make original characters and stories. Don't generate real people other than your
 - [Install (manual)](docs/INSTALL.md)
 - [Architecture and engine CLIs](docs/ARCHITECTURE.md)
 - [Formats and costs](docs/FORMATS.md)
+- [Engine v6: sequences and critics](docs/engine-v6.md)
 - [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 <p align="center"><sub>MIT licensed. Not affiliated with Anthropic, OpenAI, APIMart, Kie.ai, ElevenLabs or Higgsfield.</sub></p>

@@ -1,0 +1,35 @@
+[
+  {
+    "model": "sd2-mini",
+    "mode": "camera",
+    "secs": 12,
+    "views": 3,
+    "planned": [],
+    "found": [],
+    "motion": 4.233,
+    "pass": true,
+    "at": "2026-10-28T19:06:56.017Z"
+  },
+  {
+    "model": "sd2-mini",
+    "mode": "camera",
+    "secs": 12,
+    "views": 3,
+    "planned": [],
+    "found": [],
+    "motion": 4.233,
+    "pass": false,
+    "at": "2026-10-28T19:12:13.761Z"
+  },
+  {
+    "model": "sd2-mini",
+    "mode": "camera",
+    "secs": 12,
+    "views": 3,
+    "planned": [],
+    "found": [],
+    "motion": 5.14,
+    "pass": true,
+    "at": "2026-10-28T19:25:07.590Z"
+  }
+]
