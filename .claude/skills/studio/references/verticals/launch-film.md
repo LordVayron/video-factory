@@ -90,7 +90,7 @@ The reference is the 30.06 s Town launch film (1280×720, 24 fps), measured 2026
    3. `launch.mjs voice`, which records the voice-over and measures each line against its room;
    4. `launch.mjs animatic`, which builds the frames, voice and text at the exact timing.
 
-   Show the creator the storyboard animatic and approve it in their words **before any frame is paid for** (`launch.mjs animatic <slug> --approve --said "..."`; `gen.mjs frame --planned` refuses without it), then again once every frame is drawn (the board refuses without it). A shot chained `exact` gets the previous shot's last frame copied for free; `same-set` is drawn from it with the same framing.
+   Show the creator the storyboard animatic and approve it in their words **before any frame is paid for** (`launch.mjs animatic <slug> --approve --said "..."`; `gen.mjs frame --planned` refuses without it), then again once every frame is drawn (the board refuses without it). A shot chained `exact` continues the previous shot in one unbroken shot: its take opens on the previous **take's real last frame** (filmed in order, so the cut can't jump); `same-set` keeps the set and is drawn at its own, new framing.
    Before the book, film one shot as a **motion test** on the chosen model (`gen.mjs clip <slug> --shot <id> --test --model <k> --said "..."`), or record their waiver (`launch.mjs waive-test`).
 10. **Prices → book:** `studio.mjs prices`, then `book.mjs`. The book shows the strategy, the concepts, the timed plan, the style board, the prompts and the cost. The creator approves it, which locks the budget.
 11. **Film:** `gen.mjs clip --shot <id>` for each generated shot (the pilot rule applies). Then `gen.mjs music` and `gen.mjs sfx`.
@@ -139,7 +139,8 @@ Mode and visual style are separate choices. **Art styles:** any bible style with
 - **Claims:** a number, a superlative or a promise of speed in the voice-over or on screen needs `shot.claim` pointing to a capability in the brief. Never invent metrics, testimonials, integrations or prices.
 - **Proof:** one shot with role `proof` tied to `message.proofCapability`. At least one `interaction` or `demo`.
 - **Brand:** the logo or the product name in the last 4 s. A brand film ends on a `brand` or `cta` shot; a conversion film ends on a `cta` shot whose CTA text matches the brief.
-- **Continuity:** every drawn shot names an environment of the style bible in `assets`, and characters are referenced by bible id. Two shots in the same place are chained (`chain: "exact"` or `"same-set"`); an `exact` join is measured in the film (SSIM ≥ 0.80).
+- **Continuity:** every drawn shot names an environment of the style bible in `assets`, and characters are referenced by bible id. Two shots in the same place either continue one unbroken shot (`chain: "exact"`) or cut to a visibly different view: another shot size (wide, medium wide, medium, medium close-up, close-up, extreme close-up/insert) or another named angle (`angle`: over-the-shoulder, low angle, profile, POV...). The same place, size and angle again is refused as a jump cut. Every `shotType` names a size; a film of six or more generated shots uses at least three sizes and never four in a row at one size. Joins are measured on every take (END match) and in the review (JOIN STOP), not only in the final build.
+- **Camera moves the model can keep:** a pull-back (pull back, pull out, dolly out, zoom out) that opens on an extreme wide is refused, because the model pushes in first and then pulls back. Open closer, or use another move.
 - **The creator's words:** `transitionAsked.said` for any transition, `zoomInto.said`, `sfx.<name>.said`, `text[].said` (only the brand and the CTA go unasked), `said` on every edit decision.
 - **Story:** the first shot hooks (hook/friction/problem, voice by 0.5 s); the pain shows before 8 s; every character in frame does something named in `motion`; one hand per shot; at most three actions per shot; nothing falls near a pile.
 - **Pauses:** `shot.pause` (seconds after its line) survives every narration re-cut.
@@ -161,9 +162,32 @@ Mode and visual style are separate choices. **Art styles:** any bible style with
 ## Sound
 
 - **Voice-over:** ElevenLabs, recorded before the book.
-- **Music:** Suno, with an arc: curious opening, momentum through the proof, warm resolution and a short sting. The editor shapes it per shot (`music: low/mid/high`) and ducks it under the voice.
-- **Effects:** diegetic and tactile (paper, clicks, a bell on delivery), defined in `plan.sfx`.
+- **Music, before writing the brief:** read the brand memory (`studio.mjs brand`): the music, voice and look the creator chose or rejected for this product. The sound they chose is where the new brief starts (retimed to this narration); a sound they rejected never comes back, in this film or as an option. The music step prints them (MUSIC STOP).
+- **Music:** Suno, designed, never picked from a genre. First the `musicBrief`: the premise, the emotion to evoke, the product or story context and the narrator; from them, the approach (instruments, tempo, energy curve) and why it fits this film; how it leaves room for the voice; and the turns tied to the script's lines. Measure the result (tempo, energy per beat) before showing it. The editor shapes it per shot (`music: low/mid/high`) and ducks it under the voice.
+- **Effects:** diegetic and tactile (paper, clicks, a bell on delivery), defined in `plan.sfx`, only the ones the creator asked for, and quiet (well under the voice).
 - **Final mix:** -14 LUFS, true peak -1.5.
+
+## Logo end card
+
+`launch.logoFx` in the shotlist, the creator's choice:
+- `scrim` (0 to 1): a dark layer and a vignette under the logo shot, so the logo stands out;
+- `anim: "glitch"`: the logo comes in with red and cyan copies that jitter and snap for `secs` (default 0.45 s). It pairs with a quiet glitch effect from `plan.sfx`.
+
+Without `anim`, the logo grows in as before.
+
+## Engine v6: sequences, critics and the autopilot
+
+- **Sequences.** A scene is generated as one continuous camera take: the camera travels from each shot's view to the next at the planned times, and a passing take is split into its shots. Hard cuts happen between scenes. `gen.mjs sequences <slug>` plans them for free; `gen.mjs sequence <slug> --seq <id>` films one. See `docs/engine-v6.md`.
+- **One keyframe per scene.** The storyboard and `frame-chain` draw only the opening keyframe of each sequence. At most two scenes in a row continue a take; before one does, the identity gate checks the faces at the end of that take and redraws the keyframe when they drifted (REKEY).
+- **Critics on every take:**
+  - cuts: planned cuts present, none unplanned;
+  - screen text: a readable word the model painted fails the take (local OCR);
+  - identity, motion band and dialogue;
+  - the **still critic**: the vision judge reads a contact sheet of the take against the shot's own "these stay exactly as they are" rules, plus nothing appearing or multiplying, nothing floating out of a screen and nothing turning into a screen.
+
+  A judge outage is a note on the take, never a failed take.
+- **Accepting a flagged take:** `studio.mjs accept-take <slug> <shot> <n> --said "..."` also works on a take filmed as a sequence; the take is split into its shots and recorded in the book.
+- **Autopilot:** `studio.mjs go <slug> --said "..."` runs every automatic step in order (apply, voice, animatic, frames, prices, motion tests, book, takes with one reroll each, effects, music, edit, QC, delivery) and stops only at the creator's decisions or a STOP that needs a yes. Dry run with `FACTORY_AUTOPILOT_DRY=1`.
 
 ## QC (`studio.mjs qc`)
 
@@ -171,6 +195,7 @@ Mode and visual style are separate choices. **Art styles:** any bible style with
 - **Voice-over:** heard word for word.
 - **Text:** every on-screen text read back from the frames by the judge.
 - **Characters:** identity of any bible characters across cuts.
+- **Cuts:** every cut in the final must be planned. Planned cuts sit at the launch plan's timing; shots of one continuous camera sequence join without a cut.
 - **Quality report** (`launch/quality-report.json`, tied to the final's sha), written by Claude after watching the whole film:
   - heuristic scores from 1 to 5, each with a reason, for ICP pain, comprehension, narrative, continuity, proof, motion, brand, CTA, sound and format;
   - findings with timecodes; any blocker, or a score of 2 or less, fails the QC.

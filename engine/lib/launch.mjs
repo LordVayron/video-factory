@@ -103,11 +103,14 @@ export const CreativeConcept = z.object({
 export const Concepts = z.object({ config: LaunchFilmConfig, concepts: z.array(CreativeConcept).min(3), selected: z.string(), modeRationale: str, picked: z.enum(["creator", "recommended"]) });
 const Overlay = z.object({ text: z.string().trim().min(1), kind: z.enum(["title", "label", "cta", "ui"]), said: z.string().optional(), at: z.number().min(0).default(0), until: z.number().optional(), position: z.enum(["top", "center", "bottom", "lower-third"]).default("bottom") });
 const Sfx = z.union([z.string(), z.object({ name: z.string(), at: z.number().min(0).default(0), db: z.number().default(-8), gain: z.number().optional() })]);
+// Shot sizes, angles and the grammar of a cut live in the direction layer, shared by every vertical.
+import { shotSize, newView } from "./direction.mjs";
+export { shotSize, newView };
 export const PlannedShot = z.object({
   id: z.string().regex(/^[A-Za-z0-9_-]+$/), start: z.number().min(0), duration: z.number().positive(),
   role: z.enum(ROLES), beat: str, takeaway: str,
   source: z.enum(["generate", "still", "card"]),
-  visual: str, subject: z.string().optional(), action: str, shotType: str, camera: str,
+  visual: str, subject: z.string().optional(), action: str, shotType: str, camera: str, angle: z.string().optional(),
   composition: z.string().optional(), layers: z.string().optional(), continuity: z.array(z.string()).default([]),
   vo: z.string().optional(), voDirection: z.string().optional(), acting: z.string().optional(), visualHook: z.object({ what: z.string().min(10), at: z.number().min(0) }).optional(), voAt: z.number().min(0).default(0.15), text: z.array(Overlay).default([]), logo: z.boolean().default(false), logoAt: z.number().min(0).optional(), ui: z.string().optional(),
   sfx: z.array(Sfx).default([]), music: z.enum(["low", "mid", "high"]).default("mid"),
@@ -440,16 +443,28 @@ export function planRules(rawPlan, { brief, concepts, style, reference } = {}) {
   else if (cfg?.music && plan.musicBrief.turns.length < 2) out.push("musicBrief.turns: tie at least two turns of the music to the script's lines (at = seconds)");
   else if (cfg?.music) for (const t of plan.musicBrief.turns) if (t.at > plan.durationSeconds) out.push(`musicBrief: a turn at ${t.at} s is past the film's end`);
   // Every launch film rule is checked here, for any video model.
-  // ONE CONTINUOUS STORY: two shots in the same place are one set. "exact" starts on the previous shot's drawn last
-  // frame (gen.mjs frame copies it, free); "same-set" is drawn from the previous shot's frame, same framing.
+  // FILM GRAMMAR. Two shots in the same place either continue one unbroken shot (chain "exact": the next take opens
+  // on the previous take's real last frame) or cut to a visibly different view (another shot size or camera angle;
+  // "same-set" keeps the set and takes the new framing). The same place, size and angle again is a jump cut.
   const envOf = (x) => new Set(x.assets.filter((a) => (style?.environments || []).some((e) => e.id === a)));
+  const gen = plan.shots.filter((s) => s.source === "generate");
+  for (const s of gen) if (shotSize(s) == null) out.push(`${s.id}: shotType "${s.shotType}" names no shot size (extreme wide, wide, medium wide, medium, medium close-up, close-up, extreme close-up or insert)`);
   for (const [i, s] of plan.shots.entries()) {
     if (!i) { if (s.chain && s.chain !== "cut") out.push(`${s.id}: the first shot has no previous shot to chain to`); continue; }
     const prev = plan.shots[i - 1], a = envOf(prev), through = prev.zoomInto || (s.transitionIn && s.transitionIn !== "cut"); // flying into a screen changes place
     const same = s.connect?.type === "same-place" || (!through && [...envOf(s)].some((e) => a.has(e)));
-    if (same && !["exact", "same-set"].includes(s.chain)) out.push(`${s.id}: happens in the same place as ${prev.id}; chain it (chain "exact": starts on ${prev.id}'s last frame; "same-set": drawn from ${prev.id}'s frame, same set and framing)`);
+    if (same && s.chain !== "exact" && s.source === "generate" && prev.source === "generate" && !newView(prev, s)) out.push(`${s.id}: the same place, shot size and camera angle as ${prev.id}: a jump cut. Cut to another size (at least one step: wide, medium, close-up, insert) or another angle, or continue ${prev.id} in one unbroken shot (chain "exact")`);
     if (s.chain === "exact" && !prev.end?.trim()) out.push(`${s.id}: chain "exact" starts on ${prev.id}'s last frame, and ${prev.id} has no choreographed end (shot.end)`);
     if (s.chain === "exact" && s.transitionIn && s.transitionIn !== "cut") out.push(`${s.id}: chain "exact" is an invisible cut; it takes no transition`);
+  }
+  // A pull-back needs room: opening on an extreme wide, the video model first pushes in to have somewhere to pull back from.
+  for (const s of gen) if (/\bpull(?:s|ing)?[- ]?(?:back|out)\b|\bdolly[- ]out\b|\bzoom[- ]out\b/i.test(s.camera || "") && shotSize(s) === 0) out.push(`${s.id}: a "${s.camera}" that opens on an extreme wide: the model pushes in first to have somewhere to pull back from. Open closer (wide or tighter, on the subject) and let the move end on the extreme wide, or use another move`);
+  // Variety: a film is built from different views. Three or more shot sizes once it has six generated shots, and never
+  // more than three shots in a row at one size (a long unbroken shot has to move the camera to change its size).
+  if (gen.length >= 6 && new Set(gen.map(shotSize).filter((x) => x != null)).size < 3) out.push(`the film uses ${new Set(gen.map(shotSize).filter((x) => x != null)).size} shot size(s); use at least three (wide, medium, close-up, insert) so the cuts read as editing, not repetition`);
+  for (let i = 3; i < plan.shots.length; i++) {
+    const run = plan.shots.slice(i - 3, i + 1);
+    if (run.every((x) => x.source === "generate") && new Set(run.map(shotSize)).size === 1) out.push(`${run.map((x) => x.id).join(", ")}: four shots in a row at the same size; change the size (a cut, or a camera move inside an unbroken shot)`);
   }
   // NO TRANSITION, ZOOM, EFFECT OR TEXT THE CREATOR DID NOT ASK FOR (a slide-up nobody asked for was rejected).
   for (const s of plan.shots) if (s.transitionIn && s.transitionIn !== "cut" && !s.transitionAsked?.said?.trim()) out.push(`${s.id}: transition "${s.transitionIn}" without the creator's words asking for it (transitionAsked.said)`);

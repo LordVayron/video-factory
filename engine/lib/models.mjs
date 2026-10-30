@@ -43,6 +43,8 @@ const sd = (id, label, table, resList, tier) => ({
   model: { "sd2-mini": "bytedance/seedance-2-mini", "sd2-fast": "bytedance/seedance-2-fast", sd2: "bytedance/seedance-2", "sd2.5": "bytedance/seedance-2-5" }[id],
   resolutions: resList,
   speaks: true, refs: 9, refAudio: 3,
+  // Renders several shots with hard cuts in one generation ("Shot 1 (0-2 s): ..."); proven per project by a sequence test.
+  multiShot: true, maxSecs: 15,
   build: (r) => seedanceInput(r, resList, id === "sd2.5"),
   // with-video-input billing is lower per second but counts the reference video's length too
   cost: (r) => {

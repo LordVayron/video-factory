@@ -50,11 +50,12 @@ function subjectOf(args, raw, dir) {
 }
 
 // Engine commands that spend (provider jobs, the vision judge, ElevenLabs). Free subcommands are listed apart.
-const SPEND = /\b(gen|launch|cut|edit|longform|continuity|cast|series|refs|qc)\.mjs\s+("[^"]*"|\S+)/g;
-const FREE = { gen: /^(credits|prices|models|estimate|recover)$/, launch: /^(check|apply|animatic|review|build|package|waive-test|voice-accept|style-from-refs)$/, cut: /^$/, edit: /^$/, longform: /^(estimate|build|script|image)$/, continuity: /^$/, cast: /^(approve|list|show)$/, series: /^(new|show)$/, refs: /^(add|breakdown|page|approve|list)$/, qc: /^$/ };
+// Only a script that runs counts (node <path>/gen.mjs ...); a command that merely names the file (grep, wc, cat) reads it.
+const SPEND = /\bnode\s+(?:-\S+\s+)*["']?(?:[^\s"']*[\\/])?(gen|launch|cut|edit|longform|continuity|cast|series|refs|qc|studio)\.mjs["']?\s+("[^"]*"|\S+)/g;
+const FREE = { studio: /^(?!go$)/,gen: /^(credits|prices|models|estimate|recover)$/, launch: /^(check|apply|animatic|review|build|package|waive-test|voice-accept|style-from-refs)$/, cut: /^$/, edit: /^$/, longform: /^(estimate|build|script|image)$/, continuity: /^$/, cast: /^(approve|list|show)$/, series: /^(new|show)$/, refs: /^(add|breakdown|page|approve|list)$/, qc: /^$/ };
 const spends = (raw) => [...raw.matchAll(SPEND)].some((m) => !FREE[m[1]].test(m[2].replace(/^["']|["']$/g, "")));
 // Commands whose --said spends more or retries past a stop: the creator's words must say yes.
-const YES_NEEDED = /\b(gen\.mjs\s+\S+|phase\.mjs\s+budget|studio\.mjs\s+(override|accept-take|engine-update|approve-replan|waive-compare)|launch\.mjs\s+(voice-accept|waive-test))\b/;
+const YES_NEEDED = /\b(gen\.mjs\s+\S+|phase\.mjs\s+budget|studio\.mjs\s+(go|override|accept-take|engine-update|approve-replan|waive-compare)|launch\.mjs\s+(voice-accept|waive-test))\b/;
 
 export function decide({ tool_name: tool, tool_input: input = {}, transcript_path }, { branchOf = branchIn, messages = creatorMessages(transcript_path), checkStamp = false } = {}) {
   // Rule 1: commands.

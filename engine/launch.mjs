@@ -24,6 +24,7 @@ import * as L from "./lib/launch.mjs";
 import * as eleven from "./lib/eleven.mjs";
 import * as REF from "./lib/reference.mjs";
 import * as RF from "./lib/refs.mjs";
+import { joinMatch } from "./lib/joins.mjs";
 
 const argv = process.argv.slice(2);
 const [cmd, slug] = argv;
@@ -104,7 +105,8 @@ const commands = {
         // The last frame stays when the plan asks for the same end (lastPlanned: the planned prompt it was drawn for); the
         // frame evals travel with their frames.
         const lastSame = (o.lastPlanned ?? o.lastPrompt) === s.lastPrompt;
-        const keep = { frame: o.frame, firstPrompt: o.firstPrompt, firstEval: o.firstEval, frameNotes: o.frameNotes, ...(lastSame ? { last: o.last, lastPlanned: o.lastPlanned, lastUsedPrompt: o.lastUsedPrompt, lastEval: o.lastEval } : {}) };
+        // frameSrc/frameFrom mark a chained first frame as the previous shot's last frame; dropping them reopened the board.
+        const keep = { frame: o.frame, firstPrompt: o.firstPrompt, firstEval: o.firstEval, frameNotes: o.frameNotes, frameSrc: o.frameSrc, frameFrom: o.frameFrom, ...(lastSame ? { last: o.last, lastPlanned: o.lastPlanned, lastUsedPrompt: o.lastUsedPrompt, lastEval: o.lastEval, lastFrom: o.lastFrom } : {}) };
         // A filmed take is kept when its animation prompt is the same and it is long enough for the new timing
         // (re-filming a take that already fits would waste money).
         const take = o.clips?.[o.clip], len = take && fs.existsSync(P.abs(slug, take.file)) ? dur(P.abs(slug, take.file)) : 0;
@@ -124,7 +126,7 @@ const commands = {
         const imgs = dropped.filter((d) => /\.png|\.jpe?g/i.test(d)).length, vids = dropped.length - imgs;
         throw new F.FlowStop(`REDRAW STOP: this change discards ${imgs} paid frame(s) and ${vids} take(s) (${dropped.slice(0, 6).join(", ")}${dropped.length > 6 ? ", ..." : ""}); redrawing them costs about $${(imgs * 0.05).toFixed(2)} in images${vids ? " plus the takes" : ""}. Tell the creator, then run apply again with their words (--said "...").`);
       }
-      x.launch = { ...(x.launch || {}), applied: F.planSha(x) };
+      x.launch = { ...(x.launch || {}), applied: F.planFileSha(x) };
     });
     console.log(`shotlist = plan ${plan.conceptId}: ${fresh.length} shots (${fresh.filter(F.films).length} generated, ${fresh.filter((s) => s.source === "still").length} stills, ${fresh.filter((s) => s.source === "card").length} cards); ${kept} keep their frame`);
     for (const s of sl.shots.filter((s) => s.source !== "card" && !s.frame)) console.log(`  frame missing: node engine/gen.mjs frame ${slug} ${s.id} first --planned`);
@@ -254,6 +256,13 @@ const commands = {
       const fresh = (f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= fs.statSync(P.abs(slug, t.file)).mtimeMs;
       if (!fresh(sheet)) throw new F.FlowStop(`${id}: first look at this take's frame-by-frame sheet (launch.mjs review ${slug} --shot ${id})`);
       if (prevShot && !fresh(joinSheet)) throw new F.FlowStop(`${id}: first look at the join with ${prevShot.id} (launch.mjs review ${slug} --shot ${id} makes ${id}-join.jpg)`);
+      // JOIN STOP: words alone don't approve an unbroken shot; the measured join does. Only the creator's acceptance of
+      // this take passes a failed join.
+      const pt = prevShot?.clips?.[prevShot.clip];
+      if (s.chain === "exact" && s.source === "generate" && pt && !t.accepted?.said) {
+        const j = joinMatch(P.abs(slug, pt.file), P.abs(slug, t.file));
+        if (j && !j.pass) throw new F.FlowStop(`JOIN STOP: ${id} continues ${prevShot.id} in one unbroken shot, and the join measures SSIM ${j.ssim} (min ${j.min}): the cut jumps. Refilm ${id} from ${prevShot.id}'s take (gen.mjs clip ${slug} --shot ${id} --redo) or re-plan it as a real cut`);
+      }
     }
     if (flag("--ok") || flag("--reject")) {
       const answers = flag("--ok") ? { motion: flag("--motion"), join: flag("--join"), logic: flag("--logic"), appear: flag("--appear"), end: flag("--end") } : null;
@@ -518,7 +527,9 @@ async function build(sl, mode) {
     const fit = `fps=${fps},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1`;
     const push = (z = 0.06) => `scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},zoompan=z='1+${z}*on/${Math.max(1, m)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${m}:s=${W}x${H}:fps=${fps},setsar=1`;
     const t = s.clips?.[s.clip ?? (mode === "draft" ? (s.clips || []).length - 1 : -1)];
-    const frameFile = s.frame && fs.existsSync(P.abs(slug, s.frame)) ? P.abs(slug, s.frame) : null;
+    // v6: a view the camera reaches inside a scene has no drawn frame of its own; the animatic holds its scene's keyframe.
+    const keyOf = () => { if (!F.v6(sl)) return null; const seqs = F.sequencesOf(sl); let q = seqs.find((x) => x.shots.includes(ps.id)); while (q?.continues) q = seqs.find((x) => x.id === q.continues); const k = q && P.shot(sl, q.shots[0]); return k?.frame && fs.existsSync(P.abs(slug, k.frame)) ? P.abs(slug, k.frame) : null; };
+    const frameFile = s.frame && fs.existsSync(P.abs(slug, s.frame)) ? P.abs(slug, s.frame) : mode === "animatic" ? keyOf() : null;
     let used = null, input = null, base = null;
     if (ps.source === "generate" && mode !== "animatic") {
       if (!t) throw new F.FlowStop(`${ps.id} has no take`);
@@ -764,8 +775,25 @@ async function build(sl, mode) {
     // brand.logoIn: the logo's entrance, in seconds. It fades in from black while it grows from 90 % to its size.
     const lw = Math.round(W * (style.brand.logoWidth || 0.28)), lin = style.brand.logoIn || 0;
     const t0 = parts.find((p) => p.ps.logo); const at = t0 ? t0.ps.start + (t0.ps.logoAt ?? 0) : 0;
-    const grow = lin ? `scale=w='trunc(${lw}*(0.9+0.1*min(1,max(0,(t-${at.toFixed(3)})/${lin})))/2)*2':h=-2:eval=frame,fade=t=in:st=${at.toFixed(3)}:d=${lin}:alpha=1` : `scale=${lw}:-1`;
-    vchain.push(`[${k}:v]format=rgba,${grow}[logo]`, `${vin}[logo]overlay=x=(W-w)/2:y=H*${(style.brand.logoY || 0.5).toFixed(3)}-h/2:shortest=1:eval=frame:enable='${on}'[vl]`);
+    // launch.logoFx (an edit decision on the shotlist): scrim, a dark layer (0-1) with a vignette from the start of the
+    // logo shot, so the logo reads over a busy picture; anim "glitch", red and cyan copies jitter for `secs` and snap.
+    const fx = sl.launch?.logoFx || {}, Y = `H*${(style.brand.logoY || 0.5).toFixed(3)}-h/2`;
+    if (fx.scrim) {
+      const shotOn = parts.filter((p) => p.ps.logo).map((p) => `between(t,${p.ps.start.toFixed(3)},${(p.ps.start + p.ps.duration).toFixed(3)})`).join("+");
+      const s = add(`color=black:s=${W}x${H}:r=${fps}`, ["-f", "lavfi"]), st = t0 ? t0.ps.start + 0.15 : 0;
+      vchain.push(`[${s}:v]format=rgba,colorchannelmixer=aa=${fx.scrim},fade=t=in:st=${st.toFixed(3)}:d=0.5:alpha=1[scrim]`, `${vin}vignette=angle=PI/3.2:enable='${shotOn}'[vg]`, `[vg][scrim]overlay=0:0:shortest=1:enable='${shotOn}'[vs]`);
+      vin = "[vs]";
+    }
+    if (fx.anim === "glitch") {
+      const g = `between(t,${at.toFixed(3)},${(at + (fx.secs || 0.45)).toFixed(3)})`, j = Math.round(W / 71);
+      vchain.push(`[${k}:v]format=rgba,scale=${lw}:-2,split=3[logo][gr][gc]`, "[gr]colorchannelmixer=rr=1:gg=0:bb=0:aa=0.8[lr]", "[gc]colorchannelmixer=rr=0:gg=1:bb=1:aa=0.8[lc]",
+        `${vin}[lr]overlay=x='(W-w)/2+${j}*sin(t*97)':y='${Y}+4*sin(t*61)':shortest=1:eval=frame:enable='${g}'[g1]`,
+        `[g1][lc]overlay=x='(W-w)/2-${j}*sin(t*83)':y='${Y}-4*sin(t*71)':shortest=1:eval=frame:enable='${g}'[g2]`,
+        `[g2][logo]overlay=x=(W-w)/2:y=${Y}:shortest=1:enable='(${on})*(1-(${g})+lt(mod(t*16,2),1))'[vl]`);
+    } else {
+      const grow = lin ? `scale=w='trunc(${lw}*(0.9+0.1*min(1,max(0,(t-${at.toFixed(3)})/${lin})))/2)*2':h=-2:eval=frame,fade=t=in:st=${at.toFixed(3)}:d=${lin}:alpha=1` : `scale=${lw}:-1`;
+      vchain.push(`[${k}:v]format=rgba,${grow}[logo]`, `${vin}[logo]overlay=x=(W-w)/2:y=${Y}:shortest=1:eval=frame:enable='${on}'[vl]`);
+    }
     vin = "[vl]";
   }
   vchain.push(`${vin}subtitles=out/_launch/text.ass${fontsdir},format=yuv420p[v]`);

@@ -25,7 +25,8 @@ const kind = F.kindOf(sl);
 const finalPath = F.finalFile(sl);
 // Final mode only while the delivered cut still is the current plan: a project reopened after delivery builds a gate
 // book again, or its approval would lock the old estimate.
-const final = !!sl.finalQc5?.pass && sl.finalQc5.sha === F.fileSha(finalPath) && F.stepStatus(sl, "edit").ok && F.stepStatus(sl, "book").ok; // a reopened book is a gate book again
+// A QC the creator overrode counts as passed: a failed QC read as "not final" rewrote the estimate and reopened the book.
+const final = !!(sl.finalQc5?.pass || F.stepStatus(sl, "qc").override) && sl.finalQc5?.sha === F.fileSha(finalPath) && F.stepStatus(sl, "edit").ok && F.stepStatus(sl, "book").ok; // a reopened book is a gate book again
 try { F.requireStep(sl, final ? "deliver" : "book", final ? "book (final)" : "book"); }
 catch (e) { if (e instanceof F.FlowStop) { console.error(`ALTO: ${e.message}`); process.exit(2); } throw e; }
 const out = path.join(dir, "book");
@@ -143,7 +144,9 @@ if (animatic && fs.statSync(path.join(out, animatic)).size > 14e6) execFileSync(
 // Only what is still to film is estimated: a scene or shot with a chosen take costs nothing more. (a
 // reopened book re-estimated six filmed scenes and the budget lock jumped from $8.80 to $15.86.)
 const filmed = (x) => x.clip != null && !!x.clips?.[x.clip];
-let promptsHtml = "", est = 0, estRows = "";
+// reserve: one reroll per scene or filmed shot (the most the rules allow), inside the total the creator approves, so a
+// failed take is filmed again without stopping to ask; past it, BUDGET STOP as always.
+let promptsHtml = "", est = 0, estRows = "", reserve = 0;
 if (kind === "scenes") {
   // Every image a scene sends to the video model is shown next to its prompt (opening frame, each character's face
   // and full-body views, the set plate), so wardrobe and look are checked on the images, not on the text.
@@ -157,19 +160,20 @@ if (kind === "scenes") {
     const imgs = [refThumb(abs(first), `ref-${sc.id}-open.jpg`, "Image 1 · opening frame"), ...refs.map((r, i) => refThumb(r.file, `ref-${r.id}-${path.basename(r.file, path.extname(r.file))}.jpg`, `Image ${i + 2} · ${r.name}`))].join("");
     return `<details><summary>Scene ${esc(sc.id)} · ${P.sceneSecs(P.sceneShots(sl, sc))} s · ${refs.length + 1} images</summary><div class="media">${imgs}</div><pre>${esc(P.scenePrompt(sl, sc, refs, { voiceRefs: voices }))}</pre></details>`;
   }).join("");
-  estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : sl.filmBy === "shot" ? P.sceneShots(sl, sc).reduce((n, s) => n + vm.cost({ res: pick.res, duration: P.shotGenSecs(s, pick.video), sound: true }), 0) : vm.cost({ res: pick.res, duration: secs }); est += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  estRows = (sl.scenes || []).map((sc) => { const secs = P.sceneSecs(P.sceneShots(sl, sc)); const cr = filmed(sc) ? 0 : sl.filmBy === "shot" ? P.sceneShots(sl, sc).reduce((n, s) => n + vm.cost({ res: pick.res, duration: P.shotGenSecs(s, pick.video), sound: true }), 0) : vm.cost({ res: pick.res, duration: secs }); est += cr; reserve += cr; return `<tr><td>Scene ${esc(sc.id)}${filmed(sc) ? " (filmed)" : ""}</td><td class="num">${secs} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
 }
 if (kind === "clips") {
   // Launch films: stills and cards cost no video (the editor moves or draws them); generated takes are silent.
   const launch = sl.format === "launch";
   promptsHtml = (sl.shots || []).filter((s) => s.source !== "card").map((s) => `<details><summary>Shot ${esc(s.id)} · ${F.films(s) ? `${esc(getModel(s.model || pick.video).label)} · ${s.duration} s` : "still, moved by the editor"}</summary>${s.framePrompt ? `<pre>First frame (GPT Image 2.5):\n${esc(s.framePrompt)}</pre>` : ""}${F.films(s) ? `<pre>${launch ? "Animation:\n" : ""}${esc(P.clipPrompt(sl, s))}</pre>` : ""}</details>`).join("");
-  estRows = (sl.shots || []).filter(F.films).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration, ...(launch ? { sound: false } : {}) }); est += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
+  estRows = (sl.shots || []).filter(F.films).map((s) => { const m = getModel(s.model || pick.video); const cr = filmed(s) ? 0 : m.cost({ res: s.res || pick.res, duration: s.duration, ...(launch ? { sound: false } : {}) }); est += cr; reserve += cr; return `<tr><td>Shot ${esc(s.id)}${filmed(s) ? " (filmed)" : ""}</td><td class="num">${s.duration} s</td><td class="num">${usd(cr)}</td></tr>`; }).join("");
   // Frames still to draw (a changed end state drops its last frame) are part of the locked budget too.
   if (launch) { const todo = (sl.shots || []).filter((s) => F.films(s) && !filmed(s)).reduce((n, s) => n + (s.frame ? 0 : 1) + (s.lastPrompt && !s.last ? 1 : 0), 0); if (todo) { const cr = todo * getModel("gpt2.5").cost({ size: "1K" }) * 1.15; est += cr; estRows += `<tr><td>Frames still to draw (GPT Image 2.5, 1K)</td><td class="num">${todo}</td><td class="num">${usd(cr)}</td></tr>`; } }
   if (launch) { const vo = Object.values(sl.launch?.vo || {}); estRows += `<tr><td>Voice-over (ElevenLabs, recorded before the book)</td><td class="num">${vo.reduce((n, v) => n + v.text.length, 0)} chars</td><td class="num">plan</td></tr>`; }
 }
 // The score (gen.mjs music, Suno) is part of the locked budget when the project has one and it isn't made yet.
 if (kind !== "longform" && sl.music?.prompt && !sl.music.files?.length) { const cr = getModel("suno").cost({}); est += cr; estRows += `<tr><td>Score (Suno)</td><td></td><td class="num">${usd(cr)}</td></tr>`; }
+if (reserve > 0 && !final) { est += reserve; estRows += `<tr><td>Reserve: one reroll per ${kind === "scenes" ? "scene" : "shot"}, spent only when a take fails its evals</td><td></td><td class="num">${usd(reserve)}</td></tr>`; }
 if (kind === "longform") {
   const L = sl.longform || {};
   promptsHtml = `<details open><summary>Music · Suno</summary><pre>${esc(L.music?.prompt || "—")}</pre></details>` + (L.scenes || []).map((sc) => `<details><summary>Scene ${esc(sc.id)} · ${sc.motion === "kenburns" ? "still + slow pan" : `${sc.seconds || 8} s loop`}</summary><pre>${esc(`${sc.picture}. ${L.look || ""}\n\nMotion: ${sc.motion}`)}</pre></details>`).join("");
@@ -198,6 +202,17 @@ const evals = [
   ...(kind !== "longform" ? ["Final: identity across every cut, transcript against the script, -14 LUFS, 720p H.264"] : []),
   "Delivery receipt: the file sent is the file that passed",
 ];
+
+// ---- What the creator decides here: the motion tests side by side, the new models, frames flagged after two
+// attempts. Approving the book is the creator's call on all of it (no separate stop for each).
+const tests = (sl.shots || []).flatMap((s) => (s.clips || []).filter((c) => c.test && c.file).map((c) => ({ s, c })));
+const notes = final ? [] : F.bookNotes(sl);
+const testHtml = tests.map(({ s, c }, i) => {
+  const v = copy(abs(c.file), `test-${i + 1}.mp4`);
+  return v ? `<figure><video src="${v}" controls playsinline preload="metadata"></video><figcaption>Motion test · shot ${esc(s.id)} · ${esc(getModel(c.model).label)}${c.model === sl.defaults?.videoModel ? " · <b>picked</b>" : ""}</figcaption></figure>` : "";
+}).join("");
+const decisionsHtml = final || (!tests.length && !notes.length) ? "" : `<section><div class="slate"><span class="no">00</span><h2>Your decisions</h2><span class="muted">approving this book answers them</span></div>
+${testHtml ? `<div class="media">${testHtml}</div>` : ""}${notes.length ? `<div class="note"><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul></div>` : ""}</section>`;
 
 // ---- Approvals and overrides, in the creator's words
 const flowLog = (sl.flow?.log || []).filter((l) => l.said).map((l) => `<tr><td class="num">${esc(l.at.slice(0, 16).replace("T", " "))}</td><td>${esc(l.event)}</td><td><q>${esc(l.said)}</q>${l.reason ? ` · ${esc(l.reason)}` : ""}</td></tr>`).join("");
@@ -288,6 +303,8 @@ footer { font-size:.85rem; color:var(--muted); }
 
 ${strategyHtml}
 
+${decisionsHtml}
+
 <section><div class="slate"><span class="no">01</span><h2>Script</h2></div><div class="script">${scriptHtml}</div></section>
 
 ${kind === "scenes" ? `<section><div class="slate"><span class="no">02</span><h2>Direction</h2><span class="muted">pacing checked against the vertical DNA, blocking and light per scene</span></div>${pacingHtml}${continuityHtml}<div class="cols">${sceneNotes}</div></section>` : ""}
@@ -306,7 +323,7 @@ ${radio || animatic ? `<section><div class="slate"><span class="no">06</span><h2
 
 <section><div class="slate"><span class="no">08</span><h2>Cost and checks</h2><span class="muted">${final ? "estimate before filming" : "what approving this book locks as the budget"}</span></div>
 <div class="shots"><table class="narrow"><thead><tr><th>Item</th><th class="num">Length</th><th class="num">Cost</th></tr></thead><tbody>${estRows}<tr><td>Already spent</td><td></td><td class="num">${usd(spent)}</td></tr></tbody>
-<tfoot><tr><td>${final ? "Total (real)" : "Total (no rerolls)"}</td><td></td><td class="num">${usd(spent + (final ? 0 : est))}</td></tr></tfoot></table></div>
+<tfoot><tr><td>${final ? "Total (real)" : reserve ? "Total with the reserve" : "Total (no rerolls)"}</td><td></td><td class="num">${usd(spent + (final ? 0 : est))}</td></tr></tfoot></table></div>
 ${cameraHtml}${pricesHtml}<div class="note"><h3>Evals that run on this video</h3><ul>${evals.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></section>
 
 <section><div class="slate"><span class="no">09</span><h2>Approvals</h2><span class="muted">in the creator's words</span></div>
@@ -316,7 +333,7 @@ ${finalHtml}
 <footer>AI Video Factory · flow v5 · ${new Date().toISOString().slice(0, 10)}</footer>
 </div>`;
 fs.writeFileSync(path.join(out, "index.html"), html);
-if (!final && kind !== "longform") P.updateShotlist(slug, (x) => { x.bookEstimate = Math.ceil(est); });
+if (!final && kind !== "longform") P.updateShotlist(slug, (x) => { x.bookEstimate = Math.ceil(est); x.bookReserve = Math.ceil(reserve); });
 fs.writeFileSync(path.join(out, "files.json"), JSON.stringify(files, null, 2));
 console.log(path.join(out, "index.html"));
 console.log(`${Object.keys(files).length} files · ${final ? "final" : "gate 2"} · estimate ${usd(est)}`);

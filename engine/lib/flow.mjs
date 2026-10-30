@@ -18,6 +18,8 @@ import * as MS from "./modelsheet.mjs";
 import * as RF from "./refs.mjs";
 import * as PR from "./pricing.mjs";
 import * as CAM from "./camera.mjs";
+import * as D from "./direction.mjs";
+import { MODELS } from "./models.mjs";
 
 // What each format films and how. "scenes": multi-shot generations from storyboard grids (sitcom pipeline).
 // "clips": one first/last-frame generation per shot (influencer, UGC, cinematic...). "longform": loops + narration.
@@ -58,6 +60,14 @@ export const finalFile = (sl) => path.join(dir(sl), "out", `${sl.slug}.mp4`);
 export const films = (s) => !s.source || s.source === "generate";
 const launchFile = (sl, k) => { const f = path.join(dir(sl), "launch", L.FILES[k]); return fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null; };
 const launchJSON = (sl, k) => { const t = launchFile(sl, k); try { return t ? JSON.parse(t) : null; } catch { return null; } };
+// ENGINE V6 (docs/engine-v6.md): projects made from here on film by sequences. Their storyboard draws one opening
+// keyframe per sequence (no last frames); the camera reaches the other views inside the take.
+export const v6 = (sl) => !!sl.sequenceMode || (sl.flow?.created || "") >= "2026-10-28T19:00";
+export function sequencesOf(sl) {
+  const ds = sl.format === "launch" ? D.directionShots(sl, launchJSON(sl, "plan"), launchJSON(sl, "style")?.environments || []) : D.directionShots(sl);
+  const m = MODELS[sl.defaults?.videoModel];
+  return D.planSequences(ds, { maxSecs: m?.maxSecs || 10, mode: sl.sequenceMode || D.DEFAULT_MODE, multiShot: !!m?.multiShot });
+}
 
 export function castIds(sl) {
   // A launch film's shots are generated from the plan (launch.mjs apply), so the cast is the project's list (the style
@@ -66,6 +76,23 @@ export function castIds(sl) {
   const ids = [...(sl.cast || []), ...(sl.shots || []).flatMap((s) => s.characters || [])];
   return [...new Set(ids)];
 }
+
+// A launch film's script is what the creator reads and hears: the concept, the length and per shot its beat, voice-over,
+// on-screen text, logo and duration. Frame prompts, acting notes, camera and chaining are the engine's craft: redrawing a
+// frame or rewording a prompt must not ask the creator to approve the same words again.
+export const launchScriptFP = (sl) => {
+  const p = launchJSON(sl, "plan");
+  if (!p) return null;
+  return { concept: p.conceptId ?? null, secs: p.durationSeconds ?? null, shots: (p.shots || []).map((s) => [s.id, s.source || null, s.role || null, s.beat || null, s.vo || null, (s.text || []).map((t) => [t.text, t.kind]), !!s.logo, Math.round((s.duration || 0) * 10) / 10]) };
+};
+// A launch film's look is the style bible as the creator approved it; anchors and set maps the engine adds while
+// drawing don't change it.
+export const launchLookFP = (sl) => {
+  const st = launchJSON(sl, "style");
+  if (!st) return null;
+  const { environments, continuity, ...look } = st;
+  return { ...look, environments: (environments || []).map((e) => ({ id: e.id, description: e.description ?? e.desc ?? null })) };
+};
 
 // Fingerprints: what an approval covers. Keys written by filming and evals are left out, so filming
 // does not reopen the plan; changing the script, the shots or the prompts does.
@@ -78,11 +105,41 @@ export const FINGERPRINT = {
   // A launch film's concept is its brief and concepts too; its script is the whole timecoded plan (voice-over and
   // on-screen text are the script); its cast includes the style bible and the narrator's voice.
   concept: (sl) => sha([fs.existsSync(path.join(dir(sl), "concept.md")) ? fs.readFileSync(path.join(dir(sl), "concept.md"), "utf8") : null, ...(sl.format === "launch" ? [launchFile(sl, "brief"), launchFile(sl, "concepts")] : [])]),
-  script: (sl) => sha(sl.format === "launch" ? launchFile(sl, "plan") : kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
-  cast: (sl) => sha([castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null]), ...(sl.format === "launch" ? [launchFile(sl, "style"), sl.launch?.voice ?? null] : [])]),
-  book: (sl) => sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res, ...(sl.angles ? { angles: sl.angles } : {}), ...(sl.format === "launch" ? { plan: launchFile(sl, "plan"), style: launchFile(sl, "style") } : {}) }),
+  script: (sl) => sha(sl.format === "launch" ? launchScriptFP(sl) : kindOf(sl) === "longform" ? sl.longform?.script : (sl.shots || []).map((s) => (s.dialogue || []).map((l) => [l.char, l.text]))),
+  cast: (sl) => sha([castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null]), ...(sl.format === "launch" ? [launchLookFP(sl), sl.launch?.voice?.eleven ?? null] : [])]),
+  // The book covers what the creator approves and pays for: the shots and their lengths, the script, the look, the
+  // model and the total. Prompt wording, frame redraws inside the reserve, evals and takes don't reopen it.
+  book: (sl) => sha(sl.format === "launch" ? { shots: (sl.shots || []).map((s) => [s.id, s.source || null, s.duration]), script: launchScriptFP(sl), look: launchLookFP(sl), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res } : { shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res, ...(sl.angles ? { angles: sl.angles } : {}) }),
   retro: () => "retro",
 };
+// Launch approvals recorded before the fingerprints above covered only the creator's choices: still valid while the
+// files are unchanged, so a production in progress keeps its approvals.
+const LEGACY = {
+  script: (sl) => sl.format === "launch" && sha(launchFile(sl, "plan")),
+  cast: (sl) => sl.format === "launch" && sha([castIds(sl).map((id) => [id, P.character(id).look, P.character(id).voice?.eleven ?? null]), launchFile(sl, "style"), sl.launch?.voice ?? null]),
+  book: (sl) => sl.format === "launch" && sha({ shots: strip(sl.shots), scenes: strip(sl.scenes), longform: strip(sl.longform), estimate: sl.bookEstimate, model: sl.defaults?.videoModel, res: sl.defaults?.res, ...(sl.angles ? { angles: sl.angles } : {}), plan: launchFile(sl, "plan"), style: launchFile(sl, "style") }),
+};
+const fpMatches = (id, fp, sl) => !FINGERPRINT[id] || fp === FINGERPRINT[id](sl) || (!!LEGACY[id] && fp === LEGACY[id](sl));
+// An approval that still matches its old fingerprint is restamped with the current one, so a later edit outside what
+// the creator approved (music timing, prompts, frames) doesn't reopen it. Mutates sl; returns the restamped ids.
+export function upgradeApprovals(sl) {
+  const done = [];
+  for (const [id, a] of Object.entries(sl.flow?.approved || {})) {
+    if (!a?.fp || !LEGACY[id] || !FINGERPRINT[id]) continue;
+    try {
+      const now = FINGERPRINT[id](sl);
+      if (a.fp !== now && a.fp === LEGACY[id](sl)) { a.legacyFp = a.fp; a.fp = now; done.push(id); }
+    } catch { /* a cast member missing from the bible: leave it for approvedNow to report */ }
+  }
+  // Plan records made when the plan hash was the whole file: restamp them to the creator's part of the plan.
+  if (sl.format === "launch") {
+    const file = planFileSha(sl), mine = planSha(sl);
+    if (sl.launch?.animaticApproved?.plan === file && file !== mine) { sl.launch.animaticApproved.plan = mine; done.push("animatic"); }
+    if (sl.bookPlan === file && file !== mine) { sl.bookPlan = mine; done.push("bookPlan"); }
+    if (sl.replanApproved?.plan === file && file !== mine) { sl.replanApproved.plan = mine; done.push("replan"); }
+  }
+  return done;
+}
 
 // ---- checks for each step: { ok, detail }
 const ok = (detail = "") => ({ ok: true, detail });
@@ -278,17 +335,22 @@ function boardCheck(sl) {
   } else if (k === "clips") {
     if (!(sl.shots || []).length) bad.push("no shots");
     if (sl.format === "launch") bad.push(...launchBoard(sl));
+    // Film grammar for every other clips vertical (new projects): sizes, cuts that change the view, shot length band.
+    else if ((sl.flow?.created || "") >= "2026-10-28") { const [minShot, maxShot] = D.SHOT_BANDS[sl.format] || D.SHOT_BANDS.other; const ds = D.directionShots(sl); bad.push(...ds.filter((x) => x.source === "generate" && !x.place).map((x) => `${x.id}: name the place it happens (shot.place), so cuts in one place can be checked`), ...D.grammar(ds, { minShot, maxShot })); }
+    // v6: only the shot that opens a sequence on a drawn keyframe needs frames; the others are reached by the camera.
+    const keys = v6(sl) ? D.keyShots(sequencesOf(sl)) : null;
     for (const s of sl.shots || []) {
       if (s.source === "card") continue;
+      if (keys && !keys.has(s.id)) { if (films(s) && !s.prompt?.trim()) bad.push(`${s.id}: no prompt`); continue; }
       const from = /^@(\w+):last$/.exec(s.frame || "");
       if (from) { const k = sl.shots.findIndex((x) => x.id === from[1]); if (k < 0 || k >= sl.shots.indexOf(s)) bad.push(`${s.id}: opens on ${from[1]}, which is not an earlier shot`); }
       else if (!exists(sl, s.frame)) bad.push(`${s.id}: no first frame`);
       if (s.last && !exists(sl, s.last)) bad.push(`${s.id}: the last frame ${s.last} is missing`);
-      if (s.lastPrompt && !s.last) bad.push(`${s.id}: no choreographed last frame (gen.mjs frame ${sl.slug} ${s.id} last --planned)`);
+      if (s.lastPrompt && !s.last && !keys) bad.push(`${s.id}: no choreographed last frame (gen.mjs frame ${sl.slug} ${s.id} last --planned)`);
       // A chained shot opens on the previous shot's own last frame (a copy), or the cut jumps; a last frame drawn from
       // another opening is stale.
       const prevShot = sl.shots[sl.shots.indexOf(s) - 1];
-      if (sl.format === "launch" && s.chain === "exact" && prevShot && !!prevShot.inserts?.length === !!s.inserts?.length) {
+      if (!keys && sl.format === "launch" && s.chain === "exact" && prevShot && !!prevShot.inserts?.length === !!s.inserts?.length) {
         const src = prevShot.last || (!prevShot.lastPrompt ? prevShot.frame : null);
         if (!src || s.frameSrc !== src) bad.push(`${s.id}: chain "exact" but its first frame is not ${prevShot.id}'s last frame (gen.mjs frame ${sl.slug} ${s.id} first --planned copies it)`);
       }
@@ -300,7 +362,7 @@ function boardCheck(sl) {
         if (w === "first" && s.chain === "exact" && s.frameSrc) continue; // a copy of a judged last frame
         const ev = s[`${w}Eval`];
         if (!ev || ev.file !== f) bad.push(`${s.id}: the ${w} frame was not judged (gen.mjs frame-eval ${sl.slug} ${s.id} ${w})`);
-        else if (!ev.pass && !ev.accepted) bad.push(`${s.id}: the ${w} frame failed its eval: ${ev.fails.join("; ")}`);
+        else if (!ev.pass && !ev.accepted && !ev.flagged) bad.push(`${s.id}: the ${w} frame failed its eval: ${ev.fails.join("; ")}`);
       }
       if (!films(s)) continue;
       if (!s.prompt?.trim()) bad.push(`${s.id}: no prompt`);
@@ -324,7 +386,9 @@ function boardCheck(sl) {
 // voice-over line was recorded and fits its shot, and the animatic was built from the current frames and voice.
 function launchBoard(sl) {
   const plan = launchJSON(sl, "plan");
-  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
+  // A delivered film keeps its board: a craft rule added after delivery is for the next film, not a reason to reopen this one.
+  const delivered = plan && deliverCheck(sl).ok;
+  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) }).filter((x) => !delivered || !CRAFT.test(x));
   if (!plan) return bad;
   if (sl.launch?.applied !== sha(launchFile(sl, "plan"))) bad.push("the shotlist is not the current plan (launch.mjs apply)");
   // Every setting drawn in two or more shots has an anchor frame (a checked frame that follows its map), sent first to
@@ -360,14 +424,18 @@ function launchBoard(sl) {
   const an = sl.launch?.animatic;
   if (!an || !fs.existsSync(path.join(dir(sl), "out", "animatic.mp4")) || an.sig !== launchSig(sl)) bad.push("no animatic of the current plan (launch.mjs animatic)");
   // The creator watched the storyboard animatic of this exact plan before any frame was paid for.
-  if (sl.launch?.animaticApproved?.plan !== planSha(sl)) bad.push("the creator hasn't approved this plan's animatic (launch.mjs animatic <slug> --approve --said \"...\")");
-  // ...and again once every frame is drawn: The creator sees every frame before prices and the book.
-  else if ((sl.shots || []).every((s) => s.frame) && sl.launch?.animaticApproved?.sig !== launchSig(sl)) bad.push("the creator hasn't seen the animatic with the drawn frames (launch.mjs animatic <slug> --approve --said \"...\")");
+  // The creator approves the plan's animatic once, before any frame is paid for. The animatic with every drawn frame
+  // goes into the Production Book, where the creator sees it before approving the spend.
+  if (!samePlan(sl.launch?.animaticApproved?.plan, sl)) bad.push("the creator hasn't approved this plan's animatic (launch.mjs animatic <slug> --approve --said \"...\")");
   return bad;
 }
 // What the animatic shows: the plan, the frames and the recorded voice. Changing any of them asks for a new one.
 export const launchSig = (sl) => sha([launchFile(sl, "plan"), launchFile(sl, "style"), (sl.shots || []).map((s) => [s.id, s.frame || null]), sl.launch?.vo || null, sl.launch?.screens || null]);
-export const planSha = (sl) => sha(launchFile(sl, "plan"));
+// planSha: the plan as the creator approved it (script words and lengths); planFileSha: the whole file (the shotlist
+// must be the plan applied). samePlan accepts records made when planSha was the whole file.
+export const planSha = (sl) => sha(launchScriptFP(sl));
+export const planFileSha = (sl) => sha(launchFile(sl, "plan"));
+export const samePlan = (stored, sl) => !!stored && (stored === planSha(sl) || stored === planFileSha(sl));
 
 // FORMAT READINESS: a format whose editor can't finish it (a drama with no score, no stings, no swell) would be
 // filmed anyway and come out as a dry, unusable cut. A format with `editMissing` stops here,
@@ -394,28 +462,34 @@ function modelsCheck(sl) {
 
 function bookCheck(sl) {
   if (!fs.existsSync(path.join(dir(sl), "book", "index.html"))) return no("no Production Book (book.mjs)");
-  // A launch film tests the chosen video model on one shot before the book: The creator picks the model
-  // with the video in front of them, or waives the test in their words.
-  if (sl.format === "launch" && !sl.launch?.motionTestWaived?.said && !(sl.shots || []).some((s) => (s.clips || []).some((c) => c.test && c.model === sl.defaults?.videoModel)))
-    return no(`no motion test on ${sl.defaults?.videoModel || "the chosen model"} (gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", or launch.mjs waive-test <slug> --said "...")`);
-  // People acting and no model with evidence of doing that job well yet: two candidates are compared on it.
-  // Every filmed format compares at least two video models on the same representative shot before the book (the best
-  // fit and the cheapest good alternative), so the pick is seen, not assumed; only the creator's words skip it.
+  if (sl.bookEstimate == null) return no("the book has no cost estimate");
+  const notes = bookNotes(sl);
+  return ok(`estimado ${sl.bookEstimate} cr${notes.length ? ` · in the book for the creator: ${notes.join("; ")}` : ""}`);
+}
+// What the creator decides inside the Production Book instead of at separate stops: the motion tests of the candidate
+// models (the autopilot films them on one shot within the test allowance), and the models the providers sell that the
+// engine doesn't run yet. The book shows them; the creator's approval of the book is their call on all of it.
+export function bookNotes(sl) {
+  const out = [];
   const tested = Object.keys(PR.testedModels(sl));
   const films = kindOf(sl) !== "longform" || (sl.longform?.scenes || []).some((s) => s.motion !== "kenburns");
   const waived = sl.launch?.motionTestWaived?.said || sl.modelCompareWaived?.said;
-  if (films && !waived && tested.length < 2)
-    return no(`compare at least two video models on one shot before the book (tested: ${tested.join(", ") || "none"}; gen.mjs clip <slug> --shot <id> --test --model <k> --said "...", or studio.mjs waive-compare <slug> --said "...")`);
-  // Models the providers sell that the engine doesn't run yet are put to the creator before every book.
-  if (sl.priceCheck?.newOnKie?.length && sl.newModelsReviewed?.at !== sl.priceCheck.at)
-    return no(`show the creator the new models on Kie (${sl.priceCheck.newOnKie.slice(0, 6).join(", ")}${sl.priceCheck.newOnKie.length > 6 ? "..." : ""}) and record their call (studio.mjs new-models <slug> --said "...")`);
-  if (sl.bookEstimate == null) return no("the book has no cost estimate");
-  return ok(`estimado ${sl.bookEstimate} cr`);
+  if (films && !waived && !tested.includes(sl.defaults?.videoModel)) out.push(`no motion test on ${sl.defaults?.videoModel || "the chosen model"}`);
+  else if (films && !waived && tested.length < 2) out.push(`one model tested (${tested.join(", ")}); no second model to compare`);
+  if (sl.priceCheck?.newOnKie?.length && sl.newModelsReviewed?.at !== sl.priceCheck.at) out.push(`new models on sale: ${sl.priceCheck.newOnKie.slice(0, 6).join(", ")}${sl.priceCheck.newOnKie.length > 6 ? "..." : ""}`);
+  for (const s of sl.shots || []) for (const w of ["first", "last"]) { const ev = s[`${w}Eval`]; if (ev?.flagged) out.push(`${s.id} ${w} frame flagged after ${ev.attempts || 2} attempts: ${(ev.fails || []).join(", ")}`); }
+  // What each tested model did with the motion and the drawn end (how far it strays from a planned final pose).
+  for (const q of sl.sequences || []) for (const c of (q.clips || []).filter((c) => c.test && c.evals)) out.push(`${c.model} sequence test on ${q.id} (${q.shots.join(", ")}): ${c.evals.pass ? "every planned cut in place, faces and motion pass" : c.evals.issues.join("; ")}`);
+  for (const s of sl.shots || []) for (const c of (s.clips || []).filter((c) => c.test && c.evals)) {
+    const m = c.evals.motion, e = c.evals.end;
+    out.push(`${c.model} motion test on ${s.id}: motion ${m ? `${m.score} (band ${m.min}-${m.max}) ${m.pass ? "pass" : "FAIL"}` : "not measured"}; ends ${e ? `at SSIM ${e.ssim} from the drawn last frame` : "unmeasured"}`);
+  }
+  return out;
 }
 
 // A take of a clips project is usable only when every eval on it passed.
 // motion: measured on launch takes with people; a take that barely moves reads slow and lifeless.
-export const evalsPass = (t) => !!t && t.evals?.identity?.pass === true && t.evals?.jumps?.internal === 0 && t.evals?.dialogue?.pass === true && t.evals?.motion?.pass !== false;
+export const evalsPass = (t) => !!t && t.evals?.identity?.pass === true && t.evals?.jumps?.internal === 0 && t.evals?.dialogue?.pass === true && t.evals?.motion?.pass !== false && t.evals?.end?.pass !== false && t.evals?.text?.pass !== false;
 // A take that failed an eval is usable only when the creator accepted that exact take (studio.mjs accept-take).
 export const takeOk = (t) => evalsPass(t) || !!t?.accepted?.said;
 
@@ -434,6 +508,11 @@ function filmCheck(sl) {
     for (const s of (sl.shots || []).filter(films)) if (!takeOk(s.clips?.[s.clip])) bad.push(`${s.id}: no take passes identity, jumps and dialogue`);
     if (sl.format === "launch") {
       const plan = launchJSON(sl, "plan");
+      // A take that opened on an older take of the previous shot no longer continues it: the cut would jump.
+      for (const [i, s] of (sl.shots || []).entries()) {
+        const t = s.clips?.[s.clip], pt = sl.shots[i - 1]?.clips?.[sl.shots[i - 1].clip];
+        if (t?.openedOn && pt && t.openedOn !== pt.file) bad.push(`${s.id}: its take opens on ${t.openedOn}, but ${sl.shots[i - 1].id} now uses ${pt.file}; refilm ${s.id} from the chosen take`);
+      }
       if (launchJSON(sl, "concepts")?.config?.music && !(sl.music?.files || []).length) bad.push("no music (gen.mjs music)");
       for (const n of Object.keys(plan?.sfx || {})) if (!fs.existsSync(path.join(dir(sl), "audio", `sfx-${n}.mp3`))) bad.push(`the ${n} effect is missing (gen.mjs sfx)`);
     }
@@ -473,7 +552,9 @@ function deliverCheck(sl) {
 const approvedNow = (sl, id) => {
   const a = sl.flow?.approved?.[id];
   if (!a) return no("waiting for the creator's approval");
-  if (FINGERPRINT[id] && a.fp !== FINGERPRINT[id](sl)) return no("changed after it was approved; it needs a new approval");
+  let same;
+  try { same = fpMatches(id, a.fp, sl); } catch (e) { return no(e.message); } // a cast member not in the bible: not ready, not a crash
+  if (!same) return no("changed after it was approved; it needs a new approval");
   return ok(`approved: "${a.said}"`);
 };
 const both = (...rs) => rs.find((r) => !r.ok) || ok(rs.map((r) => r.detail).filter(Boolean).join(" · "));
@@ -483,9 +564,13 @@ function launchConcept(sl) {
   const bad = [...L.briefRules(launchJSON(sl, "brief")), ...L.conceptRules(c, launchJSON(sl, "brief"))];
   return bad.length ? no(bad.join("; ")) : ok(`concept ${c.selected} of ${c.concepts.length}`);
 }
+// Plan rules about the engine's craft (frame prompts, set maps, chaining, acting notes, physics in the animation): they
+// don't change a word the creator reads, so they hold the storyboard step (board), where they are fixed before any
+// frame is paid for, and never the creator's script approval.
+export const CRAFT = /frame prompt|a jump cut|shot size|at the same size|names no shot size|set map|has no sheet|acting direction|chain it|chain "exact"|choreographed end|no image prompt|no animation direction|what stays still|lets the model invent|falls|rolls|the prompt asks|camera must stay fixed|solid bright green|the asset "|which style bible setting|one hand per shot|more than three actions|next to a pile|animation doesn't say|\bmap: |anchor frame|setting image|no look in the set map|no previous shot to chain|brightness|how it follows|same-place|the thread |time of day|regla de continuidad|green at its first frame|opens on an extreme wide/;
 function launchScript(sl) {
   const plan = launchJSON(sl, "plan");
-  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) });
+  const bad = L.planRules(plan, { brief: launchJSON(sl, "brief"), concepts: launchJSON(sl, "concepts"), style: launchJSON(sl, "style"), reference: launchJSON(sl, "reference") || RF.asReference(sl.refsChoice?.ids || []) }).filter((x) => !CRAFT.test(x));
   return bad.length ? no(bad.join("; ")) : ok(`${plan.shots.length} shots · ${plan.durationSeconds} s`);
 }
 
@@ -554,7 +639,7 @@ export function recipe(sl) {
 
 export function stepStatus(sl, id) {
   const S = STEPS[id];
-  const ov = sl.flow?.overrides?.find((o) => o.step === id && o.fp === (FINGERPRINT[id] ? FINGERPRINT[id](sl) : o.fp));
+  const ov = sl.flow?.overrides?.find((o) => o.step === id && (o.fp === "manual" || fpMatches(id, o.fp, sl)));
   if (ov) return { ok: true, detail: `OVERRIDE: "${ov.said}" (${ov.reason})`, override: true };
   // A check that throws (a cast member not in the bible yet, a missing file) is a step that isn't ready, not a crash.
   let c;
@@ -594,9 +679,12 @@ export function requireStep(sl, step, what = step) {
 // words (studio.mjs approve-pilot) before anything else is filmed. A bad pilot costs one scene, not the episode.
 // Clips formats: the first shot that is filmed (a launch film can open on a still or a card, which never is).
 export const pilotId = (sl) => (kindOf(sl) === "scenes" ? sl.scenes?.[0]?.id : kindOf(sl) === "clips" ? (sl.shots || []).find(films)?.id : null);
+// A Production Book approved with a motion test of the chosen model on screen: the creator watched that model film
+// this video's hardest shot before approving the spend, so that test is the pilot.
+export const bookTested = (sl) => !!sl.flow?.approved?.book && [...(sl.shots || []), ...(sl.sequences || [])].some((s) => (s.clips || []).some((c) => c.test && c.model === sl.defaults?.videoModel && (c.at || "") < sl.flow.approved.book.at));
 export function requirePilot(sl, ids) {
   // The pilot is approved for one video model: switching models (Wan to Kling) re-arms the gate.
-  const ok = sl.flow?.approved?.pilot && (sl.flow.approved.pilot.model ?? null) === (sl.defaults?.videoModel ?? null);
+  const ok = (sl.flow?.approved?.pilot && (sl.flow.approved.pilot.model ?? null) === (sl.defaults?.videoModel ?? null)) || bookTested(sl);
   if (kindOf(sl) === "longform" || ok) return;
   const p = pilotId(sl), rest = ids.filter((i) => i !== p);
   if (rest.length) throw new FlowStop(`PILOT STOP: film the pilot first (${p}), show it to the creator and record their yes: studio.mjs approve-pilot ${sl.slug} --said "..." . Only then ${rest.join(", ")}.`);
@@ -636,6 +724,10 @@ export function approve(slug, id, said, extra = {}) {
       sl.budget = { approvedCredits: next, approvedAt: new Date().toISOString(), history: [...(sl.budget?.history || []), { add: next - prev, note: `Production Book approved: "${said.trim()}"` }] };
       // The plan this book priced: a later plan change stops paid jobs until the creator approves the new estimate.
       if (sl.format === "launch") sl.bookPlan = planSha(sl);
+      // The book showed the new models and the tests: its approval is the creator's call on them.
+      if (sl.priceCheck?.newOnKie?.length) sl.newModelsReviewed = { at: sl.priceCheck.at, said: said.trim(), in: "book" };
+      const notes = bookNotes(sl);
+      if (notes.length) sl.flow.approved.book.notes = notes;
     }
   });
 }

@@ -3,15 +3,17 @@
 // fixed regressions stay fixed. No network, no spend.
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawnSync, spawn } from "node:child_process";
 import { ROOT } from "../engine/lib/env.mjs";
 import { isNoise } from "../engine/lib/noise.mjs";
 
 let failed = 0;
 const t = (name, cond) => { console.log(`${cond ? "  ok  " : "  FAIL"} ${name}`); if (!cond) failed++; };
+// Media folders of projects and series hold renders, not code or JSON: skipping them keeps the check fast.
+const MEDIA_DIRS = new Set(["clips", "frames", "audio", "out", "book", "episodes", "renders", "vo"]);
 const walk = (d, out = []) => {
   for (const f of fs.readdirSync(d)) {
-    if (["node_modules", ".git", ".cache"].includes(f)) continue;
+    if (["node_modules", ".git", ".cache"].includes(f) || MEDIA_DIRS.has(f)) continue;
     const x = path.join(d, f);
     fs.statSync(x).isDirectory() ? walk(x, out) : out.push(x);
   }
@@ -19,8 +21,12 @@ const walk = (d, out = []) => {
 };
 
 const files = walk(ROOT);
-for (const f of files.filter((x) => x.endsWith(".mjs"))) {
-  t(`parses ${path.relative(ROOT, f)}`, spawnSync(process.execPath, ["--check", f]).status === 0);
+// Every module parses: node --check, 8 at a time.
+{
+  const mods = files.filter((x) => x.endsWith(".mjs")), res = new Map(), q = [...mods];
+  const check = (f) => new Promise((r) => spawn(process.execPath, ["--check", f]).on("close", (code) => r(code === 0)));
+  await Promise.all(Array.from({ length: 8 }, async () => { while (q.length) { const f = q.shift(); res.set(f, await check(f)); } }));
+  for (const f of mods) t(`parses ${path.relative(ROOT, f)}`, res.get(f));
 }
 const badJson = files.filter((x) => x.endsWith(".json")).filter((x) => { try { JSON.parse(fs.readFileSync(x, "utf8")); return false; } catch { return true; } });
 t(`all JSON parses (${badJson.map((x) => path.relative(ROOT, x)).join(", ") || "none bad"})`, !badJson.length);
@@ -48,6 +54,7 @@ t(`no secrets in text files (${leaks.map((x) => path.relative(ROOT, x)).join(", 
 
 (await import("./check-flow.mjs")).default(t, ROOT);
 (await import("./check-launch.mjs")).default(t, ROOT);
+(await import("./check-direction.mjs")).default(t, ROOT);
 (await import("./check-refs.mjs")).default(t, ROOT);
 await (await import("./check-providers.mjs")).default(t, ROOT);
 (await import("./check-camera.mjs")).default(t, ROOT);

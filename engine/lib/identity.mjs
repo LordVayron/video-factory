@@ -37,7 +37,7 @@ export function castOf(sl, prompt = "") {
   return named.length ? named : all.length === 1 ? all : [];
 }
 
-function refImage(id) {
+export function refImage(id) {
   const c = P.character(id), d = path.join(P.BIBLE, "characters", id);
   const f = [...(c.refs || []), ...(c.sheets || [])].map((x) => path.join(d, x)).find((x) => fs.existsSync(x));
   return f ? execFileSync("ffmpeg", ["-v", "error", "-i", f, "-vf", "scale='min(1024,iw)':-2", "-q:v", "2", "-f", "image2", "-c:v", "mjpeg", "-"]).toString("base64") : null;
